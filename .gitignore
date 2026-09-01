@@ -1,0 +1,34 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Virtual environment
+.venv/
+venv/
+
+# Build
+build/
+dist/
+
+# IDE
+.vscode/
+.idea/
+
+# Environment variables / secrets
+.env
+.env.*
+*.key
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Generated test / GUI outputs
+results/gui_smoke.png
+
+# Secrets / local configuration
+.env
+.env.*
+*.key
