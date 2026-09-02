@@ -8,9 +8,14 @@
 | 规范基线 | [docs/README.md](docs/README.md) |
 | 当前 Capability | Foundation 0.1.1A Physics and Algorithm Contract（In Progress） |
 
-## Foundation 0.1.1A / A1 验收快照
+## Foundation 0.1.1A / A1 最终验收快照
 
-Deliverable A1（Focus objective）已达到 **Implemented**：
+Deliverable A1（Focus objective）已完成最终人工验收并达到 **Verified**：
+
+- 验收依据：closure commit `87495ec91a490d5cd5331ad9c4a0a2e863c10b40`；
+- Gate 结果：G0–G8 全部 PASS；
+- blocking issues：0；
+- 状态边界：Foundation 0.1.1A、AMF-RIS-008 和 Foundation 0.1.1 仍为 In Progress。
 
 - 新增显式 `RIS-only Phase-Conjugate Focus`，兼容函数 `generate_focus_pattern()` 输出不变；
 - 新增 `Coherent Target Focus`，continuous 使用 nominal baseline 解析相位对齐，finite-bit

@@ -2,7 +2,7 @@
 
 - 层级：L3 Deliverable
 - Requirement IDs：AMF-RIS-008
-- 状态：Implemented
+- 状态：Verified
 - 父项：Foundation 0.1.1A — Physics and Algorithm Contract
 - 依赖：v0.1 Verified、ADR-0001、ADR-0003、ADR-0006
 
@@ -56,6 +56,11 @@ Controller Model 和 SimulationEngine 结果工作，不读取 Ground Truth 私�
 运行记录为 Current 123 candidates / `0.083 s`、Advanced 4609 / `3.571 s`、Future continuous
 / `0.003 s`。完整数值见 [DEVELOPMENT_STATUS.md](../../DEVELOPMENT_STATUS.md) 的 A1 验收
 快照；绝对秒数只作本机参考，不是跨机器硬门禁。
+
+2026-09-02 完成最终人工验收签署：验收依据为 closure commit
+`87495ec91a490d5cd5331ad9c4a0a2e863c10b40`，G0–G8 全部 PASS，blocking issues 为 0。
+该签署只将本 Deliverable 提升为 Verified；Foundation 0.1.1A、AMF-RIS-008 和
+Foundation 0.1.1 仍为 In Progress。
 
 ## 风险与回退
 

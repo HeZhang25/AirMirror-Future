@@ -5,10 +5,10 @@
 | 文档状态 | Operational / Normative for sequencing |
 | 当前实现基线 | v0.1 Verified，commit `edfa43c` |
 | 目标版本 | v0.1.1 Foundation |
-| 当前计划状态 | In Progress；A1 Implemented，A2/A3 与 B/C 尚未完成 |
+| 当前计划状态 | In Progress；A1 Verified，A2/A3 与 B/C 尚未完成 |
 | 父级路线 | v0.1 Smart Space → Foundation 0.1.1 → P1A |
 | 主要责任 | 项目维护者、物理仿真负责人、GUI/测试负责人 |
-| 最后复核 | 2026-09-02（A1 verification closure） |
+| 最后复核 | 2026-09-02（A1 final human acceptance） |
 
 本文是 AirMirror Future 在 v0.1 后的首个模型契约改进计划。它把当前代码事实、已发现的
 物理/算法/交互问题、目标架构、实施顺序、测试证据和退出门禁集中到同一个工作入口，供
@@ -392,7 +392,8 @@ version、parameters 和所有影响系数的场景状态。
 
 #### Deliverable A1：Focus objective ADR
 
-- 状态：**Implemented（2026-09-02）**；Foundation 0.1.1A 仍为 In Progress，A2/A3 未开始；
+- 状态：**Verified（2026-09-02）**；验收依据 commit `87495ec`，G0–G8 PASS，
+  blocking issues 0；Foundation 0.1.1A 仍为 In Progress，A2/A3 未开始；
 
 - Requirement：`AMF-RIS-008`；
 - 输入：当前 Focus、nominal baseline、Controller Model、phase bits；
