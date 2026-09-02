@@ -5,7 +5,7 @@
 | 文档状态 | Operational / Normative for sequencing |
 | 当前实现基线 | v0.1 Verified，commit `edfa43c` |
 | 目标版本 | v0.1.1 Foundation |
-| 当前计划状态 | In Progress；A1 Verified，A2 Implemented，A3 与 B/C 尚未完成 |
+| 当前计划状态 | In Progress；A1/A2 Verified，A3 与 B/C 尚未完成 |
 | 父级路线 | v0.1 Smart Space → Foundation 0.1.1 → P1A |
 | 主要责任 | 项目维护者、物理仿真负责人、GUI/测试负责人 |
 | 最后复核 | 2026-09-02（A1 final human acceptance） |
@@ -370,7 +370,7 @@ version、parameters 和所有影响系数的场景状态。
 
 ## 6. Requirement 映射
 
-本计划对应以下 Planned requirement IDs，权威状态见 [requirements.md](requirements.md)：
+本计划对应以下 requirement IDs，权威状态见 [requirements.md](requirements.md)：
 
 | Requirement | 目标 |
 |---|---|
@@ -383,7 +383,7 @@ version、parameters 和所有影响系数的场景状态。
 | `AMF-UI-008` | Pattern 元数据、相位图例和准确 Ground Truth 标签 |
 | `AMF-EXP-006` | 实验记录 focus/profile/model/search provenance，保留历史可比性 |
 
-这些条目在测试和实现完成前保持 Planned，不得因本文存在而改为 Implemented。
+这些 requirement IDs 的状态必须按各自实现与验收证据更新，不得因本文的汇总表述整体提升。
 
 ## 7. Capability 和 Deliverables
 
@@ -392,7 +392,7 @@ version、parameters 和所有影响系数的场景状态。
 #### Deliverable A1：Focus objective ADR
 
 - 状态：**Verified（2026-09-02）**；验收依据 commit `87495ec`，G0–G8 PASS，
-  blocking issues 0；Foundation 0.1.1A 仍为 In Progress，A2 已 Implemented、A3 未开始；
+  blocking issues 0；Foundation 0.1.1A 仍为 In Progress，A2 已 Verified、A3 未开始；
 
 - Requirement：`AMF-RIS-008`；
 - 输入：当前 Focus、nominal baseline、Controller Model、phase bits；
@@ -410,8 +410,8 @@ version、parameters 和所有影响系数的场景状态。
 
 #### Deliverable A2：RIS aperture patch semantic contract
 
-- 状态：**Implemented（2026-09-02）**；公共 API、FND-T09、完整回归和三代 headless 全绿；
-  在维护者最终复核前不提升为 Verified；
+- 状态：**Verified（2026-09-02）**；验收依据 implementation commit `974885fc5b1864ecd9c303e56400308cbaa316fa`，
+  G0–G8 PASS，blocking issues 0；
 - Requirement：`AMF-RIS-009`；
 - 输入：`width/height/nx/ny/frequency`；
 - 输出：术语、派生 pitch/波长比例、适用性说明和未来拆网格触发条件；

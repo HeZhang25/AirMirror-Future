@@ -2,7 +2,7 @@
 
 - 层级：L3 Deliverable
 - Requirement IDs：AMF-RIS-009
-- 状态：Implemented
+- 状态：Verified
 - 父项：Foundation 0.1.1A — Physics and Algorithm Contract
 - 依赖：v0.1 Verified、A1 Verified、ADR-0001、ADR-0007
 
@@ -58,8 +58,12 @@ FND-T09 回归。
 本机 Windows / Python 3.14.3 实现门禁：A2+RIS 定向 `19 passed`，完整回归 `74 passed`；
 Current/Advanced/Future fast headless 的目标功率依次为 `-46.5879/-30.1257/-19.3118 dBm`，
 RIS Gain 依次为 `+8.6874/+25.1496/+35.9636 dB`，与 A1 兼容基线一致。绝对运行时间只作
-同机参考。自动测试通过只允许 A2 标为 Implemented；在维护者最终复核前不得标为 Verified，
-且 Foundation 0.1.1A、AMF-RIS-009 和 Foundation 0.1.1 继续保持 In Progress。
+同机参考。
+
+2026-09-02 完成最终人工验收签署：验收依据为 implementation commit
+`974885fc5b1864ecd9c303e56400308cbaa316fa`，G0–G8 全部 PASS，blocking issues 为 0。该签署
+只将本 Deliverable 提升为 Verified；A1 保持 Verified，Foundation 0.1.1A、AMF-RIS-009 和
+Foundation 0.1.1 继续保持 In Progress。
 
 ## 风险与回退
 

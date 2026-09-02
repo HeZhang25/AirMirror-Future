@@ -20,8 +20,8 @@
 当前 `v0.1` Smart Space 已验证。进入性能缓存和新场景前，项目将先执行
 [Foundation 0.1.1 物理模型契约计划](docs/foundation_0_1_1_plan.md)，校准 Focus objective、
 RIS 网格语义、Commanded Pattern 硬件约束、优化搜索分辨率、GUI 状态和传播 Profile。
-Foundation 当前为 In Progress：A1 已 Verified，A2 equivalent patch contract 已 Implemented
-并等待维护者复核，A3 与 B/C 尚未完成。未达到 Implemented 的计划项不得描述为当前功能。
+Foundation 当前为 In Progress：A1 与 A2 已 Verified，A3 与 B/C 尚未完成。未达到
+Implemented 的计划项不得描述为当前功能。
 
 ## 安装
 

@@ -8,10 +8,16 @@
 | 规范基线 | [docs/README.md](docs/README.md) |
 | 当前 Capability | Foundation 0.1.1A Physics and Algorithm Contract（In Progress） |
 
-## Foundation 0.1.1A / A2 实现快照
+## Foundation 0.1.1A / A2 最终验收快照
 
-Deliverable A2（RIS aperture patch semantic contract）已达到 **Implemented**，等待维护者最终
-复核；尚未签署为 Verified：
+Deliverable A2（RIS aperture patch semantic contract）已完成最终人工验收并达到
+**Verified**：
+
+- 验收依据：implementation commit `974885fc5b1864ecd9c303e56400308cbaa316fa`；
+- Gate 结果：G0–G8 全部 PASS；
+- blocking issues：0；
+- 状态边界：A1 保持 Verified；Foundation 0.1.1A、AMF-RIS-009 和 Foundation 0.1.1 仍为
+  In Progress。
 
 - `nx/ny` 已冻结为 system-level equivalent controllable aperture patches，不表示真实
   meta-atoms；实体 `width_m/height_m` 仍是孔径尺寸的唯一事实源；
@@ -34,7 +40,7 @@ Deliverable A2（RIS aperture patch semantic contract）已达到 **Implemented*
 | Future v0.1 fast headless | `-19.3118 dBm`，RIS Gain `+35.9636 dB`，场图 `8.553 s` |
 
 三代目标数值与 A1 基线一致；运行时间波动不构成数值变化。A2 没有修改散射核心算法、GUI、
-A3、PropagationProfile、缓存或实验逻辑。状态边界保持：A1 Verified；A2 Implemented；
+A3、PropagationProfile、缓存或实验逻辑。状态边界保持：A1 Verified；A2 Verified；
 Foundation 0.1.1A、AMF-RIS-009 和 Foundation 0.1.1 均为 In Progress。
 
 ## Foundation 0.1.1A / A1 最终验收快照
@@ -66,7 +72,7 @@ Deliverable A1（Focus objective）已完成最终人工验收并达到 **Verifi
 | A1 Coherent 单目标 | Current 123 candidates / `0.083 s`；Advanced 4609 / `3.571 s`；Future continuous / `0.003 s` |
 
 headless 仍故意运行 v0.1 RIS-only 默认算法，因此上述三代值是兼容回归，不是 Coherent
-Target 新默认。A2 已 Implemented，A3 commanded pattern hardware boundary 尚未实现，
+Target 新默认。A2 已 Verified，A3 commanded pattern hardware boundary 尚未实现，
 因此 Foundation 0.1.1A 仍不能标为 Implemented/Verified。
 
 ## 已完成（v0.1）
@@ -110,8 +116,8 @@ Target 新默认。A2 已 Implemented，A3 commanded pattern hardware boundary �
 
 ## 下一阶段
 
-1. 复核 A2 implementation，然后按 [Foundation 0.1.1 计划](docs/foundation_0_1_1_plan.md)
-   完成 A3 commanded pattern hardware boundary；
+1. 按 [Foundation 0.1.1 计划](docs/foundation_0_1_1_plan.md) 完成 A3 commanded pattern
+   hardware boundary；
 2. 完成 optimizer/GUI 语义和实验 provenance；
 3. 建立最小 PropagationProfile，冻结 cache identity；
 4. 再进入 P1A 几何系数缓存与矩阵求值；
