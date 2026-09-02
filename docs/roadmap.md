@@ -56,8 +56,9 @@ id 错误异常待统一。这些进入 P1 tasks。
 
 ## 4. Foundation 0.1.1：物理模型契约
 
-状态：Planned。详细背景、范围、Requirement IDs、L3/L4 工作项、测试、兼容策略和 Exit Gate
-见 [foundation_0_1_1_plan.md](foundation_0_1_1_plan.md)。
+状态：In Progress；A1 Verified，A2 Implemented，A3/B/C 尚未完成。详细背景、范围、
+Requirement IDs、L3/L4 工作项、测试、兼容策略和 Exit Gate 见
+[foundation_0_1_1_plan.md](foundation_0_1_1_plan.md)。
 
 本 Capability 必须在 P1A 前完成，包含：
 

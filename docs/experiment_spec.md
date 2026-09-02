@@ -40,7 +40,7 @@ phase resolution，纵轴为 target RIS gain dB，用于观察收益递减。
 | `generation` | str | preset 标签 |
 | `ris_count` | int | 场景 RIS 数 |
 | `ris_width_m`,`ris_height_m` | m | 实体孔径 |
-| `nx`,`ny` | int | 网格 |
+| `nx`,`ny` | int | 等效可控孔径 patch 网格；不表示真实 meta-atom 布局 |
 | `phase_bits` | int/continuous | 控制变量 |
 | `efficiency` | ratio | `[0,1]` |
 | `phase_error_sigma_rad` | rad | Ground Truth 参数 |

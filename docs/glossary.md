@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| 基线版本 | v0.1 |
+| 基线版本 | v0.1 + Foundation A1-A2 terminology |
 
 ## 产品术语
 
@@ -24,6 +24,9 @@
 | Dead Zone | `100% - Coverage` | 不表示绝对无信号 |
 | Future Scenario Assumption | 超出当前代表性能力的显式假设 | 不表示当前已部署能力 |
 | System-level electromagnetic approximation | 本系统的模型定位 | 不称 full-wave solver |
+| Equivalent Controllable Aperture Patch | RIS 孔径上的系统级独立命令/中心采样区域 | 不称真实 meta-atom 或天线阵元 |
+| Effective Pitch | 实体宽高除以对应 equivalent patch 数所得的派生尺寸/中心间距 | 不当作制造间距或 `lambda/2` 合规结论 |
+| Physical Meta-atom | 需要器件布局、材料、互耦等模型支持的真实结构 | 当前模型尚未实现 |
 
 ## 坐标与单位
 
@@ -44,7 +47,7 @@
 | `h` | 无量纲窄带复信道 | complex |
 | `phi` | RIS 相位命令 | rad，规范化到 `[0,2π)` |
 | `eta` | 单元反射功率效率 | `[0,1]` |
-| `A_cell` | 单元物理面积 | m² |
+| `A_cell` | 等效可控孔径 patch 面积；旧代码名为兼容保留 | m² |
 
 角度 API 默认弧度；仅 UI 明确带 `°` 的输入使用度并在边界转换。dB 衰减作用在功率比，
 进入复场前使用 `10^(-A_dB/20)` 转为幅度比。

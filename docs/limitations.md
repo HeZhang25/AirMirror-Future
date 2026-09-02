@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative boundary |
-| 基线版本 | v0.1 |
+| 基线版本 | v0.1 + Foundation A2 semantic contract |
 
 以下限制定义模型适用域，不是通过 UI 平滑或调大 Future 参数可以修复的问题。
 
@@ -14,7 +14,7 @@
 | 天线全波方向图 | TX/RX 仅线性标量 gain | 近似各向/固定 gain | 方向/极化研究 |
 | 衍射 | 几何阴影可能过深 | 只计衰减和反射 | 城市拐角/低频 NLoS 定量需求 |
 | 高阶多反射 | 不包含两次以上墙反射 | 一次镜面路径 | 工厂/城市多径精度需求 |
-| RIS mutual coupling | cell 独立孔径采样 | 大尺度趋势 | 高密度/器件设计 |
+| RIS mutual coupling | 等效 patch 独立孔径采样 | 大尺度趋势 | 高密度/器件设计 |
 | patch 内场积分 | 每个等效 patch 只取中心点，且假定满填充 | 系统级面积归一化近似 | P1C 独立 quadrature grid |
 | 控制/求积网格分离 | `nx/ny` 同时决定控制自由度和中心采样 | 细分测试只解释为不发散/敏感性 | 严格数值有效性或器件级研究 |
 | 复杂极化 | 不跟踪 Jones/vector field | 标量复信道 | 偏振 RIS/天线研究 |
@@ -33,7 +33,9 @@
 - 完全阻挡以 300 dB 表示数值近零，不是数学绝对零；
 - 评价点过近 RIS cell 会拒绝，而不是给出发散结果；
 - 场图有限网格可能漏掉非常窄的干涉峰/谷；改变质量会改变 coverage 采样误差；
-- `pitch/wavelength` 和 patch 内相位跨度只提供模型透明度，不能单独证明或否定物理有效性；
+- A2 的 `pitch/wavelength` 只提供模型透明度，不是 `lambda/2` 合规或栅瓣判定；
+- A2 不输出 patch 内相位跨度、pass/fail 或 warning severity；这些需要先拆分 control 与
+  quadrature grid 并建立有来源的适用域验证；
 - Future 64×48、High 200×160 可能计算较慢，后台运行不等于模型更精确。
 
 ## 使用限制
@@ -44,5 +46,6 @@
 
 ## 报告要求
 
-引用结果时至少报告：频率、TX power/gains、带宽/NF、场景几何、RIS 实体尺寸/网格/
-phase/eta、算法、Ground Truth sigma、seed、coverage threshold 和本限制文档版本。
+引用结果时至少报告：频率、TX power/gains、带宽/NF、场景几何、RIS 实体尺寸/等效 patch
+网格/phase/eta、算法、Ground Truth sigma、seed、coverage threshold 和本限制文档版本；不得
+把等效 patch 数量或 effective pitch 报告成真实 meta-atom 布局。

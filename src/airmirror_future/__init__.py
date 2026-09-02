@@ -19,10 +19,16 @@ from airmirror_future.simulation.ground_truth import ControllerModel, GroundTrut
 from airmirror_future.optimization.measurement import MeasurementOracle
 from airmirror_future.optimization.coherent_focus import generate_coherent_target_pattern
 from airmirror_future.ris.phase import generate_ris_only_focus_pattern
+from airmirror_future.ris.aperture import (
+    EquivalentPatchDiagnostics,
+    equivalent_patch_diagnostics,
+)
 
 __all__ = [
     "ChannelResult",
     "FieldMapResult",
+    "EquivalentPatchDiagnostics",
+    "equivalent_patch_diagnostics",
     "generate_coherent_target_pattern",
     "generate_ris_only_focus_pattern",
     "Obstacle",

@@ -3,9 +3,9 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| 基线版本 | v0.1 + Foundation 0.1.1A/A1 |
+| 基线版本 | v0.1 + Foundation 0.1.1A/A1-A2 |
 | 模型标签 | System-level electromagnetic approximation |
-| 对应 ADR | ADR-0001、ADR-0003、ADR-0006 |
+| 对应 ADR | ADR-0001、ADR-0003、ADR-0006、ADR-0007 |
 
 ## 1. 适用范围
 
@@ -117,6 +117,24 @@ v0.1 中同一 `Nx*Ny` 网格同时决定独立 commanded phase 和中心点求�
 
 数组展开顺序是先生成 `u`（宽度/Nx）和 `v`（高度/Ny）的 meshgrid，再以 C-order
 flatten；pattern 必须使用同一顺序，reshape 形状为 `[Ny,Nx]`。
+
+### 等效 pitch 与运行波长诊断
+
+实体宽高始终由 `RISSurface.width_m/height_m` 决定。对于 operating frequency `f`，A2 只派生：
+
+```text
+pitch_x = W/Nx
+pitch_y = H/Ny
+lambda  = c/f
+r_x     = pitch_x/lambda
+r_y     = pitch_y/lambda
+```
+
+改变 `Nx/Ny` 不改变实体孔径；改变 `f` 只改变传播波长、波数和上述比例，也不自动缩放孔径。
+`r_x/r_y` 是模型透明度信息，不是物理阵元间距合规检查；尤其 `pitch/lambda > 0.5` 不会使
+当前系统级模型自动失效。A2 不提供 patch 内 phase-span 数值或硬阈值，因为当前尚未独立
+定义 control grid 与 quadrature grid。严格求积收敛按 P1C 触发条件处理，完整决定见
+[ADR-0007](adr/0007-equivalent-controllable-aperture-patches.md)。
 
 ## 7. RIS 双基地散射
 

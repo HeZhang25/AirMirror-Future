@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| API 基线 | 0.1 + Foundation A1 additive API |
+| API 基线 | 0.1 + Foundation A1-A2 additive API |
 | Python | 3.11+ |
 
 ## 1. 稳定性政策
@@ -13,9 +13,9 @@ v0.x 期间允许有记录的破坏性变化，但不得静默发生。改变签
 `DEVELOPMENT_STATUS.md` 中列迁移说明。
 
 顶层 `airmirror_future` 导出公共数据类型、`SimulationEngine`、Controller/Ground Truth、
-MeasurementOracle、`generate_ris_only_focus_pattern` 和
-`generate_coherent_target_pattern`。以下划线开头的成员、GUI 私有槽和 `path_details` 内部
-字典不是稳定 API。
+MeasurementOracle、`generate_ris_only_focus_pattern`、`generate_coherent_target_pattern`、
+`EquivalentPatchDiagnostics` 和 `equivalent_patch_diagnostics`。以下划线开头的成员、GUI
+私有槽和 `path_details` 内部字典不是稳定 API。
 
 ## 2. SimulationEngine
 
@@ -108,6 +108,19 @@ generation_preset(
 ```
 
 只接受 Current/Advanced/Future（大小写不敏感），返回新的可编辑 surface。
+
+```python
+equivalent_patch_diagnostics(
+    ris: RISSurface,
+    frequency_hz: float,
+) -> EquivalentPatchDiagnostics
+```
+
+返回只读 SI 诊断：实体宽高/面积、`nx/ny/total`、两个 effective pitch、运行频率/波长以及
+两个 `pitch/wavelength` 比值。函数无副作用，不修改 RIS/Scene、不生成 pattern、不参与传播，
+也不提供物理有效性 pass/fail。`frequency_hz` 必须 finite 且大于零；RIS 尺寸必须 finite 且
+为正，`nx/ny` 必须是正整数。改变运行频率不会改变实体孔径。A2 不公开 phase-span；适用域见
+[ADR-0007](adr/0007-equivalent-controllable-aperture-patches.md)。
 
 低层 `ris_channel_for_points` 是物理层 API，输入 receiver array 形状 `[N,3]`，输出
 complex `[N]`；调用者通常应使用 SimulationEngine 以获得阻挡、反射和指标。

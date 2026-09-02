@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| 基线版本 | v0.1 |
+| 基线版本 | v0.1 + Foundation A2 terminology |
 | 对应需求 | AMF-UI-001..006 |
 
 ## 1. 页面组成
@@ -59,11 +59,16 @@
 | 控件 | 范围/状态 | 行为 |
 |---|---|---|
 | Width/Height | 0.05..20 m | 改变实体孔径并使 pattern 失效 |
-| Nx/Ny | 1..256 | 改变采样网格并重新生成 pattern |
+| Nx/Ny | 1..256 | 等效可控孔径 patch 数；改变控制/中心采样网格并重新生成 pattern |
 | Phase Bits | 1/2/3/4/continuous | Focus 输出按新状态量化 |
 | Efficiency | 0..1 | 无源功率效率 |
 | Update Rate | 0.1..1e6 Hz | 元数据；v0.1 静态计算不模拟控制时延 |
 | Self Sensing | bool | 元数据；不自动降低误差或改变算法 |
+
+当前字段 `Nx/Ny` 不得标注为真实 meta-atoms、antenna elements 或制造单元。Foundation A2
+提供 `equivalent_patch_diagnostics()`，供 B 阶段以只读形式显示 effective pitch、运行波长和
+`pitch/lambda`；这些值不得带“通过/失败”或 `lambda/2` 合规提示。A2 本身不改变当前 GUI
+状态机，也不新增可点击入口。频率变化不得自动改写 Width/Height 或 Nx/Ny。
 
 ### Ground Truth
 
@@ -138,4 +143,3 @@ quantity 在 Power/SNR/RIS Gain 间切换只重绘已有 `FieldMapResult`，不�
 6. Feedback 可显示进度并取消；
 7. Save/Load 后 scene 数值往返一致，pattern 重新生成；
 8. Model Info 正确声明系统级近似、Shannon 上界和当前限制。
-

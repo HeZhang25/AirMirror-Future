@@ -18,7 +18,7 @@ Future 仍遵守与 Current 相同的传播公式、孔径归一化、效率上�
 | 参数 | Current | Advanced | Future |
 |---|---:|---:|---:|
 | Width × Height | 0.8×0.8 m | 1.6×1.2 m | 3.0×2.0 m |
-| Nx × Ny | 8×8 | 24×24 | 64×48 equivalent cells |
+| Equivalent Patch Nx × Ny | 8×8 | 24×24 | 64×48 |
 | Phase | 1-bit | 3-bit | continuous |
 | Reflection efficiency | 0.70 | 0.85 | 0.95 |
 | Update rate | 10 Hz | 100 Hz | 1000 Hz |
@@ -31,7 +31,8 @@ Future 仍遵守与 Current 相同的传播公式、孔径归一化、效率上�
 ## 3. 参数解释
 
 - **Aperture**：真实物理面积，直接影响捕获和重辐射尺度；不是显示尺寸；
-- **Nx/Ny**：模型离散和可控空间自由度；固定孔径增加网格必须收敛；
+- **Nx/Ny**：系统级 equivalent controllable aperture patch 数，同时承担控制和中心点求积；
+  不是实际 meta-atom 数，固定孔径细分测试只证明面积归一化不发散；
 - **Phase bits**：命令相位状态数；continuous 仍会受 Ground Truth phase error；
 - **Efficiency**：反射功率效率，passive 始终 `≤1`；
 - **Update rate**：控制能力元数据；v0.1 静态场图不自动把 Hz 转为吞吐或增益；
@@ -69,4 +70,3 @@ Python cell objects，应使用等效孔径/tiles/矩阵分块，并验证与细
 > Future RIS 能固定提升 36 dB。
 
 具体 gain 依赖 scene、目标位置、频率、遮挡、相位和与其他路径的干涉，甚至可以为负。
-

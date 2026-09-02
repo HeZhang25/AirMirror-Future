@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| 基线版本 | v0.1 |
+| 基线版本 | v0.1 + Foundation A1-A2 additive contracts |
 | 权威实现 | `src/airmirror_future/core/types.py` |
 
 ## 1. 通用规则
@@ -81,8 +81,8 @@
 | `id` | str | required | patterns key |
 | `position` | Vec3 | m | 孔径中心 |
 | `yaw_rad` | float | rad | 正面法向方位角 |
-| `width_m,height_m` | float | m | `>0` |
-| `nx,ny` | int | — | `>0`；宽度/高度采样数 |
+| `width_m,height_m` | float | m | finite，`>0`；实体孔径的唯一尺寸事实源 |
+| `nx,ny` | int | — | 正整数；沿 width/height 的等效可控孔径 patch 数 |
 | `phase_bits` | int或None | 1 | 正整数；None=continuous |
 | `reflection_efficiency` | float | 0.7 | `[0,1]` |
 | `update_rate_hz` | float | 10 Hz | `>0` |
@@ -92,6 +92,11 @@
 | `active` | bool | false | true 在 v0.1 拒绝计算 |
 | `direction_exponent` | float | 1.0 | finite，`≥0` |
 
+`nx/ny` 的规范含义是 **system-level equivalent controllable aperture patches**。每个 patch
+拥有一个 commanded phase，当前又同时承担中心点求积采样；它不是经过器件建模或校准的
+真实 meta-atom。旧代码标识符 `cell_count/cell_area_m2/cell_centers` 为兼容保留，语义均按
+equivalent patch 解释。
+
 派生值：
 
 - `cell_count=nx*ny`；
@@ -100,6 +105,24 @@
 - `cell_centers()->float64[cell_count,3]`。
 
 修改 nx/ny 会使已有 pattern 失效，调用层必须立即重新生成，不能 resize 或截断旧数组。
+
+### `EquivalentPatchDiagnostics`
+
+由纯函数 `equivalent_patch_diagnostics(ris, frequency_hz)` 创建的冻结、只读 SI 结果：
+
+| 字段 | 单位/类型 | 含义 |
+|---|---|---|
+| `aperture_width_m,aperture_height_m` | m | 从 RIS 复制的实体孔径尺寸 |
+| `aperture_area_m2` | m² | `width_m*height_m` |
+| `patch_count_x,patch_count_y,patch_count_total` | int | `nx,ny,nx*ny` |
+| `effective_pitch_x_m,effective_pitch_y_m` | m | `width_m/nx`、`height_m/ny` |
+| `operating_frequency_hz` | Hz | 本次运行频率 |
+| `operating_wavelength_m` | m | `c/frequency_hz` |
+| `pitch_x_over_wavelength,pitch_y_over_wavelength` | ratio | 只作适用性透明度 |
+
+诊断函数不修改 RIS/Scene，不参与传播，也不返回有效/无效阈值。改变频率只改变波长和比例，
+不得反向改写 `width_m/height_m`。A2 不公开 patch 内 phase-span；原因和未来拆网格触发条件见
+[ADR-0007](adr/0007-equivalent-controllable-aperture-patches.md)。
 
 ## 4. `Scene`
 
@@ -160,4 +183,3 @@
 `ControllerModel` 定义无误差行为。`GroundTruthModel` 继承接口并增加六个非负 sigma：RIS
 相位、RIS 效率、墙幅度、墙相位、位置、测量噪声，以及整数 seed。sigma 的统计含义见
 [physics_model.md](physics_model.md#11-controller-model-与-ground-truth)。
-

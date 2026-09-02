@@ -164,10 +164,20 @@ class RISSurface:
     def __post_init__(self) -> None:
         if not self.id:
             raise ValueError("RIS id cannot be empty")
-        if self.width_m <= 0.0 or self.height_m <= 0.0:
-            raise ValueError("RIS aperture dimensions must be positive")
-        if self.nx <= 0 or self.ny <= 0:
-            raise ValueError("RIS cell counts must be positive")
+        if (
+            self.width_m <= 0.0
+            or self.height_m <= 0.0
+            or not math.isfinite(self.width_m)
+            or not math.isfinite(self.height_m)
+        ):
+            raise ValueError("RIS aperture dimensions must be finite and positive")
+        if any(
+            isinstance(value, (bool, np.bool_))
+            or not isinstance(value, (int, np.integer))
+            or value <= 0
+            for value in (self.nx, self.ny)
+        ):
+            raise ValueError("RIS patch counts must be positive integers")
         if self.phase_bits is not None and self.phase_bits <= 0:
             raise ValueError("phase_bits must be positive or None for continuous")
         if not 0.0 <= self.reflection_efficiency <= 1.0:

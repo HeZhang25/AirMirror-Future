@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative / Operational |
-| 基线版本 | v0.1 |
+| 基线版本 | v0.1 + Foundation A1-A2 |
 | 测试框架 | pytest 9+，pytest-qt |
 
 ## 1. 目标
@@ -53,6 +53,7 @@ python -m airmirror_future.experiments.phase_bits --output results/phase_bits
 | FND-T03 | nominal no-RIS lower bound | Coherent target `received_power_w >= baseline` | `test_coherent_focus_does_not_reduce...` |
 | FND-T04 | finite-bit common offset | 候选首项精确 `0.0`；结果不差于 unshifted | `test_quantized_common_offset_beats...` |
 | FND-T05 | degenerate deterministic fallback | 零/相对近零分量返回 `delta=0`，不产生 NaN/Inf | `test_zero_baseline_focus...` |
+| FND-T09 | equivalent patch diagnostics | 改 `nx/ny` 只改变 pitch；改 `fc` 不改变实体孔径 | `test_effective_pitch_changes_without_resizing_aperture` |
 
 若更换物理近似导致这些容差不再适用，必须先提交 ADR 解释新性质，并加入等价或更强的
 测试；不得先删除失败测试。
@@ -66,6 +67,9 @@ PHY-T11 同时细化当前耦合的 control/integration grid，只证明面积�
 产生无界增益，并提供当前测试几何下的稳定性证据；不得把它描述成真实 meta-atom 或粗 patch
 已经达到物理收敛。P1C 必须固定 control grid 和 commanded pattern，只细化独立 quadrature
 grid，并同时比较复数信道误差与功率差；阈值由代表性适用域实验建立。
+
+FND-T09 验证 A2 的所有权边界，而不是证明真实阵元满足 `lambda/2` 或当前 patch 已数值收敛。
+补充测试覆盖非法频率、非有限孔径、非整数 patch 数以及三代 preset 诊断全为有限正值。
 
 ## 4. 数据与 API 测试
 

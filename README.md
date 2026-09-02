@@ -20,7 +20,8 @@
 当前 `v0.1` Smart Space 已验证。进入性能缓存和新场景前，项目将先执行
 [Foundation 0.1.1 物理模型契约计划](docs/foundation_0_1_1_plan.md)，校准 Focus objective、
 RIS 网格语义、Commanded Pattern 硬件约束、优化搜索分辨率、GUI 状态和传播 Profile。
-计划内容均为 Planned；在 ADR、测试和实现完成前，不应描述为当前功能。
+Foundation 当前为 In Progress：A1 已 Verified，A2 equivalent patch contract 已 Implemented
+并等待维护者复核，A3 与 B/C 尚未完成。未达到 Implemented 的计划项不得描述为当前功能。
 
 ## 安装
 
@@ -87,13 +88,14 @@ Future 参数始终显示 `Future Scenario Assumption`，不表示当前产品�
 
 ## RIS 技术代际
 
-| Preset | 孔径 | 网格 | 相位 | 效率 | 更新率 |
+| Preset | 孔径 | Equivalent Patch 网格 | 相位 | 效率 | 更新率 |
 |---|---:|---:|---:|---:|---:|
 | Current | 0.8×0.8 m | 8×8 | 1-bit | 0.70 | 10 Hz |
 | Advanced | 1.6×1.2 m | 24×24 | 3-bit | 0.85 | 100 Hz |
 | Future | 3.0×2.0 m | 64×48 | continuous | 0.95 | 1000 Hz |
 
-它们是可编辑的代表性仿真假设，不是对所有现实 RIS 的统一规格声明。
+网格表示系统级等效可控孔径 patch，不是真实 meta-atom 布局。三组 preset 都是可编辑的
+代表性仿真假设，不是对所有现实 RIS 的统一规格声明。
 
 ## 3–5 分钟 Demo
 

@@ -34,7 +34,7 @@
 | AMF-RIS-006 | RIS 背面方向贡献为零，默认余弦方向图 `q=1` | Implemented | `physics/ris_scattering.py` | `test_back_side_receiver_gets_no_ris_field` |
 | AMF-RIS-007 | 三代 preset 是可编辑假设；Future 显式标记 | Implemented | `ris/generations.py`, GUI | headless generation runs、GUI smoke |
 | AMF-RIS-008 | 区分 RIS-only 与 Coherent Target Focus；GUI 默认算法与 nominal target objective 一致 | In Progress | A1: `ris/phase.py`, `optimization/coherent_focus.py`；GUI 接入待 B 阶段 | `tests/test_coherent_focus.py` FND-T01..05；ADR-0006 |
-| AMF-RIS-009 | `nx/ny` 定义为 equivalent controllable aperture patches，并显示有效 pitch/波长比例和限制 | Planned | — | `foundation_0_1_1_plan.md` FND-T09 |
+| AMF-RIS-009 | `nx/ny` 定义为 equivalent controllable aperture patches，并显示有效 pitch/波长比例和限制 | In Progress | A2: `ris/aperture.py`、ADR-0007；GUI 只读接入待 B 阶段 | `tests/test_aperture_diagnostics.py` FND-T09；[A2 Work Item](work_items/foundation_0_1_1_a2.md) |
 | AMF-RIS-010 | 传播前验证 commanded pattern 符合 phase bits；Actual Ground Truth error 不再量化 | Planned | — | `foundation_0_1_1_plan.md` FND-T06..08 |
 
 ## 仿真、数据与优化

@@ -1,6 +1,11 @@
 """RIS geometry, presets, phase control, and patterns."""
 
 from airmirror_future.core.types import RISGeneration, RISSurface
+from airmirror_future.ris.aperture import (
+    EQUIVALENT_PATCH_SEMANTIC,
+    EquivalentPatchDiagnostics,
+    equivalent_patch_diagnostics,
+)
 from airmirror_future.ris.generations import GENERATION_METADATA, generation_preset
 from airmirror_future.ris.phase import (
     apply_common_phase_offset,
@@ -13,10 +18,13 @@ from airmirror_future.ris.phase import (
 
 __all__ = [
     "GENERATION_METADATA",
+    "EQUIVALENT_PATCH_SEMANTIC",
+    "EquivalentPatchDiagnostics",
     "RISGeneration",
     "RISSurface",
     "apply_common_phase_offset",
     "common_phase_offset_candidates",
+    "equivalent_patch_diagnostics",
     "generation_preset",
     "generate_focus_pattern",
     "generate_ris_only_focus_pattern",

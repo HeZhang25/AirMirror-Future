@@ -5,7 +5,7 @@
 | 文档状态 | Operational / Normative for sequencing |
 | 当前实现基线 | v0.1 Verified，commit `edfa43c` |
 | 目标版本 | v0.1.1 Foundation |
-| 当前计划状态 | In Progress；A1 Verified，A2/A3 与 B/C 尚未完成 |
+| 当前计划状态 | In Progress；A1 Verified，A2 Implemented，A3 与 B/C 尚未完成 |
 | 父级路线 | v0.1 Smart Space → Foundation 0.1.1 → P1A |
 | 主要责任 | 项目维护者、物理仿真负责人、GUI/测试负责人 |
 | 最后复核 | 2026-09-02（A1 final human acceptance） |
@@ -74,8 +74,8 @@ Foundation 前置有四个直接原因：
 1. **优化目标尚未对齐**：当前 Focus 最大化 RIS 自身相干幅度，但规范目标是单 RX 总接收
    功率。即使某个场景中的数值收益很小，objective contract 仍必须正确，不能把一次演示增益
    当成采用新算法的理由或验收阈值。
-2. **RIS 网格语义未冻结**：`nx/ny` 同时参与独立相位控制和孔径数值离散。若先按旧语义
-   写缓存，后续拆分或改名会影响矩阵 shape、cache key 和实验解释。
+2. **v0.1 的 RIS 网格语义未冻结**：`nx/ny` 同时参与独立相位控制和孔径数值离散。A2 已用
+   ADR-0007 冻结 equivalent patch 语义；未来缓存必须遵守该决定和拆网格触发条件。
 3. **Pattern 硬件边界不完整**：Phase Bits 目前约束 pattern 生成器和优化候选，但传播入口
    只检查长度，不能阻止非法离散命令进入 1-bit/2-bit RIS。
 4. **传播模型没有 Profile 身份**：未来不同场景若都进入同一引擎，缓存无法区分环境模型
@@ -190,7 +190,7 @@ patch 在目标点相互相干。它不读取 baseline 复相位，因此优化�
 
 ### 5.2 RIS 网格语义契约
 
-Foundation 推荐把 `nx/ny` 定义为：
+A2 通过 ADR-0007 把 `nx/ny` 冻结为：
 
 > System-level equivalent controllable aperture patches，系统级等效可控孔径 patch。
 
@@ -213,18 +213,17 @@ meta-atom 子结构或 patch factor。`effective_pitch` 表示等效 patch 尺�
 - integration/quadrature grid；
 - physical meta-atom layout。
 
-Foundation 应新增派生显示或公共 helper：
+A2 已新增公共纯派生 helper，B 阶段可将其接入只读显示：
 
 - `effective_pitch_x = width / nx`；
 - `effective_pitch_y = height / ny`；
 - operating wavelength；
 - `pitch_x / wavelength`、`pitch_y / wavelength`。
 
-这些值是透明度信息，不得把 `pitch > wavelength/2` 直接判为系统级模型错误。若提供
-“离散过粗”提示，Foundation 最多提供 advisory diagnostic，例如对未 wrap 的
-`k*(d1+d2)` 在 patch 中的角点/边中点跨度或一阶切向相位梯度估计。该指标不是物理有效性
-证明：驻相点附近还可能受二阶 Fresnel 曲率、幅度变化、方向图和遮挡边缘影响。本阶段不得设置
-无来源的 `45°`、`0.2 dB` 等全局硬阈值。
+这些值是透明度信息，不得把 `pitch > wavelength/2` 直接判为系统级模型错误。A2 明确不
+输出“离散过粗”结论或 patch 内 phase-span：可靠数值还需要定义角点/求积采样、二阶 Fresnel
+曲率、幅度变化、方向图和遮挡边缘处理。本阶段不得设置无来源的 `45°`、`0.2 dB` 等全局
+硬阈值。
 
 当前 8×8→16×16→32×32 测试同时增加中心求积点和独立 commanded phase 自由度，只保护
 面积归一化、结果稳定和“不随 patch 数无界增益”，不能证明粗 patch 已达到物理/求积收敛。
@@ -393,7 +392,7 @@ version、parameters 和所有影响系数的场景状态。
 #### Deliverable A1：Focus objective ADR
 
 - 状态：**Verified（2026-09-02）**；验收依据 commit `87495ec`，G0–G8 PASS，
-  blocking issues 0；Foundation 0.1.1A 仍为 In Progress，A2/A3 未开始；
+  blocking issues 0；Foundation 0.1.1A 仍为 In Progress，A2 已 Implemented、A3 未开始；
 
 - Requirement：`AMF-RIS-008`；
 - 输入：当前 Focus、nominal baseline、Controller Model、phase bits；
@@ -411,14 +410,20 @@ version、parameters 和所有影响系数的场景状态。
 
 #### Deliverable A2：RIS aperture patch semantic contract
 
+- 状态：**Implemented（2026-09-02）**；公共 API、FND-T09、完整回归和三代 headless 全绿；
+  在维护者最终复核前不提升为 Verified；
 - Requirement：`AMF-RIS-009`；
 - 输入：`width/height/nx/ny/frequency`；
 - 输出：术语、派生 pitch/波长比例、适用性说明和未来拆网格触发条件；
-- 预计文档：ADR、data model、physics、limitations、GUI spec；
-- 预计代码：优先纯派生 helper，不改变现有实体孔径事实源；
+- 文档：ADR、data model、physics、limitations、GUI spec；
+- 代码：纯派生 helper，不改变现有实体孔径事实源；
 - 验收：固定孔径细分不产生无界 patch-count gain；改变 operating frequency 不改变实体宽高；
-  UI/结果不把 patch 宣称为真实 meta-atom；`pitch/wavelength` 与相位跨度均只作透明度信息，
-  不声称已完成独立 quadrature convergence。
+  UI/结果不把 patch 宣称为真实 meta-atom；`pitch/wavelength` 只作透明度信息；A2 明确不
+  输出未验证的 phase-span，也不声称已完成独立 quadrature convergence。
+- 实现证据：[ADR-0007](adr/0007-equivalent-controllable-aperture-patches.md)、
+  [A2 Work Item](work_items/foundation_0_1_1_a2.md)、`tests/test_aperture_diagnostics.py`；
+- 兼容结果：Scene v1、散射公式、GUI/CLI 默认和代际 preset 数值不变；GUI 只读诊断接入
+  留在 B 阶段，因此 `AMF-RIS-009` 仍为 In Progress。
 
 #### Deliverable A3：Commanded Pattern hardware boundary
 
@@ -497,7 +502,7 @@ version、parameters 和所有影响系数的场景状态。
 | 顺序 | Task | 状态 | 完成输出 |
 |---:|---|---|---|
 | 1 | `FND-DOC-01` 建立 objective/geometry/profile 三个 ADR 草案 | Planned | 决策选项、后果、否决方案 |
-| 2 | `FND-DOC-02` 冻结 equivalent patch、诊断量和 Deferred 边界 | Planned | data/physics/limitations 同步 |
+| 2 | `FND-DOC-02` 冻结 equivalent patch、诊断量和 Deferred 边界 | Implemented | ADR-0007、data/physics/limitations/API 同步；FND-T09 |
 | 3 | `FND-TEST-01` 定义 Focus objective 契约测试 | Implemented | FND-T01..T05、错误契约、tie-break 和 1/2/3/4-bit 回归 |
 | 4 | `FND-TEST-02` 定义 commanded pattern 契约测试 | Planned | bits、modulo、tolerance、Actual error |
 | 5 | `FND-PHY-01` 实现两个具名 Focus | Implemented | RIS-only 保留、Coherent 新增且分层正确；ADR-0006 |
@@ -732,7 +737,7 @@ Foundation 之后按以下顺序推进：
 ## 16. 新开发者开始工作前的检查单
 
 - [ ] 我能解释 AirMirror Future 为什么是系统级近似而不是全波求解器；
-- [ ] 我知道 v0.1 当前 Focus 是 RIS-only，而 Coherent Target Focus 仍是 Planned；
+- [ ] 我知道 v0.1 GUI/CLI 默认仍是 RIS-only；Coherent Target Focus API 已实现，B 阶段接入未完成；
 - [ ] 我知道 `nx/ny` 当前同时承担控制和求积离散，不能直接称真实 meta-atoms；
 - [ ] 我知道现有 8/16/32 测试保护面积归一化/不发散，不证明粗 patch 已物理收敛；
 - [ ] 我知道 Commanded 与 Actual 的区别，且误差不能被重新量化；
@@ -745,19 +750,19 @@ Foundation 之后按以下顺序推进：
 
 ## 17. 已关闭与仍需 ADR 决定的问题
 
-已关闭：Foundation 0.1.1 不向 Scene v1 加入 `design_frequency_hz`，保持 Deferred，等待真实
-RIS 频率响应模型触发新的 ADR。
+已关闭：
+
+- Foundation 0.1.1 不向 Scene v1 加入 `design_frequency_hz`，保持 Deferred，等待真实 RIS
+  频率响应模型触发新的 ADR；
+- A1 的旧 API 兼容、finite-bit boundary candidates 和确定性退化行为由 ADR-0006 冻结；
+- A2 由 ADR-0007 选择只展示 effective pitch/波长比例，不输出未验证的 phase-span；严格
+  quadrature convergence 固定进入 P1C。
 
 以下问题在正式实现前不得由单个开发者静默选择：
 
-1. `generate_focus_pattern` 保持旧语义、弃用，还是指向新的 GUI 默认算法；
-2. 有限 bit 公共 offset 使用固定角度网格、量化边界候选还是等价解析方法；
-3. baseline 近零、RIS 近零和多 RIS 场景的确定性退化行为；
-4. Foundation advisory phase-span 使用角点/边中点、局部梯度还是仅展示 pitch；真正的
-   quadrature convergence 固定进入 P1C，不再作为本项选择；
-5. PropagationProfile 由 Scene 持有、scenario 注入还是 engine 显式参数传入，以及 path
+1. PropagationProfile 由 Scene 持有、scenario 注入还是 engine 显式参数传入，以及 path
    response 返回 full transfer 还是 environment-only modifier；
-6. continuous Physics-Guided 是否允许连续 initial 与离散搜索结果混合；
-7. 历史结果目录的版本命名和默认覆盖策略。
+2. continuous Physics-Guided 是否允许连续 initial 与离散搜索结果混合；
+3. 历史结果目录的版本命名和默认覆盖策略。
 
 未决项存在不表示计划阻塞；它们是对应 ADR/Work Item 进入 Ready 前必须关闭的选择。

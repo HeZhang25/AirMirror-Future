@@ -8,6 +8,35 @@
 | 规范基线 | [docs/README.md](docs/README.md) |
 | 当前 Capability | Foundation 0.1.1A Physics and Algorithm Contract（In Progress） |
 
+## Foundation 0.1.1A / A2 实现快照
+
+Deliverable A2（RIS aperture patch semantic contract）已达到 **Implemented**，等待维护者最终
+复核；尚未签署为 Verified：
+
+- `nx/ny` 已冻结为 system-level equivalent controllable aperture patches，不表示真实
+  meta-atoms；实体 `width_m/height_m` 仍是孔径尺寸的唯一事实源；
+- 新增只读 `EquivalentPatchDiagnostics` 与 `equivalent_patch_diagnostics()`，派生 effective
+  pitch、运行波长和 `pitch/wavelength`，不修改 Scene/RIS、不参与传播；
+- 改变 operating frequency 只改变波长和比例，不自动缩放实体孔径；
+- ratio 仅作透明度信息，不实现 `lambda/2` pass/fail；A2 明确不输出未验证的 phase-span；
+- `RISSurface` 现在拒绝非有限孔径尺寸、bool/小数/非正 patch count；
+- ADR-0007 冻结未来拆分 control/quadrature/physical layout 的触发条件；GUI 只读接入留在
+  B 阶段，因此 `AMF-RIS-009` 仍为 In Progress。
+
+本机 Windows / Python 3.14.3 实现门禁：
+
+| 门禁 | 结果 |
+|---|---|
+| A2 + RIS 定向 pytest | `19 passed` |
+| 完整 pytest | `74 passed in 2.18s` |
+| Current v0.1 fast headless | `-46.5879 dBm`，RIS Gain `+8.6874 dB`，场图 `2.845 s` |
+| Advanced v0.1 fast headless | `-30.1257 dBm`，RIS Gain `+25.1496 dB`，场图 `3.401 s` |
+| Future v0.1 fast headless | `-19.3118 dBm`，RIS Gain `+35.9636 dB`，场图 `8.553 s` |
+
+三代目标数值与 A1 基线一致；运行时间波动不构成数值变化。A2 没有修改散射核心算法、GUI、
+A3、PropagationProfile、缓存或实验逻辑。状态边界保持：A1 Verified；A2 Implemented；
+Foundation 0.1.1A、AMF-RIS-009 和 Foundation 0.1.1 均为 In Progress。
+
 ## Foundation 0.1.1A / A1 最终验收快照
 
 Deliverable A1（Focus objective）已完成最终人工验收并达到 **Verified**：
@@ -37,8 +66,8 @@ Deliverable A1（Focus objective）已完成最终人工验收并达到 **Verifi
 | A1 Coherent 单目标 | Current 123 candidates / `0.083 s`；Advanced 4609 / `3.571 s`；Future continuous / `0.003 s` |
 
 headless 仍故意运行 v0.1 RIS-only 默认算法，因此上述三代值是兼容回归，不是 Coherent
-Target 新默认。A2 equivalent patch、A3 commanded pattern hardware boundary 尚未实现，
-因此 Foundation 0.1.1A 不能标为 Implemented/Verified。
+Target 新默认。A2 已 Implemented，A3 commanded pattern hardware boundary 尚未实现，
+因此 Foundation 0.1.1A 仍不能标为 Implemented/Verified。
 
 ## 已完成（v0.1）
 
@@ -61,7 +90,8 @@ Target 新默认。A2 equivalent patch、A3 commanded pattern hardware boundary 
 
 - GUI、CLI、Physics-Guided 和 legacy experiment 当前仍使用 RIS-only Physics Focus；A1 的
   Coherent Target Focus 已有 headless Python API，但默认接入属于后续 B 阶段；
-- `nx/ny` 同时承担等效控制 patch 与中心点求积离散，语义和适用性提示尚未冻结；
+- `nx/ny` 的 equivalent patch 语义已冻结，但仍同时承担控制与中心点求积；GUI 尚未接入
+  A2 只读 pitch/波长诊断，严格求积收敛留在 P1C；
 - Phase Bits 尚未在传播入口验证 commanded hardware states；
 - continuous hardware 与反馈优化的 8-state search 尚未在接口/UI 中拆分；
 - GUI Generation 立即应用、普通参数等待 Apply，但没有 pending/customized 状态提示；
@@ -80,8 +110,8 @@ Target 新默认。A2 equivalent patch、A3 commanded pattern hardware boundary 
 
 ## 下一阶段
 
-1. 按 [Foundation 0.1.1 计划](docs/foundation_0_1_1_plan.md) 完成 A2 equivalent patch 与
-   A3 commanded pattern hardware boundary；
+1. 复核 A2 implementation，然后按 [Foundation 0.1.1 计划](docs/foundation_0_1_1_plan.md)
+   完成 A3 commanded pattern hardware boundary；
 2. 完成 optimizer/GUI 语义和实验 provenance；
 3. 建立最小 PropagationProfile，冻结 cache identity；
 4. 再进入 P1A 几何系数缓存与矩阵求值；
