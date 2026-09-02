@@ -24,7 +24,8 @@ python -m airmirror_future.experiments.phase_bits --output results/phase_bits
 ```
 
 固定条件：Smart Space、Advanced 几何、`1.6×1.2 m`、`24×24`、效率 0.85、同一 TX/RX、
-Controller Model、Physics Focus、seed 20260901。控制变量依次为 1、2、3、4、continuous。
+Controller Model、v0.1 RIS-only Physics Focus、seed 20260901。控制变量依次为
+1、2、3、4、continuous。
 
 每个点输出目标 RX power/SNR/RIS Gain，并用 Fast 80×60 场图计算 Coverage。PNG 横轴为
 phase resolution，纵轴为 target RIS gain dB，用于观察收益递减。
@@ -75,4 +76,3 @@ phase resolution，纵轴为 target RIS gain dB，用于观察收益递减。
 | Dynamic User | time/trajectory | 时间步、静态/自适应更新策略 |
 
 实验未满足上述前置项时保持 Planned，不创建输出看似完整但数据来自占位逻辑的脚本。
-

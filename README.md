@@ -17,6 +17,11 @@
 原始 `项目说明提示词.md` 是历史愿景输入；当前开发不能只凭聊天内容或提示词静默改变
 规范性 API、物理公式、数据格式或阶段范围。
 
+当前 `v0.1` Smart Space 已验证。进入性能缓存和新场景前，项目将先执行
+[Foundation 0.1.1 物理模型契约计划](docs/foundation_0_1_1_plan.md)，校准 Focus objective、
+RIS 网格语义、Commanded Pattern 硬件约束、优化搜索分辨率、GUI 状态和传播 Profile。
+计划内容均为 Planned；在 ADR、测试和实现完成前，不应描述为当前功能。
+
 ## 安装
 
 需要 Python 3.11 或更高版本。建议在虚拟环境中安装：

@@ -2,11 +2,37 @@
 
 | 属性 | 值 |
 |---|---|
-| 状态快照 | 2026-09-01 |
+| 状态快照 | 2026-09-02 |
 | 当前 release | v0.1 |
 | release 状态 | Verified |
 | 规范基线 | [docs/README.md](docs/README.md) |
-| 下一 Capability | P1A Geometry Cache and Matrix Evaluation |
+| 当前 Capability | Foundation 0.1.1A Physics and Algorithm Contract（In Progress） |
+
+## Foundation 0.1.1A / A1 验收快照
+
+Deliverable A1（Focus objective）已达到 **Implemented**：
+
+- 新增显式 `RIS-only Phase-Conjugate Focus`，兼容函数 `generate_focus_pattern()` 输出不变；
+- 新增 `Coherent Target Focus`，continuous 使用 nominal baseline 解析相位对齐，finite-bit
+  枚举公共 offset 可达的量化 pattern 并以 nominal target power 选择；
+- `delta=0` 是 finite-bit 首个候选，平局稳定保留旧命令；零/近零分量确定性回退；
+- 新策略只接受 Controller Model，拒绝 Ground Truth，不改变 GUI、CLI 和历史实验默认语义；
+- 规范由 [ADR-0006](docs/adr/0006-coherent-target-focus-objective.md) 冻结，工作范围与证据见
+  [A1 Work Item](docs/work_items/foundation_0_1_1_a1.md)。
+
+验收环境为 Windows、Python 3.14.3；本机结果：
+
+| 门禁 | 结果 |
+|---|---|
+| 完整 pytest | `46 passed`（最终复核全绿） |
+| Current v0.1 fast headless | `-46.5879 dBm`，RIS Gain `+8.6874 dB`，场图 `1.278 s` |
+| Advanced v0.1 fast headless | `-30.1257 dBm`，RIS Gain `+25.1496 dB`，场图 `1.551 s` |
+| Future v0.1 fast headless | `-19.3118 dBm`，RIS Gain `+35.9636 dB`，场图 `6.825 s` |
+| A1 Coherent 单目标 | Current 123 candidates / `0.083 s`；Advanced 4609 / `3.571 s`；Future continuous / `0.003 s` |
+
+headless 仍故意运行 v0.1 RIS-only 默认算法，因此上述三代值是兼容回归，不是 Coherent
+Target 新默认。A2 equivalent patch、A3 commanded pattern hardware boundary 尚未实现，
+因此 Foundation 0.1.1A 不能标为 Implemented/Verified。
 
 ## 已完成（v0.1）
 
@@ -27,6 +53,13 @@
 
 ## 已知问题
 
+- GUI、CLI、Physics-Guided 和 legacy experiment 当前仍使用 RIS-only Physics Focus；A1 的
+  Coherent Target Focus 已有 headless Python API，但默认接入属于后续 B 阶段；
+- `nx/ny` 同时承担等效控制 patch 与中心点求积离散，语义和适用性提示尚未冻结；
+- Phase Bits 尚未在传播入口验证 commanded hardware states；
+- continuous hardware 与反馈优化的 8-state search 尚未在接口/UI 中拆分；
+- GUI Generation 立即应用、普通参数等待 Apply，但没有 pending/customized 状态提示；
+- 所有场景仍共用固定传播编排，尚无 PropagationProfile identity；
 - 高质量 `200×160` 场图在 Future 64×48 网格下计算较慢，但运行于后台且可取消；
 - 当前场图采用逐评价点计算，尚未建立跨点 RIS 系数矩阵缓存；
 - 墙面反射是二维平面几何加三维路径高度检查，不是完整材料/极化模型；
@@ -41,10 +74,12 @@
 
 ## 下一阶段
 
-1. 对固定场景预计算 `a_n` 和分块 `A @ Gamma`，缩短 Future 场图与反馈时间；
-2. 完成相位误差强度扫描，对比 Physics / Feedback / Physics-Guided；
-3. 加入 XR 人体阻挡与动态 outage 时间序列；
-4. 在 Smart Space 稳定后扩展多用户、多 RIS Factory。
+1. 按 [Foundation 0.1.1 计划](docs/foundation_0_1_1_plan.md) 完成 A2 equivalent patch 与
+   A3 commanded pattern hardware boundary；
+2. 完成 optimizer/GUI 语义和实验 provenance；
+3. 建立最小 PropagationProfile，冻结 cache identity；
+4. 再进入 P1A 几何系数缓存与矩阵求值；
+5. 随后完成相位误差和孔径统计实验，再扩展 XR/Factory/City。
 
 阶段顺序、entry/exit gate 和工作颗粒度以 [docs/roadmap.md](docs/roadmap.md) 为准。本页只
 记录状态，不新增需求或改变优先级。

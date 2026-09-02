@@ -76,6 +76,15 @@ Capability 是一个完整能力，例如 Smart Space 或 XR Dynamic Link。完�
 - `DEVELOPMENT_STATUS.md` 有准确的已完成、限制、下一阶段；
 - 发布说明不能包含 Planned 能力。
 
+Release 达到以上门禁并经项目维护者确认后，还必须完成 GitHub 交付闭环：
+
+- 提交只包含本版本已验收范围，不夹带无关工作区修改；
+- 将验收分支推送到配置的 `origin`，并核对远端 commit；
+- 向维护者报告版本、分支、commit hash、主要变更、测试/人工验收、兼容或迁移影响、已知
+  限制和下一阶段；
+- tag、GitHub Release、PR、合并和历史改写不由“版本完成”自动授权，必须按工作项明确执行；
+- 远端同步失败时保留可恢复的本地状态并报告阻塞，不 force push 或绕过分支保护。
+
 ## 7. 物理模型变更附加门禁
 
 改变相位符号、散射幅值、方向图、阻挡、反射、误差采样或 dB 转换时额外要求：
@@ -98,4 +107,3 @@ Capability 是一个完整能力，例如 Smart Space 或 XR Dynamic Link。完�
 - 测试通过是因为降低物理阈值或跳过测试；
 - 用 Future preset 的高参数掩盖错误模型；
 - 代码完成但 schema、API 和限制文档仍是旧版本。
-

@@ -15,7 +15,7 @@
 ### 场景基线
 
 详细默认值以 [project_baseline.md](project_baseline.md#6-默认-smart-space-基线) 和
-`scenes/smart_room.json` 为准。可运行比较：No RIS、Current/Advanced/Future Physics Focus、
+`scenes/smart_room.json` 为准。可运行比较：No RIS、Current/Advanced/Future RIS-only Physics Focus、
 Feedback Greedy、Physics-Guided Feedback。
 
 ### 输出
@@ -101,4 +101,3 @@ RIS 朝向，因此至少在 XR 动态引擎与 City 基础之后评估。
 每个场景必须先有研究问题、控制变量、模型边界、headless demo、metrics、JSON、性质测试、
 performance budget 和 limitation，再进入 GUI。共享能力进入核心层，场景模块只组装数据，
 不得复制传播公式。
-

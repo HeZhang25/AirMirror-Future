@@ -3,9 +3,9 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| 基线版本 | v0.1 |
+| 基线版本 | v0.1 + Foundation 0.1.1A/A1 |
 | 模型标签 | System-level electromagnetic approximation |
-| 对应 ADR | ADR-0001、ADR-0003 |
+| 对应 ADR | ADR-0001、ADR-0003、ADR-0006 |
 
 ## 1. 适用范围
 
@@ -111,6 +111,10 @@ A_cell = W*H/(Nx*Ny)
 sum(A_cell) = W*H
 ```
 
+v0.1 中同一 `Nx*Ny` 网格同时决定独立 commanded phase 和中心点求积采样；这些点是系统级
+等效控制 patch，不是经过器件校准的真实 meta-atom。当前模型按满填充孔径处理，没有 patch
+内积分、fill factor、互耦或真实单元子结构。
+
 数组展开顺序是先生成 `u`（宽度/Nx）和 `v`（高度/Ny）的 meshgrid，再以 C-order
 flatten；pattern 必须使用同一顺序，reshape 形状为 `[Ny,Nx]`。
 
@@ -142,8 +146,11 @@ TX-RIS 和 RIS-RX 的中心路径可受几何阻挡；v0.1 不逐 cell 计算不
 ### 孔径归一化不变量
 
 场幅与 `A_cell` 线性相关，因此固定 `W,H,eta` 和连续相位时，网格从 8×8 加密到
-16×16、32×32 应收敛，而非随 cell 数量无界增加。增大实体孔径通常增加理想聚焦能力，
-但最终总信道可能因与 LOS/墙路径相消而在个别点下降。
+16×16、32×32 不得随 patch 数量产生无界增益，并应表现出稳定细分趋势。由于当前细分同时
+增加求积点和独立控制自由度，该测试保护面积归一化/不发散，不证明较粗 control patch 已达到
+物理或求积收敛。真正的求积有效性测试需要固定 control grid 和 commanded pattern，只细化
+patch 内 integration grid。增大实体孔径通常增加理想聚焦能力，但最终总信道可能因与 LOS/墙
+路径相消而在个别点下降。
 
 模型没有任意校准常数。若未来需要与实测/全波校准，应新增具名、带单位和来源的模型
 参数，并通过 ADR 说明，不允许添加“RIS gain dB”。
@@ -168,8 +175,40 @@ phi_q = (round(phi/Delta) mod M)*Delta
 - 3/4-bit：均匀 8/16 状态；
 - `phase_bits=None`：continuous，不量化。
 
-Physics Focus 是对名义几何的相位共轭，不保证在强模型误差、多用户或带约束目标下全局
-最优。
+### RIS-only Phase-Conjugate Focus
+
+`generate_ris_only_focus_pattern()` 将上述 `phi_ideal_n` 直接按 hardware `phase_bits` 量化，
+只让 RIS patch 在目标点互相相干。兼容函数 `generate_focus_pattern()` 保持相同语义。它不读取
+`h_LOS+h_wall` 的复相位，因此不是总接收功率目标。
+
+### Coherent Target Focus
+
+定义 nominal baseline 与未偏置 RIS 场：
+
+```text
+h_b  = h_LOS + sum(h_wall)
+h_r0 = h_RIS(phi_ideal)
+```
+
+continuous 单 RIS 使用公共相位偏移：
+
+```text
+delta = [arg(h_b)-arg(h_r0)] mod 2*pi
+phi_command_n = [phi_ideal_n+delta] mod 2*pi
+```
+
+当两个分量均非退化且相位不改变 RIS 幅度时，Controller Model 下应满足
+`|h_total|≈|h_b|+|h_RIS|`。若任一分量相对另一分量小于 `64*machine_epsilon`，确定性使用
+`delta=0`，不对近零复数作不稳定相位判断。
+
+有限 bit 必须先加 offset 再使用同一个量化器。算法评价所有由公共 offset 量化边界划分出的
+不同候选区间，并将精确 `delta=0` 作为第一候选，以 Controller Model 的
+`Pt*|h_b+h_RIS|²` 选择最佳命令。它只保证不差于同一 nominal objective 下的 unshifted 候选，
+且只是在公共 offset 可达 pattern 族内最优；不是任意逐 patch 离散组合的全局最优。
+
+完整符号、候选构造、tie-break、退化行为和兼容决定见
+[ADR-0006](adr/0006-coherent-target-focus-objective.md)。两种算法都不保证在 Ground Truth
+误差、幅相耦合、多用户或带约束目标下全局最优。
 
 ## 9. 总信道、基线与 RIS Gain
 
@@ -226,4 +265,3 @@ Controller Model 返回零位置/相位误差、单位效率缩放和名义墙�
 
 改变公式、相位符号、方向图、面积标度或误差采样策略必须新增 ADR，更新物理性质测试和
 实验基准，不能只修改 docstring。
-

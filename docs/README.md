@@ -4,7 +4,7 @@
 |---|---|
 | 文档状态 | Normative / 规范性 |
 | 基线版本 | v0.1 |
-| 最后复核 | 2026-09-01 |
+| 最后复核 | 2026-09-02（Foundation A1） |
 | 维护责任 | 修改相关代码的开发者 |
 
 本目录是 AirMirror Future 的工程事实源。根目录的 `项目说明提示词.md` 保存原始愿景和
@@ -17,25 +17,26 @@
 
 1. [project_baseline.md](project_baseline.md)：产品目标、边界和不可破坏原则；
 2. [glossary.md](glossary.md)：统一术语、坐标、单位和状态词；
-3. [requirements.md](requirements.md)：带稳定编号的需求与验收映射；
-4. [architecture.md](architecture.md)：模块边界、依赖方向和数据流；
-5. [data_model.md](data_model.md) 与 [public_api.md](public_api.md)：代码契约；
-6. [physics_model.md](physics_model.md)：物理公式、约定、适用域和不变量；
-7. [scene_schema.md](scene_schema.md)：持久化格式和兼容策略；
-8. [gui_spec.md](gui_spec.md)、[optimization_spec.md](optimization_spec.md)、
+3. [foundation_0_1_1_plan.md](foundation_0_1_1_plan.md)：当前基线之后的模型契约改进计划；
+4. [requirements.md](requirements.md)：带稳定编号的需求与验收映射；
+5. [architecture.md](architecture.md)：模块边界、依赖方向和数据流；
+6. [data_model.md](data_model.md) 与 [public_api.md](public_api.md)：代码契约；
+7. [physics_model.md](physics_model.md)：物理公式、约定、适用域和不变量；
+8. [scene_schema.md](scene_schema.md)：持久化格式和兼容策略；
+9. [gui_spec.md](gui_spec.md)、[optimization_spec.md](optimization_spec.md)、
    [experiment_spec.md](experiment_spec.md)：子系统行为；
-9. [test_strategy.md](test_strategy.md) 与 [definition_of_done.md](definition_of_done.md)：
+10. [test_strategy.md](test_strategy.md) 与 [definition_of_done.md](definition_of_done.md)：
    验证和交付门禁；
-10. [roadmap.md](roadmap.md)：阶段顺序和工作颗粒度；
-11. [decisions.md](decisions.md) 与 [adr/](adr/)：不可静默改变的架构决定；
-12. [../DEVELOPMENT_STATUS.md](../DEVELOPMENT_STATUS.md)：当前实现快照。
+11. [roadmap.md](roadmap.md)：阶段顺序和工作颗粒度；
+12. [decisions.md](decisions.md) 与 [adr/](adr/)：不可静默改变的架构决定；
+13. [../DEVELOPMENT_STATUS.md](../DEVELOPMENT_STATUS.md)：当前实现快照。
 
 ## 文档级别
 
 | 级别 | 含义 | 文档 |
 |---|---|---|
 | Normative | 实现与测试必须遵守；修改需要变更记录 | baseline、requirements、architecture、data/API、physics、schema、DoD |
-| Operational | 描述开发过程、阶段和当前状态 | roadmap、test strategy、development status、contributing |
+| Operational | 描述开发过程、阶段和当前状态 | Foundation 计划、roadmap、test strategy、development status、contributing |
 | Informative | 帮助理解，不覆盖规范性契约 | README、scenarios、future assumptions、limitations |
 | Historical | 保存输入与历史，不自动代表当前实现 | `项目说明提示词.md`、已替代 ADR |
 

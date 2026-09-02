@@ -33,6 +33,9 @@
 | AMF-RIS-005 | 固定孔径细分收敛；增大孔径通常提升理想聚焦 | Implemented | area-normalized scattering | convergence and larger-aperture tests |
 | AMF-RIS-006 | RIS 背面方向贡献为零，默认余弦方向图 `q=1` | Implemented | `physics/ris_scattering.py` | `test_back_side_receiver_gets_no_ris_field` |
 | AMF-RIS-007 | 三代 preset 是可编辑假设；Future 显式标记 | Implemented | `ris/generations.py`, GUI | headless generation runs、GUI smoke |
+| AMF-RIS-008 | 区分 RIS-only 与 Coherent Target Focus；GUI 默认算法与 nominal target objective 一致 | In Progress | A1: `ris/phase.py`, `optimization/coherent_focus.py`；GUI 接入待 B 阶段 | `tests/test_coherent_focus.py` FND-T01..05；ADR-0006 |
+| AMF-RIS-009 | `nx/ny` 定义为 equivalent controllable aperture patches，并显示有效 pitch/波长比例和限制 | Planned | — | `foundation_0_1_1_plan.md` FND-T09 |
+| AMF-RIS-010 | 传播前验证 commanded pattern 符合 phase bits；Actual Ground Truth error 不再量化 | Planned | — | `foundation_0_1_1_plan.md` FND-T06..08 |
 
 ## 仿真、数据与优化
 
@@ -46,6 +49,8 @@
 | AMF-OPT-002 | Physics-Guided 使用 Focus 初始化再反馈修正 | Implemented | `optimization/physics_guided.py` | `test_physics_guided_feedback_returns_valid_pattern` |
 | AMF-OPT-003 | 大 RIS 优化使用 tile grouping，支持取消与进度 | Implemented | `greedy.py`, `gui/workers.py` | GUI smoke；人工 Optimize/Cancel 步骤 |
 | AMF-SIM-004 | 固定几何预计算 `a_n`、多点分块矩阵和增量贪心 | Planned | — | 进入 P1 性能里程碑前补基准测试 |
+| AMF-OPT-004 | hardware phase resolution 与 optimizer search levels 分离并进入结果元数据 | Planned | — | `foundation_0_1_1_plan.md` FND-T10 |
+| AMF-SIM-005 | 建立 PropagationProfile 和默认 IndoorDeterministicProfile，保持环境模型与 Ground Truth 分离 | Planned | — | `foundation_0_1_1_plan.md` FND-T13..14 |
 
 ## 场景与 GUI
 
@@ -59,6 +64,8 @@
 | AMF-UI-004 | 所有可编辑参数有单位、范围校验和错误反馈 | Implemented | `gui/main_window.py`, dataclasses | GUI smoke + 参数异常测试 |
 | AMF-UI-005 | 未实现场景不提供可运行假入口 | Verified | GUI roadmap label | GUI smoke、人工检查 |
 | AMF-UI-006 | Model Info 显示传播/RIS/噪声假设和限制 | Implemented | `MainWindow._show_model_info` | 人工 Model Info 验收 |
+| AMF-UI-007 | 参数编辑具有 pending/apply/Optimize 门禁；preset 覆盖和 Customized 状态可辨认 | Planned | — | `foundation_0_1_1_plan.md` FND-T11..12 |
+| AMF-UI-008 | Pattern 显示 grid/bits/states/source/error/legend；Ground Truth 标签与真实作用范围一致 | Planned | — | Foundation GUI smoke + 人工清单 |
 
 ## 工程、实验与文档
 
@@ -67,6 +74,7 @@
 | AMF-ENG-001 | Python 3.11+ 可 editable install，CPU/离线运行 | Verified | `pyproject.toml` | `pip install -e ".[dev]"`, headless run |
 | AMF-ENG-002 | GUI 与物理分层，GUI 不定义传播公式 | Verified | package architecture | architecture review + imports audit |
 | AMF-EXP-001 | Phase Resolution 固定孔径扫 1/2/3/4/continuous，输出 CSV/PNG | Implemented | `experiments/phase_bits.py` | generated `results/phase_bits/*` |
+| AMF-EXP-006 | 实验记录 focus mode、profile/model version、search levels，且不覆盖 legacy 结果 | Planned | — | `foundation_0_1_1_plan.md` FND-T15 |
 | AMF-DOC-001 | Future 假设、模型限制和术语均有规范文档 | Verified | docs | `tests/test_documentation.py` |
 | AMF-DOC-002 | 需求、测试和状态可追踪，文档链接无断链 | Implemented | requirements、test strategy | `tests/test_documentation.py` |
 
@@ -81,4 +89,3 @@
 | AMF-EXP-003 | Phase Error robustness 三算法对比 | Planned | Ground Truth 配置表和统计口径 |
 | AMF-EXP-004 | RIS Count sweep | Planned | 多 RIS 单跳实现 |
 | AMF-EXP-005 | Dynamic User | Planned | XR 动态引擎 |
-

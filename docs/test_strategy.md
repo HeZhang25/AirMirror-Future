@@ -45,12 +45,27 @@ python -m airmirror_future.experiments.phase_bits --output results/phase_bits
 | PHY-T08 | Focus vs random | focus > 100 random median 的 4 倍 | `test_physics_focus...` |
 | PHY-T09 | fixed seed | complex result 完全一致 | `test_fixed_ground_truth_seed...` |
 | PHY-T10 | wall blockage | 幅度衰减换算为 `-30±0.01 dB` | `test_complete_los...` |
-| PHY-T11 | fixed aperture | 8/16/32 spread `<0.5 dB` | subdivision test |
+| PHY-T11 | fixed-aperture area normalization / no cell-count gain | 8/16/32 spread `<0.5 dB` | subdivision test |
 | PHY-T12 | aperture growth | larger focused amplitude > smaller | larger aperture test |
 | PHY-T13 | back face | RIS contribution exactly zero | back side test |
+| FND-T01 | legacy RIS-only compatibility | 显式名称与 `generate_focus_pattern` 数组完全一致；既有 random median 门禁继续通过 | `test_ris_only_focus_preserves_legacy_phase_conjugation` |
+| FND-T02/T02b | continuous coherent alignment | 相位差 `<1e-12 rad` 且 `|h_total|` 满足解析幅度和 | `test_continuous_coherent_focus_*` |
+| FND-T03 | nominal no-RIS lower bound | Coherent target `received_power_w >= baseline` | `test_coherent_focus_does_not_reduce...` |
+| FND-T04 | finite-bit common offset | 候选首项精确 `0.0`；结果不差于 unshifted | `test_quantized_common_offset_beats...` |
+| FND-T05 | degenerate deterministic fallback | 零/相对近零分量返回 `delta=0`，不产生 NaN/Inf | `test_zero_baseline_focus...` |
 
 若更换物理近似导致这些容差不再适用，必须先提交 ADR 解释新性质，并加入等价或更强的
 测试；不得先删除失败测试。
+
+FND-T01..T05 只验收 Foundation A1 的 nominal、单 RIS、单目标契约。FND-T02/T03 的解析保证
+只适用于 continuous 且命令相位不改变反射幅度；finite-bit 额外以小数组 dense sampling 验证
+边界候选覆盖全部公共-offset 可达 patterns。它们不构成 Ground Truth、任意逐 patch 离散组合
+或多 RIS 全局最优证据。
+
+PHY-T11 同时细化当前耦合的 control/integration grid，只证明面积归一化后没有随 patch 数量
+产生无界增益，并提供当前测试几何下的稳定性证据；不得把它描述成真实 meta-atom 或粗 patch
+已经达到物理收敛。P1C 必须固定 control grid 和 commanded pattern，只细化独立 quadrature
+grid，并同时比较复数信道误差与功率差；阈值由代表性适用域实验建立。
 
 ## 4. 数据与 API 测试
 
@@ -108,4 +123,3 @@ Current/Advanced/Future 的 Fast 场图时间、最大内存、feedback measurem
 
 完成报告至少记录：测试命令、通过数量、headless 关键指标、人工验收项目、未跑项目及原因。
 “测试应该能过”不构成证据。requirements 中的 Implemented 条目必须能定位到证据。
-

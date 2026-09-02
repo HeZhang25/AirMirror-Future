@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| API 基线 | 0.1 |
+| API 基线 | 0.1 + Foundation A1 additive API |
 | Python | 3.11+ |
 
 ## 1. 稳定性政策
@@ -12,9 +12,10 @@ v0.x 期间允许有记录的破坏性变化，但不得静默发生。改变签
 异常类型时，必须更新本文件、requirements、测试和 ADR；至少在一个 release 的
 `DEVELOPMENT_STATUS.md` 中列迁移说明。
 
-顶层 `airmirror_future` 导出公共数据类型、`SimulationEngine`、Controller/Ground Truth
-和 MeasurementOracle。以下划线开头的成员、GUI 私有槽和 `path_details` 内部字典不是
-稳定 API。
+顶层 `airmirror_future` 导出公共数据类型、`SimulationEngine`、Controller/Ground Truth、
+MeasurementOracle、`generate_ris_only_focus_pattern` 和
+`generate_coherent_target_pattern`。以下划线开头的成员、GUI 私有槽和 `path_details` 内部
+字典不是稳定 API。
 
 ## 2. SimulationEngine
 
@@ -59,7 +60,7 @@ quantize_phase(phi_rad: float | np.ndarray, bits: int | None)
 返回类型与输入标量/数组形态一致，范围 `[0,2π)`；bits 必须为正整数或 None。
 
 ```python
-generate_focus_pattern(
+generate_ris_only_focus_pattern(
     ris: RISSurface,
     tx: Transmitter | Vec3,
     rx: Receiver | Vec3,
@@ -67,7 +68,34 @@ generate_focus_pattern(
 ) -> np.ndarray
 ```
 
-返回 `[ris.cell_count]` 弧度数组，已按 surface `phase_bits` 量化。
+返回 `[ris.cell_count]` 弧度数组，已按 surface `phase_bits` 量化；只使 RIS patch 相互同相，
+不读取 baseline。`generate_focus_pattern()` 在 A1 中是行为完全相同的兼容别名，现有 GUI、CLI、
+feedback 初始化和 legacy experiment 尚未迁移。
+
+```python
+apply_common_phase_offset(
+    phase_rad: np.ndarray,
+    common_phase_offset_rad: float,
+    bits: int | None,
+) -> np.ndarray
+
+generate_unquantized_ris_only_focus_pattern(
+    ris: RISSurface,
+    tx: Transmitter | Vec3,
+    rx: Receiver | Vec3,
+    frequency_hz: float,
+) -> np.ndarray
+
+common_phase_offset_candidates(
+    phase_rad: np.ndarray,
+    bits: int,
+) -> np.ndarray
+```
+
+`generate_unquantized_ris_only_focus_pattern` 返回量化前的几何相位；
+`apply_common_phase_offset` 在量化前加入公共 offset；`common_phase_offset_candidates` 返回
+finite-bit 公共 offset 候选，精确 `0.0` 永远为首项，其余项覆盖所有量化 transition 区间。
+phase array 必须是一维、非空且有限；offset 必须有限；非法输入抛 `ValueError`。
 
 ```python
 generation_preset(
@@ -96,6 +124,31 @@ create_smart_space_scene(generation: str = "Current") -> Scene
 [scene_schema.md](scene_schema.md)。
 
 ## 5. 优化 API
+
+```python
+generate_coherent_target_pattern(
+    scene: Scene,
+    controller_model: ControllerModel | None = None,
+    *,
+    engine: SimulationEngine | None = None,
+    tx: Transmitter | str | None = None,
+    rx: Receiver | str | None = None,
+    ris: RISSurface | str | None = None,
+) -> np.ndarray
+
+coherent_common_phase_offset(
+    baseline_channel: complex,
+    ris_channel: complex,
+) -> float
+```
+
+返回 single-target Coherent Target commanded pattern。默认选择 Scene 首个 TX/RX；RIS 未指定时
+要求恰好一个 enabled surface。该函数只接受 nominal Controller Model，显式拒绝
+GroundTruthModel；它不读取 MeasurementOracle。unknown/disabled/ambiguous RIS 和非法模型抛
+`ValueError`。continuous 使用解析相位对齐；finite bit 在公共 offset 候选中最大化 nominal
+`received_power_w`。纯 helper `coherent_common_phase_offset` 实现相同 continuous 对齐和
+`delta=0` 退化规则，并拒绝非有限复分量。完整 objective 与退化规则见
+[ADR-0006](adr/0006-coherent-target-focus-objective.md)。
 
 ```python
 MeasurementOracle.measure(patterns: dict[str, np.ndarray]) -> float
@@ -147,4 +200,3 @@ python -m airmirror_future.experiments.phase_bits --output PATH
 | id 不存在 | 当前为 `StopIteration`；计划统一为带 id 的 `ValueError` |
 
 最后一项是已知 API 粗糙点；调用者不应依赖 `StopIteration`，修复时按兼容流程记录。
-
