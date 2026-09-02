@@ -3,9 +3,9 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| 基线版本 | v0.1 + Foundation 0.1.1A/A1-A2 |
+| 基线版本 | v0.1 + Foundation 0.1.1A/A1-A2 + ADR-0008 aperture QA boundary |
 | 模型标签 | System-level electromagnetic approximation |
-| 对应 ADR | ADR-0001、ADR-0003、ADR-0006、ADR-0007 |
+| 对应 ADR | ADR-0001、ADR-0003、ADR-0006、ADR-0007、ADR-0008 |
 
 ## 1. 适用范围
 
@@ -133,8 +133,10 @@ r_y     = pitch_y/lambda
 改变 `Nx/Ny` 不改变实体孔径；改变 `f` 只改变传播波长、波数和上述比例，也不自动缩放孔径。
 `r_x/r_y` 是模型透明度信息，不是物理阵元间距合规检查；尤其 `pitch/lambda > 0.5` 不会使
 当前系统级模型自动失效。A2 不提供 patch 内 phase-span 数值或硬阈值，因为当前尚未独立
-定义 control grid 与 quadrature grid。严格求积收敛按 P1C 触发条件处理，完整决定见
-[ADR-0007](adr/0007-equivalent-controllable-aperture-patches.md)。
+定义 production control grid 与 quadrature grid。A2 的语义决定见
+[ADR-0007](adr/0007-equivalent-controllable-aperture-patches.md)；在 Foundation final exit/P1A
+前建立最小独立求积有效性证据的门禁见
+[ADR-0008](adr/0008-minimum-aperture-quadrature-validity-gate.md)。
 
 ## 7. RIS 双基地散射
 
@@ -167,8 +169,15 @@ TX-RIS 和 RIS-RX 的中心路径可受几何阻挡；v0.1 不逐 cell 计算不
 16×16、32×32 不得随 patch 数量产生无界增益，并应表现出稳定细分趋势。由于当前细分同时
 增加求积点和独立控制自由度，该测试保护面积归一化/不发散，不证明较粗 control patch 已达到
 物理或求积收敛。真正的求积有效性测试需要固定 control grid 和 commanded pattern，只细化
-patch 内 integration grid。增大实体孔径通常增加理想聚焦能力，但最终总信道可能因与 LOS/墙
-路径相消而在个别点下降。
+patch 内 integration grid。FND-QA-AP 在 Foundation final exit 前建立 P1A 所需的最小
+coefficient policy；P1C 再扩大 aperture、field-map、frequency/angle/near-field 等研究适用域。
+增大实体孔径通常增加理想聚焦能力，但最终总信道可能因与 LOS/墙路径相消而在个别点下降。
+
+当前 production policy 仍是每个 control patch 一个 midpoint。任何 `2×2/4×4/16×16` 等内部
+细化结果都属于同一标量模型的 numerical reference；没有全波或测量校准时不得称 Ground Truth。
+求积细化必须让所有 subpoints 继承同一个 parent control command，不得随 order 重新生成 Focus。
+当前 TX→RIS center、RIS center→RX 的统一 blockage factor 也不会因 subpoint 增加而变成空间
+分辨遮挡。
 
 模型没有任意校准常数。若未来需要与实测/全波校准，应新增具名、带单位和来源的模型
 参数，并通过 ADR 说明，不允许添加“RIS gain dB”。
@@ -280,6 +289,16 @@ Controller Model 返回零位置/相位误差、单位效率缩放和名义墙�
 - 任何输出数组必须是有限值；
 - active RIS 在完整功率与噪声模型建立前拒绝；
 - 非法 scene schema 拒绝加载。
+
+任何“孔径数值收敛”或“精确到若干 dB”的声明还必须满足：
+
+- 固定实体 aperture、control grid、commanded pattern、Profile、geometry 和 seed；
+- 只改变 quadrature rule/order，并检查 successive refinement；
+- 使用独立求积规则交叉验证内部 reference；
+- 同时报告 absolute/robust complex error、幅度/功率差，并保护深相消下的 phase/relative/gain；
+- 记录 `quadrature_policy_id/version`、适用域、runtime 和 memory；
+- 不把内部 refined scalar reference 称作 EM/full-wave/measurement truth；
+- partial-aperture blockage 必须等待独立 spatially resolved blockage model。
 
 改变公式、相位符号、方向图、面积标度或误差采样策略必须新增 ADR，更新物理性质测试和
 实验基准，不能只修改 docstring。

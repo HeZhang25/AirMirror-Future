@@ -70,6 +70,12 @@
 `pitch/lambda`；这些值不得带“通过/失败”或 `lambda/2` 合规提示。A2 本身不改变当前 GUI
 状态机，也不新增可点击入口。频率变化不得自动改写 Width/Height 或 Nx/Ny。
 
+Foundation B 的 Model Info/结果说明还必须标注当前 production aperture integration 为
+`1×1 midpoint per equivalent control patch`，并把精确 dBm 解释为 current scalar
+center-point model 输出。FND-QA-AP Verified 前不得显示“quadrature converged”“EM accurate”或
+把小数位数当作物理精度；GUI 不新增 quadrature order 可编辑控件，除非后续 production policy
+Work Item 明确授权。
+
 ### Ground Truth
 
 GUI v0.1 暴露 phase error、measurement noise 和 position error sigma；点击 Apply 才创建新
@@ -142,4 +148,5 @@ quantity 在 Power/SNR/RIS Gain 间切换只重绘已有 `FieldMapResult`，不�
 5. Phase Error 后 commanded 与 actual 图不同；
 6. Feedback 可显示进度并取消；
 7. Save/Load 后 scene 数值往返一致，pattern 重新生成；
-8. Model Info 正确声明系统级近似、Shannon 上界和当前限制。
+8. Model Info 正确声明系统级近似、Shannon 上界、当前 `1×1` center-point policy、A2 semantic
+   与 discretization accuracy 的状态边界，以及 partial-aperture blockage 未实现。

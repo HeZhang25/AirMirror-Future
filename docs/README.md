@@ -4,7 +4,7 @@
 |---|---|
 | 文档状态 | Normative / 规范性 |
 | 基线版本 | v0.1 |
-| 最后复核 | 2026-09-02（Foundation A2 final acceptance） |
+| 最后复核 | 2026-09-02（ADR-0008 / FND-QA-AP aperture quadrature gate planning） |
 | 维护责任 | 修改相关代码的开发者 |
 
 本目录是 AirMirror Future 的工程事实源。根目录的 `项目说明提示词.md` 保存原始愿景和
@@ -18,6 +18,9 @@
 1. [project_baseline.md](project_baseline.md)：产品目标、边界和不可破坏原则；
 2. [glossary.md](glossary.md)：统一术语、坐标、单位和状态词；
 3. [foundation_0_1_1_plan.md](foundation_0_1_1_plan.md)：当前基线之后的模型契约改进计划；
+   其中最小孔径求积门禁详见
+   [FND-QA-AP](work_items/foundation_0_1_1_qa_ap.md) 与
+   [ADR-0008](adr/0008-minimum-aperture-quadrature-validity-gate.md)；
 4. [requirements.md](requirements.md)：带稳定编号的需求与验收映射；
 5. [architecture.md](architecture.md)：模块边界、依赖方向和数据流；
 6. [data_model.md](data_model.md) 与 [public_api.md](public_api.md)：代码契约；
@@ -75,6 +78,7 @@
 | 改动类型 | 必须同步检查 |
 |---|---|
 | 物理公式/符号 | physics、requirements、ADR、单元测试、实验可比性 |
+| 数值求积/精度声明 | physics、ADR、test/experiment、limitations、cache identity、provenance |
 | 公共类/函数 | data model、public API、scene schema、调用方、兼容测试 |
 | JSON 字段 | scene schema、schema version、迁移策略、round-trip 测试 |
 | GUI 行为 | GUI spec、需求追踪、烟雾测试、截图/演示说明 |

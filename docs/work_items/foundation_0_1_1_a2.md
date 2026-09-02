@@ -70,7 +70,9 @@ Foundation 0.1.1 继续保持 In Progress。
 - ratio 被误当真实阵元约束：API 不输出判断，规范禁止 `lambda/2` pass/fail；
 - 更严格输入校验暴露旧非法对象：通过显式 `ValueError` 修正输入，不允许 NaN 几何进入传播；
 - 诊断被错误接入传播：helper 保持纯函数，现有散射路径不导入它；
-- 未来需要数值收敛：进入 P1C 拆分 control/quadrature grid，不在 A2 增加经验阈值。
+- 后续数值收敛不重开 A2：ADR-0008 新增 FND-QA-AP，在 Foundation final exit/P1A 前完成
+  最小独立 quadrature validity 和 coefficient policy；P1C 保留完整 aperture research。A2 本身
+  仍不增加经验阈值或 production 求积实现。
 
 ## 文档影响
 

@@ -20,7 +20,10 @@
 当前 `v0.1` Smart Space 已验证。进入性能缓存和新场景前，项目将先执行
 [Foundation 0.1.1 物理模型契约计划](docs/foundation_0_1_1_plan.md)，校准 Focus objective、
 RIS 网格语义、Commanded Pattern 硬件约束、优化搜索分辨率、GUI 状态和传播 Profile。
-Foundation 当前为 In Progress：A1 与 A2 已 Verified，A3 与 B/C 尚未完成。未达到
+在 Foundation final exit/P1A 缓存前还必须完成
+[FND-QA-AP 最小孔径求积有效性门禁](docs/work_items/foundation_0_1_1_qa_ap.md)，冻结待缓存
+control-level coefficient 的 quadrature policy。Foundation 当前为 In Progress：A1 与 A2 已
+Verified，A3、B/C 与 FND-QA-AP 尚未完成。未达到
 Implemented 的计划项不得描述为当前功能。
 
 ## 安装
@@ -131,3 +134,7 @@ python -m airmirror_future.experiments.phase_bits --output results/phase_bits
 项目暂不包含全波求解、衍射、高阶多次反射、互耦、复杂极化、材料色散、真实天线
 全波方向图、PIN 二极管非线性、完整 OFDM/MIMO 或 5G 协议栈。完整列表见
 [docs/limitations.md](docs/limitations.md)。
+
+当前 production RIS 孔径积分为每个 equivalent control patch 一个中心点。A2 已验证 patch
+语义，但独立 quadrature accuracy 尚未验证；三代精确 dBm 应理解为 current scalar
+center-point model 的输出，而不是 full-wave/测量真值。

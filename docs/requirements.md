@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| 基线版本 | v0.1 |
+| 基线版本 | v0.1 + Foundation A1-A2 + aperture quadrature gate plan |
 | 编号规则 | `AMF-<DOMAIN>-<NNN>`；删除后不复用 |
 
 状态含义见 [glossary.md](glossary.md)。证据列必须是测试、命令或人工验收步骤；仅有源码
@@ -30,12 +30,13 @@
 | AMF-RIS-002 | 无源效率限制 `[0,1]`；active 无功率/噪声模型时拒绝 | Implemented | `RISSurface`, `ris_scattering.py` | `test_passive_efficiency_above_one_is_rejected` |
 | AMF-RIS-003 | 支持 continuous 与 1/2/3/4-bit 均匀相位量化 | Implemented | `ris/phase.py` | `test_phase_quantization_states` |
 | AMF-RIS-004 | Physics Focus 遵循统一相位符号并显著优于随机中位数 | Implemented | `ris/phase.py` | `test_physics_focus_beats_random_pattern_median` |
-| AMF-RIS-005 | 固定孔径细分收敛；增大孔径通常提升理想聚焦 | Implemented | area-normalized scattering | convergence and larger-aperture tests |
+| AMF-RIS-005 | 固定孔径在面积归一化下细分 control grid 不产生无界 patch-count 增益，并表现稳定趋势；增大实体孔径通常提升理想聚焦 | Implemented | area-normalized scattering | PHY-T11 no-unbounded-gain test、larger-aperture test；不作为独立 quadrature convergence 证据 |
 | AMF-RIS-006 | RIS 背面方向贡献为零，默认余弦方向图 `q=1` | Implemented | `physics/ris_scattering.py` | `test_back_side_receiver_gets_no_ris_field` |
 | AMF-RIS-007 | 三代 preset 是可编辑假设；Future 显式标记 | Implemented | `ris/generations.py`, GUI | headless generation runs、GUI smoke |
 | AMF-RIS-008 | 区分 RIS-only 与 Coherent Target Focus；GUI 默认算法与 nominal target objective 一致 | In Progress | A1: `ris/phase.py`, `optimization/coherent_focus.py`；GUI 接入待 B 阶段 | `tests/test_coherent_focus.py` FND-T01..05；ADR-0006 |
 | AMF-RIS-009 | `nx/ny` 定义为 equivalent controllable aperture patches，并显示有效 pitch/波长比例和限制 | In Progress | A2: `ris/aperture.py`、ADR-0007；GUI 只读接入待 B 阶段 | `tests/test_aperture_diagnostics.py` FND-T09；[A2 Work Item](work_items/foundation_0_1_1_a2.md) |
 | AMF-RIS-010 | 传播前验证 commanded pattern 符合 phase bits；Actual Ground Truth error 不再量化 | Planned | — | `foundation_0_1_1_plan.md` FND-T06..08 |
+| AMF-RIS-011 | 在 Foundation final exit/P1A 前固定 aperture/control/pattern、仅细化独立 quadrature，冻结可重放的 coefficient policy 和声明适用域 | Planned | [ADR-0008](adr/0008-minimum-aperture-quadrature-validity-gate.md)、[FND-QA-AP](work_items/foundation_0_1_1_qa_ap.md) | FND-T16..18、versioned QA matrix、人工 policy 签署；不等同 EM/full-wave truth |
 
 ## 仿真、数据与优化
 

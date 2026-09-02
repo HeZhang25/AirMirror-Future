@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| 基线版本 | v0.1 + Foundation A1-A2 additive contracts |
+| 基线版本 | v0.1 + Foundation A1-A2 + aperture QA boundary |
 | 权威实现 | `src/airmirror_future/core/types.py` |
 
 ## 1. 通用规则
@@ -123,6 +123,20 @@ equivalent patch 解释。
 诊断函数不修改 RIS/Scene，不参与传播，也不返回有效/无效阈值。改变频率只改变波长和比例，
 不得反向改写 `width_m/height_m`。A2 不公开 patch 内 phase-span；原因和未来拆网格触发条件见
 [ADR-0007](adr/0007-equivalent-controllable-aperture-patches.md)。
+
+### Planned quadrature ownership（非当前公共类型）
+
+ADR-0008 规定 Foundation final exit/P1A 前必须验证 production quadrature policy，但当前代码
+仍只有每个 control patch 一个 midpoint，尚不存在公共 `QuadratureSpec` 数据类型。未来若接入
+多点求积，至少需要：
+
+- `rule`、`order_x/order_y`、坐标约定、normalized weights；
+- `parent_control_index`，确保多个 subpoints 继承同一个 commanded phase；
+- `policy_id/version`，进入 experiment provenance 和 cache identity；
+- 明确该 policy 不描述 physical meta-atom layout 或 spatially resolved blockage。
+
+该内部/公共边界必须由独立 implementation Work Item 决定；本文不把 Planned 类型描述成现有
+API，也不改变 `RISSurface.nx/ny` 或 pattern shape。
 
 ## 4. `Scene`
 

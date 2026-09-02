@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| 基线版本 | v0.1 + Foundation A1-A2 terminology |
+| 基线版本 | v0.1 + Foundation A1-A2 + aperture QA terminology |
 
 ## 产品术语
 
@@ -27,6 +27,11 @@
 | Equivalent Controllable Aperture Patch | RIS 孔径上的系统级独立命令/中心采样区域 | 不称真实 meta-atom 或天线阵元 |
 | Effective Pitch | 实体宽高除以对应 equivalent patch 数所得的派生尺寸/中心间距 | 不当作制造间距或 `lambda/2` 合规结论 |
 | Physical Meta-atom | 需要器件布局、材料、互耦等模型支持的真实结构 | 当前模型尚未实现 |
+| Control Grid | `nx×ny` equivalent patches 及其 commanded phase 自由度 | 不与 quadrature grid 或 physical layout 混用 |
+| Quadrature Grid | 每个 control patch 内为数值积分生成的采样点与权重 | 当前 production 模型仍为每 patch `1×1` midpoint；不增加命令自由度 |
+| Quadrature Policy | 求积规则、阶数、坐标/权重约定和版本的稳定身份 | 不只写“high quality”或省略版本 |
+| Internal Refined Numerical Reference | 同一系统级标量模型内经 successive refinement 和交叉规则支持的内部参考 | 不称 Ground Truth、EM truth、full-wave 或 measurement |
+| Spatially Resolved Blockage | 对 aperture subpoint/region 分别判定遮挡的模型 | 不等同当前 RIS center scalar attenuation，也不由 quadrature refinement 自动获得 |
 
 ## 坐标与单位
 

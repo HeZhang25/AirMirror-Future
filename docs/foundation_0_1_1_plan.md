@@ -5,10 +5,10 @@
 | 文档状态 | Operational / Normative for sequencing |
 | 当前实现基线 | v0.1 Verified，commit `edfa43c` |
 | 目标版本 | v0.1.1 Foundation |
-| 当前计划状态 | In Progress；A1/A2 Verified，A3 与 B/C 尚未完成 |
+| 当前计划状态 | In Progress；A1/A2 Verified，A3、B/C 与 FND-QA-AP 尚未完成 |
 | 父级路线 | v0.1 Smart Space → Foundation 0.1.1 → P1A |
 | 主要责任 | 项目维护者、物理仿真负责人、GUI/测试负责人 |
-| 最后复核 | 2026-09-02（A1 final human acceptance） |
+| 最后复核 | 2026-09-02（ADR-0008 / FND-QA-AP governance integration） |
 
 本文是 AirMirror Future 在 v0.1 后的首个模型契约改进计划。它把当前代码事实、已发现的
 物理/算法/交互问题、目标架构、实施顺序、测试证据和退出门禁集中到同一个工作入口，供
@@ -69,7 +69,7 @@ Smart Space 垂直切片，核心定位是：
 原路线准备直接进入 P1A Geometry Cache and Matrix Evaluation。代码目前只有尚未使用的
 cache 容器，复杂的系数矩阵、失效键和增量更新尚未实现，因此现在调整契约的迁移成本最低。
 
-Foundation 前置有四个直接原因：
+Foundation 前置有五个直接原因：
 
 1. **优化目标尚未对齐**：当前 Focus 最大化 RIS 自身相干幅度，但规范目标是单 RX 总接收
    功率。即使某个场景中的数值收益很小，objective contract 仍必须正确，不能把一次演示增益
@@ -80,6 +80,10 @@ Foundation 前置有四个直接原因：
    只检查长度，不能阻止非法离散命令进入 1-bit/2-bit RIS。
 4. **传播模型没有 Profile 身份**：未来不同场景若都进入同一引擎，缓存无法区分环境模型
    或参数版本；先稳定 Profile 契约才能定义可信的缓存失效规则。
+5. **待缓存的孔径系数尚无独立求积有效性证据**：当前每个 control patch 只取一个中心点；
+   一次隔离审计已观察到默认目标链路存在约 `0.430–0.848 dB` 的幅度差，但该结果尚未经过
+   版本化 runner、代表性矩阵和正式 provenance。P1A 前必须通过 FND-QA-AP 冻结 `a_n` 的
+   production quadrature policy，不能先缓存再验证。
 
 审计备注：commit `edfa43c` 的默认 Smart Room 中，1-bit pattern 加入公共相位 offset 后，
 目标点曾比现有 RIS-only Focus 改善约 `5.02 dB`。该数值只说明 objective 错位具有可观测影响，
@@ -91,7 +95,10 @@ Foundation 前置有四个直接原因：
 v0.1 Verified
   → Foundation 0.1.1A：物理与算法契约
   → Foundation 0.1.1B：优化器与 GUI 语义
+  → A/B Interim Checkpoint
   → Foundation 0.1.1C：PropagationProfile 接口
+  → FND-QA-AP：Minimum Aperture Quadrature Validity
+  → Foundation Final Exit Gate
   → P1A Geometry Cache and Matrix Evaluation
   → P1B/P1C 统计与孔径实验
   → XR / Factory / City
@@ -115,6 +122,8 @@ Foundation 0.1.1 完成后，项目必须做到：
 - 让用户区分 UI 中待应用值、仿真实际值和 generation preset/customized 状态；
 - 让 Ground Truth 参数名称准确表达影响范围；
 - 建立最小 PropagationProfile 契约，并用一个默认 IndoorDeterministicProfile 复现 v0.1；
+- 在 Foundation final exit 前固定 aperture/control/pattern、只细化独立 quadrature，确定
+  control-level `a_n` 的 production policy、声明适用域和 cache identity；
 - 为后续 cache、统计实验和场景扩展提供稳定的 ID、版本和结果 provenance。
 
 ### 4.2 非目标
@@ -126,7 +135,8 @@ Foundation 0.1.1 完成后，项目必须做到：
 - MIMO/MISO/SIMO、波束赋形或多流；
 - 真实 meta-atom、互耦、材料色散、极化或全波模型；
 - 自动把 RIS 实体尺寸绑定运行频率；
-- 两套控制网格/积分网格的完整高保真实现；
+- P1C 的完整 aperture sweep、convergence map、field-map quadrature research 或空间分辨遮挡；
+- 预先指定 `16×16 everywhere`，或在没有预注册适用域/容差时静默改变 production quadrature；
 - P1A 几何矩阵缓存、增量 Greedy 或性能重写；
 - 对历史实验结果进行无版本覆盖。
 
@@ -139,6 +149,8 @@ Foundation 0.1.1 完成后，项目必须做到：
 - 用户能看到当前应用中的 Phase Bits、搜索状态数、Pattern 来源和是否有未应用参数；
 - 当前 Smart Room 可由默认 Profile 重放，结果变化均能解释为已接受的算法变化；
 - 新增 Profile 或缓存时不需要重新定义 Scenario、Ground Truth 和 RIS 的职责；
+- 新增缓存前能证明它缓存的 `a_n` 来自已签署的 quadrature policy；若候选 policy 不通过，
+  Foundation 保持 In Progress 而不是降低阈值；
 - 旧 Phase Resolution 结果仍可识别其 model/focus 版本，不与新结果混用。
 
 ## 5. 目标模型契约
@@ -226,9 +238,26 @@ A2 已新增公共纯派生 helper，B 阶段可将其接入只读显示：
 硬阈值。
 
 当前 8×8→16×16→32×32 测试同时增加中心求积点和独立 commanded phase 自由度，只保护
-面积归一化、结果稳定和“不随 patch 数无界增益”，不能证明粗 patch 已达到物理/求积收敛。
-真正的数值有效性验证推迟到 P1C：固定实体孔径、control grid 和 commanded pattern，只细化
-每个 control patch 内的 quadrature grid，并比较复数 `h_RIS` 误差与功率差。
+面积归一化、结果稳定趋势和“不随 patch 数无界增益”，不能证明粗 patch 已达到物理/求积
+收敛。`AMF-RIS-005` 的验收措辞按这一边界解释，不得简称为独立 quadrature convergence。
+
+数值有效性分成两层：
+
+1. **Foundation FND-QA-AP 最小门禁**：在 final exit/P1A 前固定实体孔径、control grid、
+   commanded pattern、Profile 和几何，只细化每个 control patch 内的 quadrature rule/order；
+   使用 successive refinement、独立求积规则和代表性矩阵，冻结 production `a_n` policy、
+   identity/version 和声明适用域；
+2. **P1C 完整研究**：在最小 policy 已冻结后扩展 aperture/density/control-count、field-map、
+   phase-span、frequency/angle/near-field sensitivity 和更广适用域，不承担 P1A 前置系数定义。
+
+内部最后稳定层级只能称为 internal refined numerical reference，不是 Ground Truth、EM truth、
+full-wave 或 measurement。求积细化时禁止重新生成 Focus；否则会重新混合控制自由度与数值积分
+精度。完整决定见 [ADR-0008](adr/0008-minimum-aperture-quadrature-validity-gate.md)。
+
+当前 production 仍是每 patch `1×1` midpoint。本计划不依据一次审计立即改成 `16×16`；正式
+QA 根据预注册容差决定保留 1×1、采用某个低阶固定 policy、建立适用域相关 policy，或阻断
+Foundation。partial-aperture blockage 不属于该门禁；当前 RIS center scalar attenuation 不能
+因 quadrature refinement 被描述为空间分辨遮挡。
 
 `design_frequency_hz` 在 Foundation 0.1.1 明确 **Deferred**：Scene v1 不新增该字段。当前
 operating `frequency_hz` 继续决定 `k`、波长和 `pitch/wavelength` 展示，但不自动缩放实体孔径。
@@ -377,6 +406,7 @@ version、parameters 和所有影响系数的场景状态。
 | `AMF-RIS-008` | 区分 RIS-only 与 Coherent Target Focus，并对齐 nominal objective |
 | `AMF-RIS-009` | 冻结 equivalent controllable patch 语义和有效 pitch 透明度 |
 | `AMF-RIS-010` | 在传播前验证 commanded hardware states |
+| `AMF-RIS-011` | 在 Foundation final exit/P1A 前验证独立求积并冻结 coefficient policy |
 | `AMF-OPT-004` | 分离 hardware phase resolution 与 optimizer search levels |
 | `AMF-SIM-005` | 建立 PropagationProfile 和默认 IndoorDeterministicProfile |
 | `AMF-UI-007` | 建立 pending/apply/preset/customized 状态语义 |
@@ -494,6 +524,24 @@ version、parameters 和所有影响系数的场景状态。
 完整历史迁移工具、结果索引和统计报告治理可在 P1B 完善，但上述最小字段、legacy 标记和
 不覆盖规则不得推迟到 P1B，也不能仅用 `results/v0.1.1/` 目录名代替。
 
+### 7.4 Foundation Cross-Cutting QA — Aperture Quadrature Gate
+
+#### FND-QA-AP：Minimum Aperture Quadrature Validity
+
+- 状态：**Planned**；不改变 A2 Verified 或整个 Foundation In Progress 的当前边界；
+- Requirement：`AMF-RIS-011`；
+- 依赖：A2 Verified、ADR-0008 Accepted；正式执行依赖 A3/B/C Implemented 和 C2 provenance；
+- 输入：固定 aperture/control grid/commanded pattern/Profile/geometry，候选 quadrature
+  rule/order 和预注册容差；
+- 输出：versioned QA matrix、internal refined numerical reference、误差/成本报告、最终
+  `quadrature_policy_id/version` 或 blocking decision；
+- 验收：FND-T16..18、三代最小矩阵、successive refinement 与独立求积规则交叉检查、无
+  非有限/静默跳过、项目维护者和物理审查者共同签署；
+- 边界：不重开 A2，不实现 partial-aperture blockage，不把内部 reference 称 EM truth，不
+  顺带实现 P1A cache 或 P1C 完整研究；
+- 详细契约：[ADR-0008](adr/0008-minimum-aperture-quadrature-validity-gate.md) 和
+  [FND-QA-AP Work Item](work_items/foundation_0_1_1_qa_ap.md)。
+
 ## 8. L4 Tasks 和建议顺序
 
 每项控制在约 0.5–2 个开发日。L4 Task 是追踪单元，不等于 Git commit；依赖满足的任务可并行，
@@ -513,7 +561,8 @@ version、parameters 和所有影响系数的场景状态。
 | 10 | `FND-QA-AB` A/B 中期验收与人工复核 | Planned | 三代 headless、GUI、临时隔离实验和审查记录 |
 | 11 | `FND-ARCH-01` 接入默认 PropagationProfile | Planned | 全路径角色调用、当前分量等价复现 |
 | 12 | `FND-EXP-01` 加入最小实验 provenance | Planned | versioned CSV/PNG、legacy 和 no-overwrite |
-| 13 | `FND-QA-01` 全量回归、headless、GUI 和实验验收 | Planned | Foundation final exit evidence |
+| 13 | `FND-QA-AP` 最小孔径求积有效性门禁 | Planned | FND-T16..18、versioned matrix、signed coefficient policy |
+| 14 | `FND-QA-01` 全量回归、headless、GUI 和实验验收 | Planned | Foundation final exit evidence |
 
 若任务实际超过两天，应继续拆分；不得把“完成 ChannelProfile”与“实现城市传播模型”合并。
 
@@ -523,7 +572,7 @@ version、parameters 和所有影响系数的场景状态。
 
 | 范畴 | 预计文件 | 目的 |
 |---|---|---|
-| 决策 | `docs/adr/0006-*.md`、`0007-*.md`、`0008-*.md` | objective、patch semantic、profile ADR |
+| 决策 | `docs/adr/0006-*.md`、`0007-*.md`、`0008-*.md`、未来 `0009-*.md` | objective、patch semantic、quadrature gate、profile ADR |
 | 规范 | `physics_model.md`、`optimization_spec.md` | 目标算法和搜索/验证契约 |
 | 数据/API | `data_model.md`、`public_api.md`、必要时 `scene_schema.md` | 派生值、错误、兼容策略 |
 | 架构 | `architecture.md`、`limitations.md` | Profile 边界和适用域 |
@@ -556,6 +605,9 @@ version、parameters 和所有影响系数的场景状态。
 | FND-T13b | `test_profile_is_used_by_all_environment_path_roles` | direct、reflection 和 RIS 两段均不能绕过 Profile |
 | FND-T14 | `test_profile_identity_changes_with_version_or_parameters` | 影响系数的 Profile 版本/参数改变稳定身份，供未来 cache key 使用 |
 | FND-T15 | `test_experiment_schema_records_model_provenance` | 结果可判断 focus/profile/search/model version |
+| FND-T16 | `test_quadrature_refinement_keeps_control_pattern_fixed` | series 中 aperture/control/pattern hash 不变，只改变 rule/order |
+| FND-T17 | `test_quadrature_reference_uses_successive_and_cross_rule_evidence` | reference 不固定冒充 16×16 truth；未收敛 case 明确失败 |
+| FND-T18 | `test_quadrature_report_guards_nulls_and_records_policy_identity` | 深相消不输出 Inf/误导 phase/gain；provenance 和 policy 完整 |
 
 物理/算法实现完成后至少运行：
 
@@ -569,12 +621,12 @@ python -m airmirror_future --headless --scene scenes/smart_room.json --generatio
 实验迁移完成后在新目录运行 Phase Resolution；不得覆盖 v0.1 legacy 输出。GUI 变更按
 [gui_spec.md](gui_spec.md) 的人工清单验收，并记录未执行项。
 
-现有 `test_fixed_aperture_subdivision_converges_without_cell_gain` 继续作为面积归一化和细分不发散
-保护，不把它升级成“粗 control patch 已达到物理收敛”的证据。真正的验证属于 P1C：新增独立
-quadrature grid，在固定 control grid/pattern 下逐级细化，至少比较复数相对误差
-`|h_2q-h_q|/max(|h_2q|,h_floor)` 和 `20*log10(|h_2q|/|h_q|)`，并要求连续细化趋势改善。
-工程容差必须由代表性近场、远场、斜入射和遮挡边缘实验建立，不能在 Foundation 预设通用
-`0.2 dB` 阈值。
+现有 `test_fixed_aperture_subdivision_converges_without_cell_gain` 继续作为面积归一化和 control-grid
+细分不发散保护，不把它升级成“粗 control patch 已达到物理收敛”的证据。FND-QA-AP 必须新增
+独立 quadrature grid，在固定 control grid/pattern 下逐级细化，并同时报告 absolute、robust
+normalized complex error、幅度/功率差和有保护的 phase/RIS Gain。reference convergence 和
+production adequacy 容差必须在正式结果前预注册；不得在失败后放宽。最小 QA 避开 partial
+blockage boundary；P1C 再扩大 frequency/angle/near-field、field-map 和遮挡边缘适用域。
 
 ## 11. 实验、兼容和版本策略
 
@@ -617,7 +669,10 @@ Foundation 不向 Scene v1 写入 `design_frequency_hz`；该问题已 Deferred�
 | 公共 offset 搜索变慢 | 单目标计时和候选数记录 | continuous 解析对齐；离散使用有限候选/边界方法 |
 | validator 误拒绝浮点合法相位 | modulo/tolerance 性质测试 | 调整有理论依据的 tolerance，不 silent quantize |
 | `nx/ny` 语义仍被误读为 meta-atoms | UI 文案、Model Info、报告检查 | 显示 Equivalent Patch 和限制说明 |
-| 相位跨度或网格细分被误称为物理有效性证明 | 文案审查、P1C 独立求积测试 | Foundation 只作 advisory；不设无来源硬阈值 |
+| 相位跨度或 control-grid 细分被误称为物理有效性证明 | 文案审查、FND-QA-AP/P1C 独立求积 | 保持 A2 语义与数值精度分层；不设无来源硬阈值 |
+| P1A 缓存未验证的 center-point `a_n` | final gate 检查 AMF-RIS-011 和 policy identity | Foundation 不升 Verified，P1A 保持门禁 |
+| 一次 16×16 结果被称为 truth | 术语/provenance 审查 | 只允许 internal refined numerical reference；需要 successive+cross-rule |
+| quadrature 被误当空间分辨遮挡 | 遮挡 mode 与 geometry review | 最小 QA 避开边缘；per-sample blockage 另建能力 |
 | Customized 污染 generation schema | JSON round-trip、枚举校验 | Customized 仅作派生显示 |
 | Profile 抽象过度设计 | 默认 Profile 代码规模和依赖审查 | 只保留最小 protocol/strategy，不建插件系统 |
 | Profile 接入造成数值漂移 | 分路径 complex reference comparison | 继续调用原 physics 纯函数，逐步迁移编排 |
@@ -633,9 +688,10 @@ Foundation 不向 Scene v1 写入 `design_frequency_hz`；该问题已 Deferred�
 
 编号在文件创建时按 [decisions.md](decisions.md) 登记，本文不以标题代替正式决定：
 
-1. Physics Focus objective、baseline phase alignment 与 model-based optimizer 分层；
-2. Equivalent controllable aperture patch semantics；
-3. PropagationProfile ownership、path-response 语义、identity 和 Scene binding。
+1. ADR-0006：Physics Focus objective、baseline phase alignment 与 model-based optimizer 分层；
+2. ADR-0007：Equivalent controllable aperture patch semantics；
+3. ADR-0008：最小 aperture quadrature validity gate、A2/P1A/P1C 边界；
+4. 未来 ADR-0009：PropagationProfile ownership、path-response 语义、identity 和 Scene binding。
 
 Commanded validation、search levels 和 GUI dirty state 如果不改变层依赖/schema major，可作为
 上述 ADR 的后果和 requirements 实现；若评审发现存在新的高影响选择，再单独建 ADR。
@@ -652,7 +708,8 @@ Commanded validation、search levels 和 GUI dirty state 如果不改变层依�
 6. **A/B checkpoint：暂停功能扩展并完成人工复核**
 7. `refactor: introduce default propagation profile`
 8. `experiment: add minimum foundation provenance`
-9. `docs/qa: close foundation evidence and status`
+9. `qa: establish minimum aperture quadrature validity and freeze coefficient policy`
+10. `docs/qa: close foundation evidence and status`
 
 可以在本地 TDD 过程中先看到红灯，但不得把“只有失败测试”的提交作为可交付历史推送或合并；
 测试应与最小实现组成绿色提交，或在合并前 squash。每个交付提交必须可评审、测试通过并更新
@@ -665,7 +722,7 @@ Commanded validation、search levels 和 GUI dirty state 如果不改变层依�
 
 开始任何代码实现前必须满足：
 
-- `AMF-RIS-008..010`、`AMF-OPT-004`、`AMF-SIM-005`、`AMF-UI-007..008`、
+- `AMF-RIS-008..011`、`AMF-OPT-004`、`AMF-SIM-005`、`AMF-UI-007..008`、
   `AMF-EXP-006` 已在 requirements 中保持 Planned/Ready；
 - 当前要进入的子 Capability 对应 ADR 选项、影响和否决方案已评审；
 - 第 10 节相关行为测试已经设计；红灯可存在于本地 TDD 过程，但交付 commit 必须保持绿色；
@@ -700,7 +757,7 @@ Commanded validation、search levels 和 GUI dirty state 如果不改变层依�
 - 项目维护者和物理审查者共同确认 Focus objective、Commanded/Actual 边界和 GUI 表达无歧义；
 - 该 checkpoint 允许评审 A/B 演示，但不把整个 Foundation 标为 Verified，也不解除 P1A 门禁。
 
-### 14.5 Foundation 0.1.1C and Final Exit Gate
+### 14.5 Foundation 0.1.1C Exit Gate
 
 - 默认 IndoorDeterministicProfile 可复现 v0.1 reference 物理组件；
 - direct、reflection、RIS incident/scattered path roles 均经过同一 Profile 契约，且没有与 RIS
@@ -708,8 +765,21 @@ Commanded validation、search levels 和 GUI dirty state 如果不改变层依�
 - Profile identity/version/parameters 有稳定契约；
 - Controller/GroundTruth、RIS 和 Profile 职责没有互相吞并；
 - Scene/schema 决策和迁移策略完整；
-- P1A cache key 所需 identity 已冻结；
 - FND-T15、最小 experiment provenance、legacy 标记和 no-overwrite 规则完成；
+- C 的实现和 provenance 足以支持 FND-QA-AP 正式 runner。
+
+### 14.6 FND-QA-AP and Foundation Final Exit Gate
+
+- aperture、control grid、commanded pattern、Profile、geometry 和 seed 在每个 refinement series
+  内固定；只有 quadrature rule/order 改变；
+- midpoint successive refinement 与独立求积规则交叉检查完成，内部参考不冒充 EM truth；
+- 三代、四类代表性几何、两个 Focus 和不少于 5 个固定 random seeds 的最小矩阵可重放；
+- FND-T16..18、深相消数值保护、runtime/memory 和无静默跳过检查通过；
+- reference/production tolerance 在正式结果前登记，结果失败后未通过放宽阈值取得 PASS；
+- production `quadrature_policy_id/version` 已签署；若需要改变散射实现，独立 implementation
+  Work Item 已完成并重新运行三代回归；
+- partial-aperture blockage 明确不在本门禁声明范围，当前 scalar blockage 未被误称空间分辨；
+- P1A cache key 所需 Profile、geometry、pattern 和 quadrature policy identity 已冻结；
 - requirements、ADR、README、roadmap、status 和测试证据闭环。
 
 全部完成后，Foundation Capability 才能由 Implemented 经人工验收升为 Verified，P1A 才能
@@ -719,13 +789,13 @@ Commanded validation、search levels 和 GUI dirty state 如果不改变层依�
 
 Foundation 之后按以下顺序推进：
 
-1. **P1A Geometry Cache and Matrix Evaluation**：在稳定 Profile/geometry/pattern contract 上
-   做数值等价的性能优化；
+1. **P1A Geometry Cache and Matrix Evaluation**：在稳定 Profile/geometry/pattern/quadrature
+   policy contract 上做数值等价的性能优化；
 2. **P1B Phase Error Robustness**：多 seed 比较 RIS-only、Coherent、Feedback 和
    Physics-Guided，报告分位数；
-3. **P1C Aperture Sweep and Quadrature Validity**：除固定控制网格/固定等效密度实验外，拆分
-   control grid 与 integration/quadrature grid；固定命令只细化求积，建立复数误差和功率差的
-   适用域证据；
+3. **P1C Aperture Sweep and Extended Quadrature Research**：保留完整孔径研究；除固定控制网格/
+   固定等效密度实验外，扩大 control/quadrature、field-map、phase-span、frequency/angle/
+   near-field sensitivity 和后续遮挡边缘的适用域证据，不重新承担 P1A 前的最小 policy 定义；
 4. **v0.2 XR**：先定义动态时间、人体阻挡和对应 Profile 行为；
 5. **v0.3 Factory**：多 RX、多 RIS、objective 和 pattern ownership；
 6. **v0.4 City/Low-Altitude**：城市几何、NLoS、车辆/UAV 和独立传播 Profile；
@@ -740,6 +810,10 @@ Foundation 之后按以下顺序推进：
 - [ ] 我知道 v0.1 GUI/CLI 默认仍是 RIS-only；Coherent Target Focus API 已实现，B 阶段接入未完成；
 - [ ] 我知道 `nx/ny` 当前同时承担控制和求积离散，不能直接称真实 meta-atoms；
 - [ ] 我知道现有 8/16/32 测试保护面积归一化/不发散，不证明粗 patch 已物理收敛；
+- [ ] 我知道 A2 semantic contract 已 Verified，但 aperture discretization accuracy 尚未 Verified；
+- [ ] 我知道内部 16×16 等细化结果只能称 numerical reference，且求积细化不得重新生成 Focus；
+- [ ] 我知道 FND-QA-AP 在 Foundation final exit/P1A 前，P1C 则保留完整孔径研究；
+- [ ] 我知道 quadrature refinement 不会自动获得 spatially resolved blockage；
 - [ ] 我知道 Commanded 与 Actual 的区别，且误差不能被重新量化；
 - [ ] 我知道 `phase_bits` 与 `search_levels` 是不同维度；
 - [ ] 我知道 Generation 是 preset 来源，Customized 只能是派生显示；
@@ -755,14 +829,17 @@ Foundation 之后按以下顺序推进：
 - Foundation 0.1.1 不向 Scene v1 加入 `design_frequency_hz`，保持 Deferred，等待真实 RIS
   频率响应模型触发新的 ADR；
 - A1 的旧 API 兼容、finite-bit boundary candidates 和确定性退化行为由 ADR-0006 冻结；
-- A2 由 ADR-0007 选择只展示 effective pitch/波长比例，不输出未验证的 phase-span；严格
-  quadrature convergence 固定进入 P1C。
+- A2 由 ADR-0007 选择只展示 effective pitch/波长比例，不输出未验证的 phase-span；
+- ADR-0008 保持 A2 Verified，并把最小 coefficient quadrature validity 放到 Foundation final
+  exit/P1A 前；P1C 保留更完整的 aperture research。
 
 以下问题在正式实现前不得由单个开发者静默选择：
 
 1. PropagationProfile 由 Scene 持有、scenario 注入还是 engine 显式参数传入，以及 path
    response 返回 full transfer 还是 environment-only modifier；
 2. continuous Physics-Guided 是否允许连续 initial 与离散搜索结果混合；
-3. 历史结果目录的版本命名和默认覆盖策略。
+3. 历史结果目录的版本命名和默认覆盖策略；
+4. FND-QA-AP 的预注册 reference/production tolerance、最终 fixed/adaptive policy 和是否需要
+   production migration；这些必须在 Work Item 进入 Ready/查看正式结果前关闭，不能静默选择。
 
 未决项存在不表示计划阻塞；它们是对应 ADR/Work Item 进入 Ready 前必须关闭的选择。

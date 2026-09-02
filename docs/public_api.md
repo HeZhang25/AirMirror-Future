@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| API 基线 | 0.1 + Foundation A1-A2 additive API |
+| API 基线 | 0.1 + Foundation A1-A2 additive API + ADR-0008 planning boundary |
 | Python | 3.11+ |
 
 ## 1. 稳定性政策
@@ -121,6 +121,12 @@ equivalent_patch_diagnostics(
 也不提供物理有效性 pass/fail。`frequency_hz` 必须 finite 且大于零；RIS 尺寸必须 finite 且
 为正，`nx/ny` 必须是正整数。改变运行频率不会改变实体孔径。A2 不公开 phase-span；适用域见
 [ADR-0007](adr/0007-equivalent-controllable-aperture-patches.md)。
+
+ADR-0008 新增的是 Foundation/P1A sequencing 和 QA 契约，不是当前公共 API。当前调用者不得
+假设存在 `QuadratureSpec`、`quadrature_order` 或自动 adaptive policy。若后续 QA 选择多点
+production policy，公共/内部接口、默认兼容、异常、policy identity/version 和缓存失效必须由
+独立 Work Item 文档化；`Gamma` 的公共 shape 仍保持 `[nx*ny]`，quadrature subpoints 不增加
+commanded phase 自由度。
 
 低层 `ris_channel_for_points` 是物理层 API，输入 receiver array 形状 `[N,3]`，输出
 complex `[N]`；调用者通常应使用 SimulationEngine 以获得阻挡、反射和指标。

@@ -120,7 +120,8 @@ v0.1 当前只保留 `SimulationEngine` 缓存接口，尚未启用完整几何�
 geometry_key = (
   frequency, tx_position, evaluation_points,
   ris_position, yaw, width, height, nx, ny,
-  wall_geometry, obstacle_geometry, model_position_seed
+  wall_geometry, obstacle_geometry, model_position_seed,
+  profile_identity, quadrature_policy_identity
 )
 ```
 
@@ -129,11 +130,30 @@ geometry_key = (
 | frequency | 所有传播相位和波长相关项 |
 | TX/RX/评价网格位置 | 相应距离、方向图、阻挡和反射 |
 | RIS 几何/朝向/网格 | cell centers、d1/d2、方向图、patterns |
+| quadrature rule/order/policy version | control-level `a_n`、几何 A 和对应 benchmark reference |
 | walls/obstacles | LOS、反射点、路径衰减 |
 | phase pattern | 只失效 `A @ Gamma` 结果，不失效几何 A |
 | noise/bandwidth/NF | SNR/coverage，不失效复信道 |
 
 缓存实现必须配套命中/失效测试；没有测试前不声称“已缓存”。
+
+P1A 不得把“每个 control patch 一个中心点”作为无版本的永久系数定义。Foundation
+FND-QA-AP 必须先冻结 `quadrature_policy_id/version`；P1A 缓存的是该 policy 积分得到的
+control-level `a_n`。若 policy 改变，cache 必须失效，旧实验必须通过 model/policy version 保留。
+
+若 QA 需要多点求积，候选内部数据流为：
+
+```text
+Gamma_control[N_control]
+QuadratureSpec -> subpoints + weights + parent_control_index
+subpoint field -> reduce to a_control[N_control]
+h_RIS = A_control @ Gamma_control
+```
+
+控制维度保持 `N_control=nx*ny`，quadrature samples 不获得独立 commanded phase。当前尚无公共
+`QuadratureSpec` 类型；rule/order/weights/version 和 blockage sampling ownership 必须由后续
+implementation Work Item 冻结。不得构造不可控的 `N_points×N_control×N_subpoints` 全量张量；
+优先分块/streaming reduction。
 
 ## 7. 错误与数值策略
 
@@ -165,4 +185,3 @@ XR 不得在现有 engine 中加入仅供动画使用的随机 SNR；Factory 不
 计算结果必须能记录 scene、frequency、generation、RIS geometry、algorithm、seed、runtime
 和 objective。核心函数不直接写文件；experiments 层负责 CSV/PNG。GUI 日志只记录任务
 开始、完成、取消和错误，不记录每个 cell 的高频信息。
-

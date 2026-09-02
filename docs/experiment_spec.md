@@ -3,13 +3,13 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| 基线版本 | v0.1 |
+| 基线版本 | v0.1 + Foundation aperture QA plan |
 | 当前实验 | Phase Resolution |
 
 ## 1. 可复现性规则
 
 每次实验必须固定并记录：scene、frequency、geometry、generation、algorithm、Ground Truth
-sigma、random seed、控制变量、评价指标和 runtime。对照组只能改变声明的控制变量；改变
+sigma、random seed、控制变量、评价指标、quadrature policy/version 和 runtime。对照组只能改变声明的控制变量；改变
 孔径和 cell 数的实验不能被称为“纯相位位数对比”。
 
 输出目录由 `--output` 指定，同名 CSV/PNG 可覆盖。正式研究结果应使用新的带日期/配置
@@ -76,3 +76,27 @@ phase resolution，纵轴为 target RIS gain dB，用于观察收益递减。
 | Dynamic User | time/trajectory | 时间步、静态/自适应更新策略 |
 
 实验未满足上述前置项时保持 Planned，不创建输出看似完整但数据来自占位逻辑的脚本。
+
+## 6. Foundation FND-QA-AP（Planned，非当前可运行实验）
+
+FND-QA-AP 是 Foundation final exit evidence，不是 P1C 完整 Aperture experiment，也不是当前
+已实现命令。正式入口、schema version 和输出目录在 Work Item 进入 Ready 时冻结；在此之前
+不得在 README 提供可运行命令或生成占位结果。
+
+唯一控制变量是每个 fixed control patch 内的 quadrature rule/order。一个 refinement series
+必须固定 aperture、`nx/ny`、commanded pattern hash、frequency、geometry、Profile、Ground
+Truth realization 和 baseline。禁止随 order 重新生成 Focus。
+
+最小输出除第 3 节可复用字段外，还必须记录：
+
+- `qa_schema_version`、`geometry_case`、实际 TX/RX/RIS 坐标；
+- `profile_id/version`、`model_version`、`quadrature_policy_id/version`；
+- `pattern_class/hash`、预登记 random seed；
+- `quadrature_rule/order_x/order_y`；
+- `h_RIS` real/imag、absolute/robust normalized error、magnitude/phase error；
+- RIS-only/total power、RIS Gain 及 ill-conditioned/not-applicable reason；
+- reference label、successive difference、runtime 和 peak memory。
+
+正式结果写入新的版本化目录并默认 no-overwrite。reference 只能标为 internal refined numerical
+reference，不得标为 Ground Truth/EM truth。一次隔离审计中的 `0.430–0.848 dB` 只用于说明
+工作项必要性，不得回填为正式 CSV 或 PASS evidence。

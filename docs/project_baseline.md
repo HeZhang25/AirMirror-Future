@@ -34,7 +34,8 @@ Programmable Network 到 Programmable Electromagnetic Space 的可能演进。
 1. Maxwell 基本规律、相位演化和复场叠加不能被绕过；
 2. 所有内部量使用 SI，显示层负责单位换算；
 3. 无源 RIS `0 ≤ η ≤ 1`，不得使用隐藏增益常数；
-4. 单元总有效面积不得超过实体孔径；固定孔径细分必须收敛；
+4. 单元总有效面积不得超过实体孔径；固定孔径细分不得产生无界 patch-count gain；严格数值
+   收敛声明必须固定 control/pattern、只细化独立 quadrature，并通过 successive/cross-rule 证据；
 5. LOS、墙反射和 RIS 路径先在复数域相加，再计算功率；
 6. 多次传播或反射必须带来相应距离和效率损耗；
 7. Future 只能通过显式孔径、效率、相位精度、更新率等参数表达；
@@ -103,4 +104,3 @@ Programmable Network 到 Programmable Electromagnetic Space 的可能演进。
 一个版本只能承诺已经实现并验证的能力。Planned 页面不进入场景选择器；disabled
 placeholder 只有在能准确表达路线且不会被误认为可用功能时才允许出现。任何新场景先
 完成 headless 垂直切片和物理验收，再加入 GUI。
-

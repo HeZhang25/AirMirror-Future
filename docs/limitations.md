@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative boundary |
-| 基线版本 | v0.1 + Foundation A2 semantic contract |
+| 基线版本 | v0.1 + Foundation A2 semantic contract + ADR-0008 QA boundary |
 
 以下限制定义模型适用域，不是通过 UI 平滑或调大 Future 参数可以修复的问题。
 
@@ -15,8 +15,8 @@
 | 衍射 | 几何阴影可能过深 | 只计衰减和反射 | 城市拐角/低频 NLoS 定量需求 |
 | 高阶多反射 | 不包含两次以上墙反射 | 一次镜面路径 | 工厂/城市多径精度需求 |
 | RIS mutual coupling | 等效 patch 独立孔径采样 | 大尺度趋势 | 高密度/器件设计 |
-| patch 内场积分 | 每个等效 patch 只取中心点，且假定满填充 | 系统级面积归一化近似 | P1C 独立 quadrature grid |
-| 控制/求积网格分离 | `nx/ny` 同时决定控制自由度和中心采样 | 细分测试只解释为不发散/敏感性 | 严格数值有效性或器件级研究 |
+| patch 内场积分 | 当前 production 每个等效 patch 只取 `1×1` midpoint，且假定满填充 | 系统级面积归一化近似；A2 semantic Verified，不代表精度 Verified | FND-QA-AP 在 final exit/P1A 前冻结最小 policy；P1C 扩大研究 |
+| 控制/求积网格分离 | `nx/ny` 同时决定控制自由度和中心采样 | 现有细分测试只解释为不发散/稳定趋势 | FND-QA-AP 内部拆分；生产迁移需独立 Work Item/ADR |
 | 复杂极化 | 不跟踪 Jones/vector field | 标量复信道 | 偏振 RIS/天线研究 |
 | PIN diode 非线性 | 不建幅相耦合和功率依赖 | eta+phase error | 硬件校准/高功率 |
 | 严格近场 | 面积模型不保证近孔径精度 | 避免 cell 零距离 | 超大孔径近距离用户 |
@@ -36,6 +36,12 @@
 - A2 的 `pitch/wavelength` 只提供模型透明度，不是 `lambda/2` 合规或栅瓣判定；
 - A2 不输出 patch 内相位跨度、pass/fail 或 warning severity；这些需要先拆分 control 与
   quadrature grid 并建立有来源的适用域验证；
+- 一次 `16×16` 或更细结果不是 electromagnetic truth；只有 successive refinement 和独立规则
+  支持后，才可在声明适用域内称 internal refined numerical reference；
+- 当前 RIS blockage 使用 TX→RIS center、RIS center→RX 的统一衰减；增加 quadrature samples
+  不会自动得到 partial-aperture/spatially resolved blockage；
+- FND-QA-AP 完成前，三代精确 dBm 差值只能标为 current scalar center-point model 输出；允许
+  展示系统级趋势，不应宣称精确到四位小数或推广到所有场图位置；
 - Future 64×48、High 200×160 可能计算较慢，后台运行不等于模型更精确。
 
 ## 使用限制
@@ -47,5 +53,6 @@
 ## 报告要求
 
 引用结果时至少报告：频率、TX power/gains、带宽/NF、场景几何、RIS 实体尺寸/等效 patch
-网格/phase/eta、算法、Ground Truth sigma、seed、coverage threshold 和本限制文档版本；不得
-把等效 patch 数量或 effective pitch 报告成真实 meta-atom 布局。
+网格/phase/eta、算法、Ground Truth sigma、seed、coverage threshold、quadrature policy/version
+和本限制文档版本；不得把等效 patch 数量或 effective pitch 报告成真实 meta-atom 布局。若
+结果仍使用当前 1×1 policy，应明确标注 `current scalar center-point model`。

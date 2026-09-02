@@ -97,6 +97,16 @@ Release 达到以上门禁并经项目维护者确认后，还必须完成 GitHu
 6. Smart Space Current/Advanced/Future 基准重新生成；
 7. 实验结果明确标注 model version，不能与旧结果直接混合。
 
+数值离散或“精度/收敛”声明还必须满足：
+
+1. 把物理/控制变量与数值离散变量分开；只细化 discretization 时不得重做优化命令；
+2. 使用 successive refinement，并至少以一种独立数值规则交叉检查；
+3. 预先登记 reference/production tolerance、floor、代表性 case 和 seeds；
+4. 深相消时同时报告 absolute 和稳健指标，不用爆炸的单一相对误差签署；
+5. 内部 refined reference 不得称 Ground Truth、EM truth、full-wave 或 measurement；
+6. policy identity/version 进入结果 provenance；影响 cache coefficient 时进入 cache key；
+7. partial-aperture blockage 必须由空间分辨模型验证，不能从求积点数量推断。
+
 ## 8. 禁止用作“完成”的证据
 
 - GUI 有按钮但没有物理实现；

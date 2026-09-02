@@ -27,12 +27,14 @@ v0.1 Smart Space (Verified)
        -> 0.1.1B optimizer and GUI semantics
        -> A/B interim human checkpoint (not Foundation Verified)
        -> 0.1.1C propagation profile boundary
+       -> FND-QA-AP minimum aperture quadrature validity
+       -> Foundation final verification
   -> P1A geometry coefficient cache
   -> P1B phase-error statistical experiment
        -> v0.2 XR dynamic engine
             -> v0.3 Factory multi-user/multi-RIS
                  -> v0.4 City geometry and corridor
-  -> P1C aperture experiment (may run after cache)
+  -> P1C extended aperture/quadrature research
 ```
 
 后续场景不能越过依赖门禁。尤其 Factory 的多 RIS 和 City 的立面网络依赖统一的多 RIS
@@ -56,7 +58,7 @@ id 错误异常待统一。这些进入 P1 tasks。
 
 ## 4. Foundation 0.1.1：物理模型契约
 
-状态：In Progress；A1/A2 Verified，A3/B/C 尚未完成。详细背景、范围、
+状态：In Progress；A1/A2 Verified，A3/B/C 与 FND-QA-AP 尚未完成。详细背景、范围、
 Requirement IDs、L3/L4 工作项、测试、兼容策略和 Exit Gate 见
 [foundation_0_1_1_plan.md](foundation_0_1_1_plan.md)。
 
@@ -69,25 +71,31 @@ Requirement IDs、L3/L4 工作项、测试、兼容策略和 Exit Gate 见
 5. 建立 GUI pending/apply/preset/customized 和准确 Ground Truth 标签；
 6. 建立最小 PropagationProfile 与默认 IndoorDeterministicProfile；
 7. 版本化实验 provenance，不覆盖 v0.1 历史结果。
+8. 在 final exit 前完成最小 aperture quadrature validity，冻结 P1A 将缓存的 control-level
+   coefficient policy；A2 语义验收与求积精度验收分层。
 
-Exit gate：三个子 Capability 全部 Verified，默认 Profile 可解释地复现 v0.1 reference，目标
-算法变化有 ADR/测试/实验版本记录，P1A cache identity 所需契约冻结。
+Exit gate：三个子 Capability 全部达到各自门禁，默认 Profile 可解释地复现 v0.1 reference，
+FND-QA-AP 的代表性矩阵和 FND-T16..18 通过，production quadrature policy 已签署，目标算法
+变化有 ADR/测试/实验版本记录，P1A cache identity 所需契约冻结。FND-QA-AP 不通过时
+Foundation 保持 In Progress，不能以“P1A 只改性能”为理由绕过。
 
 A/B 完成后必须先执行维护者与物理审查者共同参与的 interim checkpoint。该检查点允许评审
 Focus、Pattern 和 GUI，但不代表 Foundation Verified；0.1.1C、最小实验 provenance 和最终
-QA 仍是 P1A 前置条件。
+最小 experiment provenance 和 FND-QA-AP 均是 P1A 前置条件。FND-QA-AP 不重开 A2，也不
+取消 P1C；它只回答 P1A 将缓存的 `a_n` 怎样计算才满足当前声明精度。
 
 ## 5. P1：性能与模型误差研究
 
 ### Capability P1A — Geometry Cache and Matrix Evaluation
 
-Entry gate：Foundation 0.1.1 Verified；Profile、RIS geometry、pattern validation 和实验版本
-契约已冻结。
+Entry gate：Foundation 0.1.1 Verified；Profile、RIS geometry、pattern validation、实验版本和
+`quadrature_policy_id/version` 已冻结；不存在未解释的 FND-QA-AP blocking case。
 
 Deliverables：
 
 1. 规范 geometry/cache key 和 invalidation；
-2. 预计算单点 `a_n` 和多点分块 A；
+2. 按已签署 quadrature policy 预计算 control-level `a_n` 和多点分块 A；不得把未经 QA 的
+   center-point 系数硬编码为永恒定义；
 3. pattern 更新只执行 `A @ Gamma`；
 4. Greedy 单 tile 使用复场增量；
 5. Current/Advanced/Future 性能、内存和数值等价基准。
@@ -102,13 +110,16 @@ PNG、运行配置元数据、研究结论和限制。
 
 Exit gate：三算法共享每个 seed 的 truth；结果可完全重放；不以单 seed 下结论。
 
-### Capability P1C — Aperture Sweep
+### Capability P1C — Extended Aperture Sweep and Quadrature Research
 
-Deliverables：定义固定 equivalent-patch density/固定 control-patch count 两类孔径实验；拆分
-control grid 与 integration/quadrature grid，在固定孔径、control grid 和 commanded pattern 下
-只细化 patch 内求积；报告复数 `h_RIS` 相对误差、功率差、target gain、coverage 和异常趋势。
-`pitch/wavelength` 与 patch 相位跨度只作 advisory，通用有效性阈值必须由近场、远场、斜入射
-和遮挡边缘的代表性矩阵建立。
+Deliverables：在 FND-QA-AP 已冻结最小 production policy 后，定义固定 equivalent-patch
+density/固定 control-patch count 两类孔径实验；扩大 aperture、control/quadrature order、
+field-map、phase-span、frequency/angle/near-field sensitivity 和异常趋势研究。报告复数
+`h_RIS`、功率差、target gain、coverage、成本和适用域。`pitch/wavelength` 与 patch 相位跨度
+只作 advisory；遮挡边缘只有在 spatially resolved blockage model 就绪后才能进入该矩阵。
+
+P1C 的 refined scalar result 仍不是 full-wave/measurement truth。P1C 可以促成后续 policy
+修订，但不能回填或伪造 FND-QA-AP 的历史验收结果。
 
 ## 6. v0.2：XR / Spatial Computing
 

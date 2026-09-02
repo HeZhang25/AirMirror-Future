@@ -8,6 +8,30 @@
 | 规范基线 | [docs/README.md](docs/README.md) |
 | 当前 Capability | Foundation 0.1.1A Physics and Algorithm Contract（In Progress） |
 
+## Foundation aperture quadrature governance update
+
+2026-09-02 完成新的物理/架构评审并接受
+[ADR-0008](docs/adr/0008-minimum-aperture-quadrature-validity-gate.md)。本轮是纯文档治理更新，
+没有修改 `.py`、测试、GUI、场景、缓存或 production 数值：
+
+- A2 semantic contract 保持 Verified；aperture discretization accuracy 明确为 Not Verified；
+- 新增 Planned requirement `AMF-RIS-011` 和 cross-cutting L4 task
+  [FND-QA-AP](docs/work_items/foundation_0_1_1_qa_ap.md)；
+- `FND-QA-01` 继续表示 Foundation final full regression，不复用；
+- `AMF-RIS-005` 校准为面积归一化/control-grid 细分不产生无界增益和稳定趋势，不再被简称为
+  独立 quadrature convergence；
+- 正式顺序调整为 A3 → B → A/B checkpoint → C → FND-QA-AP → Foundation final verification
+  → P1A → P1C extended research；
+- 当前 production 仍为每 control patch `1×1` midpoint。一次隔离审计观察到 default target 上
+  `1×1` 相对内部 16×16 细化参考约 Current `+0.848 dB`、Advanced `+0.430 dB`、Future
+  `+0.639 dB`；该结果尚非版本化 runner/正式验收证据，也不是 EM truth；
+- FND-QA-AP 将固定 aperture/control/pattern/Profile，只细化 quadrature，使用 successive
+  refinement、独立求积规则和预注册容差冻结 P1A coefficient policy；partial-aperture blockage
+  明确留给独立空间分辨模型。
+
+状态保持：A1 Verified；A2 Verified；Foundation 0.1.1A、AMF-RIS-009 和 Foundation 0.1.1
+保持 In Progress；AMF-RIS-011 与 FND-QA-AP 保持 Planned。没有任何状态因本次规划自动提升。
+
 ## Foundation 0.1.1A / A2 最终验收快照
 
 Deliverable A2（RIS aperture patch semantic contract）已完成最终人工验收并达到
@@ -39,7 +63,8 @@ Deliverable A2（RIS aperture patch semantic contract）已完成最终人工验
 | Advanced v0.1 fast headless | `-30.1257 dBm`，RIS Gain `+25.1496 dB`，场图 `3.401 s` |
 | Future v0.1 fast headless | `-19.3118 dBm`，RIS Gain `+35.9636 dB`，场图 `8.553 s` |
 
-三代目标数值与 A1 基线一致；运行时间波动不构成数值变化。A2 没有修改散射核心算法、GUI、
+三代目标数值与 A1 基线一致；它们是 current scalar center-point model 的兼容回归，显示到四位
+小数不代表具有相同物理精度。运行时间波动不构成数值变化。A2 没有修改散射核心算法、GUI、
 A3、PropagationProfile、缓存或实验逻辑。状态边界保持：A1 Verified；A2 Verified；
 Foundation 0.1.1A、AMF-RIS-009 和 Foundation 0.1.1 均为 In Progress。
 
@@ -97,7 +122,8 @@ Target 新默认。A2 已 Verified，A3 commanded pattern hardware boundary 尚�
 - GUI、CLI、Physics-Guided 和 legacy experiment 当前仍使用 RIS-only Physics Focus；A1 的
   Coherent Target Focus 已有 headless Python API，但默认接入属于后续 B 阶段；
 - `nx/ny` 的 equivalent patch 语义已冻结，但仍同时承担控制与中心点求积；GUI 尚未接入
-  A2 只读 pitch/波长诊断，严格求积收敛留在 P1C；
+  A2 只读 pitch/波长诊断；最小独立求积有效性进入 Foundation final exit 前的 FND-QA-AP，
+  P1C 保留完整 aperture/field-map/适用域研究；
 - Phase Bits 尚未在传播入口验证 commanded hardware states；
 - continuous hardware 与反馈优化的 8-state search 尚未在接口/UI 中拆分；
 - GUI Generation 立即应用、普通参数等待 Apply，但没有 pending/customized 状态提示；
@@ -120,8 +146,9 @@ Target 新默认。A2 已 Verified，A3 commanded pattern hardware boundary 尚�
    hardware boundary；
 2. 完成 optimizer/GUI 语义和实验 provenance；
 3. 建立最小 PropagationProfile，冻结 cache identity；
-4. 再进入 P1A 几何系数缓存与矩阵求值；
-5. 随后完成相位误差和孔径统计实验，再扩展 XR/Factory/City。
+4. 执行 FND-QA-AP，冻结 production quadrature policy 和 coefficient/cache identity；
+5. Foundation final verification 通过后再进入 P1A 几何系数缓存与矩阵求值；
+6. 随后完成相位误差和 P1C 扩展孔径研究，再扩展 XR/Factory/City。
 
 阶段顺序、entry/exit gate 和工作颗粒度以 [docs/roadmap.md](docs/roadmap.md) 为准。本页只
 记录状态，不新增需求或改变优先级。

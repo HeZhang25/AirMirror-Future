@@ -3,6 +3,8 @@
 - 状态：Accepted
 - 日期：2026-09-02
 - 关联：AMF-RIS-001、AMF-RIS-005、AMF-RIS-009、Foundation 0.1.1A/A2
+- 后续决策：[ADR-0008](0008-minimum-aperture-quadrature-validity-gate.md) 在不重开 A2 的前提下，
+  将最小独立 quadrature validity 提升为 Foundation final exit/P1A 前置门禁
 
 ## 背景
 

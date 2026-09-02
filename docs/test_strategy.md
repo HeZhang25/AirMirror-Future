@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative / Operational |
-| 基线版本 | v0.1 + Foundation A1-A2 |
+| 基线版本 | v0.1 + Foundation A1-A2 + FND-QA-AP plan |
 | 测试框架 | pytest 9+，pytest-qt |
 
 ## 1. 目标
@@ -54,6 +54,9 @@ python -m airmirror_future.experiments.phase_bits --output results/phase_bits
 | FND-T04 | finite-bit common offset | 候选首项精确 `0.0`；结果不差于 unshifted | `test_quantized_common_offset_beats...` |
 | FND-T05 | degenerate deterministic fallback | 零/相对近零分量返回 `delta=0`，不产生 NaN/Inf | `test_zero_baseline_focus...` |
 | FND-T09 | equivalent patch diagnostics | 改 `nx/ny` 只改变 pitch；改 `fc` 不改变实体孔径 | `test_effective_pitch_changes_without_resizing_aperture` |
+| FND-T16 | quadrature ownership boundary | 固定 aperture/control/pattern/Profile，只改变 rule/order | Planned：FND-QA-AP |
+| FND-T17 | refined reference construction | successive refinement + independent rule；未收敛明确失败 | Planned：FND-QA-AP |
+| FND-T18 | quadrature report/provenance guards | 深相消不输出 Inf/误导 phase/gain；policy identity 完整 | Planned：FND-QA-AP |
 
 若更换物理近似导致这些容差不再适用，必须先提交 ADR 解释新性质，并加入等价或更强的
 测试；不得先删除失败测试。
@@ -64,12 +67,35 @@ FND-T01..T05 只验收 Foundation A1 的 nominal、单 RIS、单目标契约。F
 或多 RIS 全局最优证据。
 
 PHY-T11 同时细化当前耦合的 control/integration grid，只证明面积归一化后没有随 patch 数量
-产生无界增益，并提供当前测试几何下的稳定性证据；不得把它描述成真实 meta-atom 或粗 patch
-已经达到物理收敛。P1C 必须固定 control grid 和 commanded pattern，只细化独立 quadrature
-grid，并同时比较复数信道误差与功率差；阈值由代表性适用域实验建立。
+产生无界增益，并提供当前测试几何下的稳定趋势证据；不得把它描述成真实 meta-atom 或粗 patch
+已经达到物理收敛。FND-QA-AP 必须在 Foundation final exit/P1A 前固定 control grid 和
+commanded pattern、只细化独立 quadrature，并冻结最小 production coefficient policy；P1C
+保留更完整的孔径、场图和适用域研究。
 
 FND-T09 验证 A2 的所有权边界，而不是证明真实阵元满足 `lambda/2` 或当前 patch 已数值收敛。
 补充测试覆盖非法频率、非有限孔径、非整数 patch 数以及三代 preset 诊断全为有限正值。
+
+### 3.1 FND-QA-AP 独立求积验证规则
+
+FND-QA-AP 是 cross-cutting Foundation final gate，不是 A2 的重新验收。正式 runner 必须：
+
+1. 固定 aperture、control grid、flatten order、commanded pattern hash、Profile、几何和 seed；
+2. midpoint 至少运行 `1×1、2×2、4×4、8×8、16×16`，必要时 `32×32`；
+3. 以 successive differences 判断 reference 是否稳定，并用 tensor-product Gauss–Legendre
+   或另一独立规则交叉检查；不能先指定 16×16 就是真值；
+4. 覆盖三代、default/near-field/oblique/off-focus 几何、RIS-only/Coherent Focus 和不少于 5 个
+   预登记 random legal pattern seeds；
+5. 报告 complex absolute error、robust normalized error、magnitude/power dB、phase、RIS-only/
+   total power、RIS Gain、runtime 和 peak memory；
+6. reference 接近 floor 时将 phase/relative/gain 标为 ill-conditioned 或 not applicable，不输出
+   NaN/Inf 或依赖爆炸相对误差判决；
+7. 在正式运行前登记 reference tolerance、production tolerance、floor、geometry 和 seeds；
+   失败后不得通过放宽阈值取得 PASS；
+8. 避开 partial-aperture blockage boundary，并记录当前 scalar blockage mode。
+
+内部最后稳定层级只叫 internal refined numerical reference，不构成 EM/full-wave/measurement
+truth。若当前 1×1 不通过，测试本身不静默切换 production；必须由独立 implementation Work
+Item 和必要 ADR 接入 policy，再重跑完整回归。
 
 ## 4. 数据与 API 测试
 
