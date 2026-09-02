@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Operational / Normative for sequencing |
-| 当前 release | v0.1 Verified，Foundation 0.1.1 Planned |
+| 当前 release | v0.1 Verified，Foundation 0.1.1 In Progress |
 
 ## 1. 统一规划层级
 

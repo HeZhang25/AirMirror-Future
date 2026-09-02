@@ -5,10 +5,10 @@
 | 文档状态 | Operational / Normative for sequencing |
 | 当前实现基线 | v0.1 Verified，commit `edfa43c` |
 | 目标版本 | v0.1.1 Foundation |
-| 当前计划状态 | Planned；本文不表示目标行为已经实现 |
+| 当前计划状态 | In Progress；A1 Implemented，A2/A3 与 B/C 尚未完成 |
 | 父级路线 | v0.1 Smart Space → Foundation 0.1.1 → P1A |
 | 主要责任 | 项目维护者、物理仿真负责人、GUI/测试负责人 |
-| 最后复核 | 2026-09-01 |
+| 最后复核 | 2026-09-02（A1 verification closure） |
 
 本文是 AirMirror Future 在 v0.1 后的首个模型契约改进计划。它把当前代码事实、已发现的
 物理/算法/交互问题、目标架构、实施顺序、测试证据和退出门禁集中到同一个工作入口，供
@@ -497,9 +497,9 @@ version、parameters 和所有影响系数的场景状态。
 |---:|---|---|---|
 | 1 | `FND-DOC-01` 建立 objective/geometry/profile 三个 ADR 草案 | Planned | 决策选项、后果、否决方案 |
 | 2 | `FND-DOC-02` 冻结 equivalent patch、诊断量和 Deferred 边界 | Planned | data/physics/limitations 同步 |
-| 3 | `FND-TEST-01` 定义 Focus objective 契约测试 | Planned | 解析幅值、`delta=0`、退化场景 |
+| 3 | `FND-TEST-01` 定义 Focus objective 契约测试 | Implemented | FND-T01..T05、错误契约、tie-break 和 1/2/3/4-bit 回归 |
 | 4 | `FND-TEST-02` 定义 commanded pattern 契约测试 | Planned | bits、modulo、tolerance、Actual error |
-| 5 | `FND-PHY-01` 实现两个具名 Focus | Planned | RIS-only 保留、Coherent 新增且分层正确 |
+| 5 | `FND-PHY-01` 实现两个具名 Focus | Implemented | RIS-only 保留、Coherent 新增且分层正确；ADR-0006 |
 | 6 | `FND-PHY-02` 实现 commanded validator | Planned | 所有公共传播入口共用且 Field Map 只验证一次 |
 | 7 | `FND-OPT-01` 增加 search levels 与结果元数据 | Planned | discrete/continuous 语义分离 |
 | 8 | `FND-UI-01` 建立 pending/apply/Optimize 门禁 | Planned | GUI 状态机 smoke tests |

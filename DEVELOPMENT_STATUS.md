@@ -24,10 +24,11 @@ Deliverable A1（Focus objective）已达到 **Implemented**：
 
 | 门禁 | 结果 |
 |---|---|
-| 完整 pytest | `46 passed`（最终复核全绿） |
-| Current v0.1 fast headless | `-46.5879 dBm`，RIS Gain `+8.6874 dB`，场图 `1.278 s` |
-| Advanced v0.1 fast headless | `-30.1257 dBm`，RIS Gain `+25.1496 dB`，场图 `1.551 s` |
-| Future v0.1 fast headless | `-19.3118 dBm`，RIS Gain `+35.9636 dB`，场图 `6.825 s` |
+| A1 定向 pytest | `30 passed`（verification closure 全绿） |
+| 完整 pytest | `61 passed`（closure 自动回归全绿；待最终差异审查） |
+| Current v0.1 fast headless | `-46.5879 dBm`，RIS Gain `+8.6874 dB`，场图 `1.248 s` |
+| Advanced v0.1 fast headless | `-30.1257 dBm`，RIS Gain `+25.1496 dB`，场图 `1.545 s` |
+| Future v0.1 fast headless | `-19.3118 dBm`，RIS Gain `+35.9636 dB`，场图 `6.628 s` |
 | A1 Coherent 单目标 | Current 123 candidates / `0.083 s`；Advanced 4609 / `3.571 s`；Future continuous / `0.003 s` |
 
 headless 仍故意运行 v0.1 RIS-only 默认算法，因此上述三代值是兼容回归，不是 Coherent

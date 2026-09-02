@@ -142,6 +142,27 @@ def test_common_offset_helpers_reject_invalid_inputs(operation) -> None:
         operation()
 
 
+@pytest.mark.parametrize("bad_offset", (np.nan, np.inf, -np.inf))
+def test_common_phase_offset_rejects_nonfinite_offset(bad_offset: float) -> None:
+    with pytest.raises(ValueError, match="common_phase_offset_rad must be finite"):
+        apply_common_phase_offset(np.array([0.0]), bad_offset, bits=1)
+
+
+@pytest.mark.parametrize(
+    "bad_channel",
+    (complex(np.nan, 0.0), complex(np.inf, 0.0), complex(-np.inf, 0.0)),
+)
+@pytest.mark.parametrize("bad_component", ("baseline", "ris"))
+def test_coherent_common_phase_offset_rejects_nonfinite_channel(
+    bad_channel: complex,
+    bad_component: str,
+) -> None:
+    baseline = bad_channel if bad_component == "baseline" else 1.0 + 0.0j
+    ris = bad_channel if bad_component == "ris" else 1.0 + 0.0j
+    with pytest.raises(ValueError, match="channel components must be finite"):
+        coherent_common_phase_offset(baseline, ris)
+
+
 def test_coherent_focus_requires_unambiguous_enabled_ris() -> None:
     scene = create_smart_space_scene("Current")
     second = replace(scene.ris_surfaces[0], id="ris-2")
@@ -150,3 +171,47 @@ def test_coherent_focus_requires_unambiguous_enabled_ris() -> None:
         generate_coherent_target_pattern(ambiguous)
     with pytest.raises(ValueError, match="RIS id not found"):
         generate_coherent_target_pattern(scene, ris="missing")
+
+
+def test_coherent_focus_rejects_disabled_ris() -> None:
+    scene = create_smart_space_scene("Current")
+    disabled = replace(scene.ris_surfaces[0], enabled=False)
+    scene = replace(scene, ris_surfaces=[disabled])
+    with pytest.raises(ValueError, match="RIS is disabled"):
+        generate_coherent_target_pattern(scene, ris=disabled.id)
+
+
+def test_quantized_coherent_focus_keeps_unshifted_pattern_on_tie() -> None:
+    scene = create_smart_space_scene("Current")
+    back_facing = replace(
+        scene.ris_surfaces[0], yaw_rad=scene.ris_surfaces[0].yaw_rad + np.pi
+    )
+    scene = replace(scene, ris_surfaces=[back_facing])
+    ideal = generate_unquantized_ris_only_focus_pattern(
+        back_facing, scene.transmitter(), scene.receiver(), scene.frequency_hz
+    )
+    unshifted = apply_common_phase_offset(ideal, 0.0, back_facing.phase_bits)
+
+    result = generate_coherent_target_pattern(scene)
+    channel = SimulationEngine().compute_channel(
+        scene, ris_patterns={back_facing.id: result}
+    )
+    assert channel.ris_channel == 0.0j
+    assert np.array_equal(result, unshifted)
+
+
+@pytest.mark.parametrize("bits", (1, 2, 3, 4))
+def test_quantized_coherent_focus_is_not_worse_for_supported_bits(bits: int) -> None:
+    scene = create_smart_space_scene("Current")
+    ris = replace(scene.ris_surfaces[0], nx=4, ny=3, phase_bits=bits)
+    scene = replace(scene, ris_surfaces=[ris])
+    engine = SimulationEngine()
+    ideal = generate_unquantized_ris_only_focus_pattern(
+        ris, scene.transmitter(), scene.receiver(), scene.frequency_hz
+    )
+    unshifted = apply_common_phase_offset(ideal, 0.0, bits)
+    coherent = generate_coherent_target_pattern(scene, engine=engine)
+
+    unshifted_result = engine.compute_channel(scene, ris_patterns={ris.id: unshifted})
+    coherent_result = engine.compute_channel(scene, ris_patterns={ris.id: coherent})
+    assert coherent_result.received_power_w >= unshifted_result.received_power_w

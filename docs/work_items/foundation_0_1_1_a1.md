@@ -51,7 +51,8 @@ Controller Model 和 SimulationEngine 结果工作，不读取 Ground Truth 私�
 - Current/Advanced/Future fast headless 命令；
 - Smart Space continuous 测试是实际版本化场景，不使用占位 channel。
 
-本机 Windows / Python 3.14.3 验收为 `46 passed`；三代 fast headless 均通过。Coherent 单目标
+本机 Windows / Python 3.14.3 初始验收为 `46 passed`；verification closure 后 A1 定向
+`30 passed`、完整回归 `61 passed`，三代 fast headless 均通过。Coherent 单目标
 运行记录为 Current 123 candidates / `0.083 s`、Advanced 4609 / `3.571 s`、Future continuous
 / `0.003 s`。完整数值见 [DEVELOPMENT_STATUS.md](../../DEVELOPMENT_STATUS.md) 的 A1 验收
 快照；绝对秒数只作本机参考，不是跨机器硬门禁。
