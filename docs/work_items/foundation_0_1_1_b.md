@@ -58,4 +58,4 @@
 C/Profile、FND-QA-AP、FND-PHY-NB、FND-QA-CC、cache、P1、新场景、多 RIS/MIMO/fading、A/B Interim
 Checkpoint 和任何 A1/A2/A3/FND-FIX-WALL 重开均不在本 Work Item。
 
-Implementation handoff 只将本 Work Item 和三个 requirement 标记为 Implemented；Verified 需独立审查。
+Implementation handoff 只将本 Work Item 和五个 requirements 标记为 Implemented；Verified 需独立审查。

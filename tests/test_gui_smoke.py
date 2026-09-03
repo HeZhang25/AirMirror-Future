@@ -118,6 +118,26 @@ def test_generation_preset_preserves_non_owned_ris_state(monkeypatch: pytest.Mon
     app.processEvents()
 
 
+def test_generation_customized_is_display_only() -> None:
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow(create_smart_space_scene("Current"))
+    preset_nx = window.scene_model.ris_surfaces[0].nx
+
+    window.ris_nx.setValue(preset_nx + 1)
+    assert window._pending is True
+    window._apply_parameters()
+
+    assert window.scene_model.ris_surfaces[0].generation == "Current"
+    assert window.generation_status.text() == "Current · Customized"
+
+    window.ris_nx.setValue(preset_nx)
+    window._apply_parameters()
+    assert window.scene_model.ris_surfaces[0].generation == "Current"
+    assert window.generation_status.text() == "Current"
+    window.close()
+    app.processEvents()
+
+
 def test_pattern_metadata_and_ground_truth_labels_are_explicit() -> None:
     app = QApplication.instance() or QApplication([])
     window = MainWindow(create_smart_space_scene("Current"))
