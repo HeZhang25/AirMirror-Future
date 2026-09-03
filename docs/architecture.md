@@ -3,8 +3,8 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| 基线版本 | v0.1 |
-| 对应需求 | AMF-ENG-002、AMF-SIM-001..004、AMF-UI-003 |
+| 基线版本 | v0.1 + Foundation Profile/coefficient/frequency contract |
+| 对应需求 | AMF-ENG-002、AMF-SIM-001..006、AMF-RIS-012、AMF-UI-003 |
 
 ## 1. 架构目标
 
@@ -60,6 +60,11 @@ Scene + TX + RX + patterns + Model
 ```
 
 `ChannelResult` 是数值结果边界；GUI 不重新计算指标。
+
+Foundation C1 将在不改变上述用户级流程的前提下引入 engine-owned
+`IndoorDeterministicProfile`。按 ADR-0009，它只提供 environment modifier，不拥有 Friis carrier、
+RIS device、Ground Truth 或 noise；Scene JSON v1 不保存 Python Profile 类名。该段是 Planned
+架构，当前 engine 尚未接入 Profile。
 
 ### 场图
 
@@ -117,11 +122,18 @@ v0.1 当前只保留 `SimulationEngine` 缓存接口，尚未启用完整几何�
 采用显式 key，不得按对象 id 隐式复用：
 
 ```text
-geometry_key = (
-  frequency, tx_position, evaluation_points,
-  ris_position, yaw, width, height, nx, ny,
-  wall_geometry, obstacle_geometry, model_position_seed,
+coefficient_geometry_key = (
+  channel_frequency_model_id, frequency,
+  tx_position, evaluation_points, tx_gain, rx_gain,
+  ris_position, yaw, width, height, nx, ny, direction_exponent,
+  wall_geometry_and_coefficients, obstacle_geometry_and_attenuation,
+  world_model_geometry_environment_identity,
   profile_identity, quadrature_policy_identity
+)
+
+link_metric_key = (
+  coefficient_geometry_key, transmit_power,
+  bandwidth, noise_figure, coverage_threshold
 )
 ```
 
@@ -133,7 +145,7 @@ geometry_key = (
 | quadrature rule/order/policy version | control-level `a_n`、几何 A 和对应 benchmark reference |
 | walls/obstacles | LOS、反射点、路径衰减 |
 | phase pattern | 只失效 `A @ Gamma` 结果，不失效几何 A |
-| noise/bandwidth/NF | SNR/coverage，不失效复信道 |
+| noise/bandwidth/NF | SNR/capacity/coverage，不失效 `h(fc)` 或 control coefficient |
 
 缓存实现必须配套命中/失效测试；没有测试前不声称“已缓存”。
 
@@ -154,6 +166,29 @@ h_RIS = A_control @ Gamma_control
 `QuadratureSpec` 类型；rule/order/weights/version 和 blockage sampling ownership 必须由后续
 implementation Work Item 冻结。不得构造不可控的 `N_points×N_control×N_subpoints` 全量张量；
 优先分块/streaming reduction。
+
+### 6.1 Planned Profile 与 coefficient 数据流
+
+ADR-0009/0011 冻结以下目标所有权；它不表示当前代码或缓存已经实现：
+
+```text
+geometry carrier + Profile environment modifiers
+  -> a_control^Controller[N_control]
+commanded phase + nominal efficiency
+  -> Gamma_command[N_control]
+h_RIS^Controller = dot(a_control^Controller, Gamma_command)
+
+Ground Truth geometry/environment
+  -> a_control^GT
+command + actual phase/efficiency errors
+  -> Gamma_actual
+h_RIS^GT = dot(a_control^GT, Gamma_actual)
+```
+
+RIS-only/Coherent Focus、SimulationEngine、FND-QA-AP 与未来 P1A 必须共享同一 Controller
+coefficient builder 或有等价证明。`a^GT` 只能留在 Ground Truth/oracle 路径。FND-QA-CC 在
+production quadrature policy 签署后执行；若 QAP 要求多点生产求积，应先创建独立迁移工作项，
+不得把迁移夹进缓存实现。
 
 ## 7. 错误与数值策略
 
@@ -182,6 +217,7 @@ XR 不得在现有 engine 中加入仅供动画使用的随机 SNR；Factory 不
 
 ## 9. 可观测性和实验记录
 
-计算结果必须能记录 scene、frequency、generation、RIS geometry、algorithm、seed、runtime
-和 objective。核心函数不直接写文件；experiments 层负责 CSV/PNG。GUI 日志只记录任务
+计算结果必须能记录 scene、center frequency、bandwidth、channel frequency model、generation、
+RIS geometry、algorithm、Profile、quadrature/coefficient identity、seed、runtime 和 objective。
+核心函数不直接写文件；experiments 层负责 CSV/PNG。GUI 日志只记录任务
 开始、完成、取消和错误，不记录每个 cell 的高频信息。

@@ -24,10 +24,14 @@
 v0.1 Smart Space (Verified)
   -> Foundation 0.1.1 model contract
        -> 0.1.1A physics and algorithm contract
+       -> FND-FIX-WALL floor-anchored wall closure
        -> 0.1.1B optimizer and GUI semantics
        -> A/B interim human checkpoint (not Foundation Verified)
        -> 0.1.1C propagation profile boundary
        -> FND-QA-AP minimum aperture quadrature validity
+       -> conditional production migration (only if required)
+       -> FND-PHY-NB narrowband frequency contract
+       -> FND-QA-CC controller coefficient consistency
        -> Foundation final verification
   -> P1A geometry coefficient cache
   -> P1B phase-error statistical experiment
@@ -58,7 +62,8 @@ id 错误异常待统一。这些进入 P1 tasks。
 
 ## 4. Foundation 0.1.1：物理模型契约
 
-状态：In Progress；A1/A2 Verified，A3/B/C 与 FND-QA-AP 尚未完成。详细背景、范围、
+状态：In Progress；A1/A2 Verified；A3、B/C、FND-QA-AP、FND-FIX-WALL、FND-PHY-NB 与
+FND-QA-CC 尚未完成。详细背景、范围、
 Requirement IDs、L3/L4 工作项、测试、兼容策略和 Exit Gate 见
 [foundation_0_1_1_plan.md](foundation_0_1_1_plan.md)。
 
@@ -73,28 +78,34 @@ Requirement IDs、L3/L4 工作项、测试、兼容策略和 Exit Gate 见
 7. 版本化实验 provenance，不覆盖 v0.1 历史结果。
 8. 在 final exit 前完成最小 aperture quadrature validity，冻结 P1A 将缓存的 control-level
    coefficient policy；A2 语义验收与求积精度验收分层。
+9. 关闭 floor-anchored Wall/XY-only Ground Truth 几何歧义；
+10. 冻结 `h(fc)` 在 B 内平坦的 narrowband/capacity/provenance 语义；
+11. 验证 RIS-only/Coherent Focus 与最终 Controller `a_n^C` 一致，Ground Truth 不泄漏。
 
 Exit gate：三个子 Capability 全部达到各自门禁，默认 Profile 可解释地复现 v0.1 reference，
-FND-QA-AP 的代表性矩阵和 FND-T16..18 通过，production quadrature policy 已签署，目标算法
-变化有 ADR/测试/实验版本记录，P1A cache identity 所需契约冻结。FND-QA-AP 不通过时
+FND-QA-AP 的代表性矩阵和 FND-T16..18 通过，production quadrature policy 已签署；FND-T19..22
+关闭 Wall、narrowband 和 coefficient/Focus 一致性；目标算法变化有 ADR/测试/实验版本记录，
+P1A cache identity 所需契约冻结。任一 cross-cutting gate 不通过时
 Foundation 保持 In Progress，不能以“P1A 只改性能”为理由绕过。
 
 A/B 完成后必须先执行维护者与物理审查者共同参与的 interim checkpoint。该检查点允许评审
-Focus、Pattern 和 GUI，但不代表 Foundation Verified；0.1.1C、最小实验 provenance 和最终
-最小 experiment provenance 和 FND-QA-AP 均是 P1A 前置条件。FND-QA-AP 不重开 A2，也不
+Focus、Pattern 和 GUI，但不代表 Foundation Verified；0.1.1C、最小 experiment provenance、
+FND-QA-AP、FND-FIX-WALL、FND-PHY-NB 和 FND-QA-CC 均是 P1A 前置条件。FND-QA-AP 不重开 A2，也不
 取消 P1C；它只回答 P1A 将缓存的 `a_n` 怎样计算才满足当前声明精度。
 
 ## 5. P1：性能与模型误差研究
 
 ### Capability P1A — Geometry Cache and Matrix Evaluation
 
-Entry gate：Foundation 0.1.1 Verified；Profile、RIS geometry、pattern validation、实验版本和
-`quadrature_policy_id/version` 已冻结；不存在未解释的 FND-QA-AP blocking case。
+Entry gate：Foundation 0.1.1 Verified；frequency model、Profile、Wall geometry、RIS geometry、
+pattern validation、实验版本、`quadrature_policy_id/version` 与 coefficient identity 已冻结；
+不存在未解释的 FND-QA-AP/FND-QA-CC blocking case。
 
 Deliverables：
 
 1. 规范 geometry/cache key 和 invalidation；
-2. 按已签署 quadrature policy 预计算 control-level `a_n` 和多点分块 A；不得把未经 QA 的
+2. 按已签署 quadrature policy 与 ADR-0011 coefficient contract 预计算 control-level `a_n` 和
+   多点分块 A；不得把未经 QA 的
    center-point 系数硬编码为永恒定义；
 3. pattern 更新只执行 `A @ Gamma`；
 4. Greedy 单 tile 使用复场增量；

@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| 基线版本 | v0.1 + Foundation A1-A2 + aperture QA boundary |
+| 基线版本 | v0.1 + Foundation A1-A2 + planned closure contracts |
 | 权威实现 | `src/airmirror_future/core/types.py` |
 
 ## 1. 通用规则
@@ -32,7 +32,7 @@
 |---|---|---|---|
 | `id` | str | required | 非空 |
 | `position` | Vec3 | required | finite |
-| `power_w` | float | 0.1 W / 20 dBm | finite，`≥0` |
+| `power_w` | float | 0.1 W / 20 dBm | finite，`≥0`；当前表示 B 内总发射功率，不是 PSD |
 | `gain_linear` | float | 1.0 | finite，`>0` |
 
 ### `Receiver`
@@ -49,7 +49,7 @@
 | 字段 | 类型 | 默认/单位 | 约束 |
 |---|---|---|---|
 | `id` | str | required | 应在 walls 内唯一 |
-| `start,end` | Vec3 | m | 端点不同；z 代表墙底几何参考 |
+| `start,end` | Vec3 | m | 当前端点不同；计算只使用 XY，z 尚未可靠表示墙底 |
 | `height_m` | float | 3.0 m | finite，`>0` |
 | `attenuation_db` | float | 30 dB | finite，`≥0` |
 | `reflection_magnitude` | float | 0.4 | `[0,1]` |
@@ -57,6 +57,11 @@
 | `blocks_los` | bool | true | false 时仍可反射 |
 
 派生属性 `reflection_coefficient=rho*exp(j*phase)`。
+
+当前实现按绝对高度 `[0,height_m]` 判断阻挡/反射，因此不能把任意 `start.z/end.z` 解释为悬空
+墙底；Ground Truth 当前又会产生三维 wall delta。`AMF-SIM-006` 的目标 v1 契约为
+`start.z=end.z=0`、floor-anchored vertical wall、同一 `[dx,dy,0]` 刚体平移。该校验和迁移尚未
+实现，详见 [FND-FIX-WALL](work_items/foundation_0_1_1_wall_geometry_closure.md)。
 
 ### `Obstacle`
 
@@ -83,7 +88,7 @@
 | `yaw_rad` | float | rad | 正面法向方位角 |
 | `width_m,height_m` | float | m | finite，`>0`；实体孔径的唯一尺寸事实源 |
 | `nx,ny` | int | — | 正整数；沿 width/height 的等效可控孔径 patch 数 |
-| `phase_bits` | int或None | 1 | 正整数；None=continuous |
+| `phase_bits` | int或None | 1 | 当前构造器要求正值或 None；A3 将统一收紧 hardware-state/类型边界 |
 | `reflection_efficiency` | float | 0.7 | `[0,1]` |
 | `update_rate_hz` | float | 10 Hz | `>0` |
 | `self_sensing` | bool | false | 能力标志，不改变 v0.1 公式 |
@@ -144,8 +149,8 @@ API，也不改变 `RISSurface.nx/ny` 或 pattern shape。
 |---|---|---|---|
 | `name` | str | required | 场景显示名 |
 | `room_size` | Vec3 | required | 三个分量 `>0` |
-| `frequency_hz` | float | required | finite，`>0` |
-| `bandwidth_hz` | float | required | finite，`>0` |
+| `frequency_hz` | float | required | finite，`>0`；中心频率 `fc`，决定 `lambda/k` 和 `h(fc)` |
+| `bandwidth_hz` | float | required | finite，`>0`；等效占用/噪声带宽，当前不生成频率轴 |
 | `transmitters` | list[Transmitter] | required | v0.1 GUI 使用首个 |
 | `receivers` | list[Receiver] | required | v0.1 GUI 使用首个 |
 | `walls` | list[Wall] | [] | — |
@@ -173,9 +178,18 @@ API，也不改变 `RISSurface.nx/ny` 或 pattern shape。
 
 ### `ChannelResult`
 
-包含 `total_channel`、`los_channel`、`wall_channel`、`ris_channel` 四个 complex，
+包含中心频率 `fc` 处的 `total_channel`、`los_channel`、`wall_channel`、`ris_channel` 四个 complex，
 `received_power_w/dbm`、`noise_power_dbm`、`snr_db`、`shannon_capacity_bps` 和用于显式
-射线/诊断的 `path_details`。`path_details` 不是稳定持久化 schema。
+射线/诊断的 `path_details`。`shannon_capacity_bps` 为兼容字段，其语义严格是 center-frequency
+flat-channel Shannon upper bound。`path_details` 不是稳定持久化 schema。
+
+### Planned internal coefficient/profile identities（非当前公共类型）
+
+ADR-0009/0011 要求 Foundation 内部拥有稳定的 `profile_identity`、
+`channel_frequency_model_id`、`quadrature_policy_identity` 和 `coefficient_model_identity`。
+它们先进入 experiment/cache contract，不自动加入 Scene v1 或顶层 public dataclass。具体只读
+类型与 canonical serialization 必须在 C1/C2/FND-QA-CC Ready review 中冻结；当前调用者不得
+假设这些字段已经存在。
 
 ### `FieldMapResult`
 

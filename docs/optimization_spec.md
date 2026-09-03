@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| 基线版本 | v0.1 + Foundation 0.1.1A/A1 |
+| 基线版本 | v0.1 + Foundation A1 + planned coefficient consistency gate |
 | 当前目标 | 单 RX 接收功率最大化 |
 
 ## 1. 隔离原则
@@ -52,6 +52,21 @@ continuous nominal、相位不改变幅度时，验收关系为
 可达 pattern 族内最优并且不差于 unshifted；不得宣称任意逐 patch 组合或 Ground Truth 全局
 最优。精确定义见 [ADR-0006](adr/0006-coherent-target-focus-objective.md)。
 
+### 3.3 最终 Controller coefficient 一致性（Planned）
+
+A1 当前在 `1×1` center-point scalar model 上已 Verified。ADR-0011 进一步要求：在 FND-QA-AP
+签署最终 production quadrature policy 后，RIS-only 与 Coherent Focus 必须使用 Controller
+simulator 同一组 `a_n^C`，或由测试证明数学/数值等价：
+
+```text
+h_RIS^C = sum_n a_n^C * sqrt(eta_n) * exp(j*phi_n)
+```
+
+RIS-only 使用 `-arg(a_n^C)`；Coherent 使用 `arg(h_baseline^C)-arg(a_n^C)`，finite-bit 再遵守
+ADR-0006 的公共 offset/量化/tie-break 契约。Focus 不能读取 Ground Truth `a_n^GT`。该门禁由
+[FND-QA-CC](work_items/foundation_0_1_1_coefficient_consistency.md) 实施，当前尚非可用新功能；
+若 production 保持 1×1，应锁定与现有中心路径生成器的等价，不重开 A1。
+
 ## 4. Algorithm B：Feedback Greedy
 
 默认参数：tile 高 4 cells、宽 4 cells、1 pass。若没有 initial pattern，从全零相位开始。
@@ -86,6 +101,9 @@ continuous nominal、相位不改变幅度时，验收关系为
 研究预期而非无条件保证：模型误差小时 RIS-only Physics Focus 可能接近最佳；误差增大时物理先验
 下降，Physics-Guided 以更少搜索恢复部分损失。必须通过 phase-error sweep 的统计结果
 验证，不能用单个随机 seed 宣称算法优越。
+
+Foundation B1 必须记录 continuous hardware 的 `search_levels`；FND-QA-CC 只约束 model-based
+initial Focus 与 Controller coefficient 一致，不把反馈候选或 measurement noise 并入 `a_n`。
 
 ## 6. Measurement Oracle
 

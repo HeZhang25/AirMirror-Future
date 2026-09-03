@@ -3,8 +3,8 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| 基线版本 | v0.1 + Foundation A2 terminology |
-| 对应需求 | AMF-UI-001..006 |
+| 基线版本 | v0.1 + Foundation planned semantics/labels |
+| 对应需求 | AMF-UI-001..008、AMF-PHY-007、AMF-SIM-006 |
 
 ## 1. 页面组成
 
@@ -54,6 +54,11 @@
 | Noise Figure | dB | 0..30 | `Receiver.noise_figure_db` |
 | Coverage SNR | dB | -30..100 | `Scene.coverage_threshold_db` |
 
+Foundation FND-PHY-NB 的目标文案：Frequency 明确标为中心频率；Bandwidth 明确标为等效占用/
+接收噪声带宽。Model Info 必须说明 `h(fc)` 在 `B` 内按平坦处理，任何容量显示必须写“平坦信道
+Shannon 理论上界”，TX Power 是该带宽内总功率而非 PSD；不能写 OFDM 容量或真实吞吐。该标签
+更新仍为 Planned。
+
 ### RIS
 
 | 控件 | 范围/状态 | 行为 |
@@ -80,6 +85,10 @@ Work Item 明确授权。
 
 GUI v0.1 暴露 phase error、measurement noise 和 position error sigma；点击 Apply 才创建新
 GroundTruthModel。未暴露的效率/墙误差通过 headless API 配置。
+
+当前 Position Error 会为各实体生成三维 delta，但 wall 求交不可靠使用端点 z。FND-FIX-WALL
+完成后的准确 tooltip 必须写明：TX/RX/RIS/obstacle 按各自三维模型处理，floor-anchored wall
+只使用同一个刚体 XY 偏移。完成前不得声称墙体存在已验证的 vertical position error。
 
 Apply 使用 dataclass replace 重建并校验对象。任何错误用对话框明确显示，旧 scene 保持
 有效。Apply 后自动生成 Physics Focus，即使算法下拉框仍显示 Feedback；用户若需要反馈
@@ -131,6 +140,9 @@ Idle
 
 quantity 在 Power/SNR/RIS Gain 间切换只重绘已有 `FieldMapResult`，不触发物理重算。
 
+当前 Field Map 将同一组 fixed RIS commanded pattern 用于所有评价点；它表示“固定配置下的空间
+分布”，不是每个像素分别重新聚焦后的最优包络。Coverage/Dead Zone 必须沿用这一解释。
+
 ## 7. 场景保存和加载
 
 - Save 只保存 Scene v1，不保存 current pattern、algorithm、Ground Truth sigma、窗口状态或
@@ -150,3 +162,5 @@ quantity 在 Power/SNR/RIS Gain 间切换只重绘已有 `FieldMapResult`，不�
 7. Save/Load 后 scene 数值往返一致，pattern 重新生成；
 8. Model Info 正确声明系统级近似、Shannon 上界、当前 `1×1` center-point policy、A2 semantic
    与 discretization accuracy 的状态边界，以及 partial-aperture blockage 未实现。
+9. Foundation 完成时，Model Info 同时声明中心频率平坦信道、固定 pattern 场图和 wall 仅 XY
+   误差；这些计划文案不得在对应实现/测试完成前误标为 Verified。

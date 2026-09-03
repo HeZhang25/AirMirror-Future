@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative boundary |
-| 基线版本 | v0.1 + Foundation A2 semantic contract + ADR-0008 QA boundary |
+| 基线版本 | v0.1 + Foundation physics/algorithm closure boundaries |
 
 以下限制定义模型适用域，不是通过 UI 平滑或调大 Future 参数可以修复的问题。
 
@@ -20,12 +20,15 @@
 | 复杂极化 | 不跟踪 Jones/vector field | 标量复信道 | 偏振 RIS/天线研究 |
 | PIN diode 非线性 | 不建幅相耦合和功率依赖 | eta+phase error | 硬件校准/高功率 |
 | 严格近场 | 面积模型不保证近孔径精度 | 避免 cell 零距离 | 超大孔径近距离用户 |
-| 宽带/OFDM | 单频窄带 h | 每个场景一个 f | 频率选择性/波束偏斜 |
+| 宽带/OFDM | 只在中心频率计算 `h(fc)`，并假定在 B 内平坦 | 平坦信道 Shannon 上界；不是 OFDM/真实吞吐 | 频率选择性、delay spread、波束偏斜或 `Gamma(f)` 需求 |
 | MIMO/protocol | 无流、调制、调度、HARQ | Shannon 上界 | 真实系统吞吐/链路层 |
 | active RIS | 无外部功率、gain、NF、budget | 明确拒绝 active | 提出独立 active model ADR |
 | STAR/time modulation | 无透射/时间谐波 | 不提供入口 | 明确波形与能量模型 |
 | 多 RIS 连跳 | 仅每块单跳 TX-RIS-RX | 可相加多个单跳贡献 | Factory 双跳研究 |
 | 动态控制时延 | update_rate 目前是元数据 | 静态重配置 | XR 时间步和 latency |
+| Profile v1 路径集合 | Foundation Profile 只计划提供 environment modifier，不生成 delay/angle/Doppler 多径集合 | 默认确定性路径编排 | fading/wideband/dynamic multipath 需要独立 PathEnsemble ADR |
+| Wall z/vertical error | 当前求交按 `[0,height]` 且忽略 endpoint z，Ground Truth 却生成 3D delta | 默认 z=0 场景可运行；不声称悬空墙/墙 z 误差 | FND-FIX-WALL 冻结 floor anchor 与 XY rigid delta |
+| Focus/coefficient future migration | 当前 1×1 中中心路径相位等价；未来复杂 Profile/多点求积可能破坏等价 | A1 objective 已验证，不代表未来 policy 自动一致 | FND-QA-CC；需要时先做独立 production migration |
 
 ## 数值边界
 
@@ -42,7 +45,12 @@
   不会自动得到 partial-aperture/spatially resolved blockage；
 - FND-QA-AP 完成前，三代精确 dBm 差值只能标为 current scalar center-point model 输出；允许
   展示系统级趋势，不应宣称精确到四位小数或推广到所有场图位置；
-- Future 64×48、High 200×160 可能计算较慢，后台运行不等于模型更精确。
+- Future 64×48、High 200×160 可能计算较慢，后台运行不等于模型更精确；
+- `bandwidth_hz` 不会让引擎计算多个频点；当前 100 MHz 只进入 noise/flat-channel capacity，
+  软件没有自动证明该带宽对任意几何都满足窄带条件；
+- Field Map 对所有网格点使用同一 fixed RIS pattern，不是逐像素最优聚焦包络；
+- PropagationProfile、`channel_frequency_model_id` 与 coefficient consistency 目前均是 Foundation
+  Planned contract，不得在现有结果中声称已经实现。
 
 ## 使用限制
 
@@ -53,6 +61,7 @@
 ## 报告要求
 
 引用结果时至少报告：频率、TX power/gains、带宽/NF、场景几何、RIS 实体尺寸/等效 patch
-网格/phase/eta、算法、Ground Truth sigma、seed、coverage threshold、quadrature policy/version
-和本限制文档版本；不得把等效 patch 数量或 effective pitch 报告成真实 meta-atom 布局。若
+网格/phase/eta、算法、Ground Truth sigma、seed、coverage threshold、channel frequency model、
+Profile、coefficient/quadrature identity（若可用）和本限制文档版本；不得把等效 patch 数量或
+effective pitch 报告成真实 meta-atom 布局。若
 结果仍使用当前 1×1 policy，应明确标注 `current scalar center-point model`。

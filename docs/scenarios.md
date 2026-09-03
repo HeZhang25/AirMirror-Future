@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Smart Space Normative；其余 Planned |
-| 基线版本 | v0.1 |
+| 基线版本 | v0.1 + Foundation scenario/channel separation plan |
 
 ## 1. Future Smart Space — Verified
 
@@ -27,10 +27,31 @@ Feedback Greedy、Physics-Guided Feedback。
 - commanded/actual phase；
 - optimization measurements/runtime。
 
+FieldMap/Coverage 使用同一 fixed commanded RIS pattern 扫描所有评价点，不表示每个像素各自
+重新聚焦的最优场。当前 channel 是中心频率 `h(fc)` 的平坦窄带近似；Shannon 指标不是 OFDM
+或真实吞吐。
+
 ### 不在 v0.1
 
 Work/XR/IoT/Privacy objective presets、轨迹动画、多目标 coverage 优化。增加这些模式前先
 分别定义 objective；不能用不同标签调用同一 target Focus。
+
+## 1.1 Foundation 场景与信道分层（Planned）
+
+所有场景必须遵循：
+
+```text
+Scenario/Scene geometry and parameters
+  -> PropagationProfile environment modifier
+  -> geometric carriers / blockage / reflection roles
+  -> RIS device and commanded/actual state
+  -> coherent received channel and link metrics
+```
+
+ADR-0009 只为 Foundation 默认室内确定性模型建立 environment-only Profile；它不表示 XR、
+Factory、City、Tunnel 或 UAV channel 已实现。未来场景必须分别定义有来源的 path loss、
+LOS/NLOS、fading/dynamics 和有效域；需要多路径 delay/angle/Doppler 时建立独立 PathEnsemble，
+不能把所有场景简单映射到一个 1/d² multiplier。
 
 ## 2. XR / Spatial Computing — Planned v0.2
 

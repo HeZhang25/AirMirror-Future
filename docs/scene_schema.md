@@ -22,8 +22,8 @@
 | `schema_version` | integer | 建议必有 | 1 | 当前只支持 1 |
 | `name` | string | 是 | — | 场景名 |
 | `room_size` | Vec3 | 是 | — | 正三维尺寸 |
-| `frequency_hz` | number | 是 | — | `>0` |
-| `bandwidth_hz` | number | 是 | — | `>0` |
+| `frequency_hz` | number | 是 | — | `>0`；中心频率 `fc` |
+| `bandwidth_hz` | number | 是 | — | `>0`；等效占用/接收噪声带宽，不表示频率网格 |
 | `transmitters` | array | 否 | [] | v0.1 GUI 要求至少一个 |
 | `receivers` | array | 否 | [] | v0.1 GUI 要求至少一个 |
 | `walls` | array | 否 | [] | Wall 对象 |
@@ -69,6 +69,17 @@ TX 的四个字段写出时均存在。RX 对应字段为 `id`、`position`、`g
 ```
 
 `id/start/end` 必需。其他 reader 默认依次为 3.0、30.0、0.4、π、true。
+
+当前计算按端点 XY 和绝对高度 `[0,height_m]` 工作，尚未可靠支持非零 wall endpoint z。
+Foundation 的 Planned `AMF-SIM-006` 将在保持 schema version 1 的前提下把 v1 输入收紧为
+`start.z=end.z=0`，并对不合规外部文件明确报错；不会静默裁剪或猜测为悬空墙。实现与迁移
+证据见 [FND-FIX-WALL](work_items/foundation_0_1_1_wall_geometry_closure.md)。保持 v1 的理由是非零
+z 从未有已验证的计算语义，本次只拒绝此前被静默忽略的值；若 Ready review 发现已有受支持
+外部文件依赖非零 z，必须暂停并以 schema/ADR 重新决定，不能直接合并破坏性收紧。
+
+Foundation 不向 Scene v1 增加 `profile`、`channel_frequency_model_id` 或 Python 类名字段。
+Profile 与 frequency-model identity 属于运行/实验 provenance；若未来需要场景持久化选择，应
+通过新的 schema/ADR 评审，而不是依赖 reader 忽略未知字段。
 
 ## 5. Obstacle
 
@@ -121,4 +132,3 @@ TX 的四个字段写出时均存在。RX 对应字段为 `id`、`position`、`g
 以下任何一项出现时必须建立 v2 与迁移器：轨迹/时间轴、材料库引用、多用户目标、保存
 patterns、非轴对齐体积障碍物、宽带频点数组、RIS tile aggregation 的新结构或单位变化。
 不能把这些内容塞入未知 dict 并继续标 v1。
-

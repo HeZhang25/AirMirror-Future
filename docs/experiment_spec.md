@@ -3,13 +3,14 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| 基线版本 | v0.1 + Foundation aperture QA plan |
+| 基线版本 | v0.1 + Foundation physics/algorithm provenance plan |
 | 当前实验 | Phase Resolution |
 
 ## 1. 可复现性规则
 
-每次实验必须固定并记录：scene、frequency、geometry、generation、algorithm、Ground Truth
-sigma、random seed、控制变量、评价指标、quadrature policy/version 和 runtime。对照组只能改变声明的控制变量；改变
+每次实验必须固定并记录：scene、center frequency、bandwidth、channel frequency model、geometry、
+generation、algorithm、Profile、Ground Truth sigma、random seed、控制变量、评价指标、quadrature/
+coefficient policy/version 和 runtime。对照组只能改变声明的控制变量；改变
 孔径和 cell 数的实验不能被称为“纯相位位数对比”。
 
 输出目录由 `--output` 指定，同名 CSV/PNG 可覆盖。正式研究结果应使用新的带日期/配置
@@ -30,13 +31,19 @@ Controller Model、v0.1 RIS-only Physics Focus、seed 20260901。控制变量依
 每个点输出目标 RX power/SNR/RIS Gain，并用 Fast 80×60 场图计算 Coverage。PNG 横轴为
 phase resolution，纵轴为 target RIS gain dB，用于观察收益递减。
 
-## 3. CSV 最小字段
+## 3. CSV 最小字段（Foundation target；v0.1 legacy exception）
+
+下表是 Foundation 新实验输出的目标最小字段。当前 `results/phase_bits` 仍是 v0.1 legacy，缺少
+后续 provenance 字段不构成数据损坏；它只能被明确标为 legacy，不能回填推测值。
 
 | 字段 | 单位/类型 | 说明 |
 |---|---|---|
 | `timestamp` | ISO-8601 UTC | 行生成时间 |
 | `scenario` | str | 场景名 |
 | `frequency_hz` | Hz | 载频 |
+| `bandwidth_hz` | Hz | 等效占用/接收噪声带宽 |
+| `channel_frequency_model_id` | str | Foundation 目标值 `narrowband_center_frequency_flat_v1`；legacy 可缺失 |
+| `profile_id`,`profile_version` | str | Foundation 环境传播身份；legacy 可缺失且不得回填 |
 | `generation` | str | preset 标签 |
 | `ris_count` | int | 场景 RIS 数 |
 | `ris_width_m`,`ris_height_m` | m | 实体孔径 |
@@ -54,6 +61,10 @@ phase resolution，纵轴为 target RIS gain dB，用于观察收益递减。
 | `iterations` | int | Focus 固定为 1 |
 | `runtime_s` | s | 该行目标+场图计算时间 |
 | `random_seed` | int | 重放 seed |
+
+Foundation 新 schema 还必须记录 `focus_mode`、`search_levels`、`quadrature_policy_id/version` 和
+`coefficient_model_identity`（若该 run 使用已冻结 coefficient contract）。这些是 Planned 的 C2/
+FND-PHY-NB/FND-QA-CC 输出；当前 v0.1 CSV 没有这些列，必须标记 legacy，不能假定或伪造默认值。
 
 新增实验可增加列，不得删除这些共同追踪字段；不适用的指标应为空并在实验文档解释，
 不能填零冒充测量值。
@@ -90,7 +101,8 @@ Truth realization 和 baseline。禁止随 order 重新生成 Focus。
 最小输出除第 3 节可复用字段外，还必须记录：
 
 - `qa_schema_version`、`geometry_case`、实际 TX/RX/RIS 坐标；
-- `profile_id/version`、`model_version`、`quadrature_policy_id/version`；
+- `profile_id/version`、`channel_frequency_model_id`、`model_version`、
+  `quadrature_policy_id/version`、候选 `coefficient_model_identity`；
 - `pattern_class/hash`、预登记 random seed；
 - `quadrature_rule/order_x/order_y`；
 - `h_RIS` real/imag、absolute/robust normalized error、magnitude/phase error；

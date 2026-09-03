@@ -3,13 +3,13 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| 基线版本 | v0.1 + Foundation 0.1.1A/A1-A2 + ADR-0008 aperture QA boundary |
+| 基线版本 | v0.1 + Foundation 0.1.1 physics/algorithm contract integration |
 | 模型标签 | System-level electromagnetic approximation |
-| 对应 ADR | ADR-0001、ADR-0003、ADR-0006、ADR-0007、ADR-0008 |
+| 对应 ADR | ADR-0001、ADR-0003、ADR-0006..0011 |
 
 ## 1. 适用范围
 
-模型用于窄带、系统级、实时/准实时趋势仿真。坐标是三维的，但场图是在固定高度的二维
+模型用于中心频率平坦窄带、系统级、实时/准实时趋势仿真。坐标是三维的，但场图是在固定高度的二维
 采样。模型能表达距离损耗、传播相位、复场干涉、有限孔径、方向性、一次反射、几何
 阻挡、相位量化和器件误差。
 
@@ -54,14 +54,20 @@ Pr_dBm = 10*log10(max(Pr_W, MIN_POWER_W)) + 30
 
 ### 墙体
 
-墙体是从 `start` 到 `end` 的竖直有限线段，高度为 `height_m`。TX-RX 的二维线段交点
+当前墙体是从 `start` 到 `end` 的 XY 有限线段，高度为 `height_m`。TX-RX 的二维线段交点
 参数为 `t`，交点高度：
 
 ```text
 z_hit = z_start + t*(z_end-z_start)
 ```
 
-只有 `0<t<1` 且 `0≤z_hit≤height` 时命中。命中后：
+只有 `0<t<1` 且 `0≤z_hit≤height` 时命中。当前计算实际忽略 `start.z/end.z` 作为墙底，
+而 Ground Truth 又会生成三维 wall position delta；这是已登记的模型歧义，不得描述成已支持
+悬空墙或墙体 z 误差。`AMF-SIM-006` / [FND-FIX-WALL](work_items/foundation_0_1_1_wall_geometry_closure.md)
+计划将 v1 契约收紧为 `start.z=end.z=0`、占据 `[0,height_m]`、墙误差只做刚体 XY 平移；完成前
+状态仍为 Planned。
+
+命中后：
 
 ```text
 a_block = 10^(-attenuation_db/20)
@@ -163,6 +169,23 @@ h_RIS = sum_n(h_n)
 方向图中的平方根表示从功率方向因子转为场幅因子。任一方向位于背面时贡献为零。
 TX-RIS 和 RIS-RX 的中心路径可受几何阻挡；v0.1 不逐 cell 计算不同阻挡边缘。
 
+### Target control-level coefficient factorization（Planned）
+
+为避免未来 Profile/quadrature 与 Focus 使用不同近似，ADR-0011 冻结最终目标内部形式：
+
+```text
+a_n^C = sum_q w_nq * K_geom(r_nq) * m_in^C(r_nq) * m_out^C(r_nq)
+Gamma_cmd,n = sqrt(eta_nominal,n) * exp(j*phi_cmd,n)
+h_RIS^C = sum_n a_n^C*Gamma_cmd,n
+```
+
+Ground Truth 对应使用 `a_n^GT` 和含 actual efficiency/phase error 的 `Gamma_actual,n`。该分解只
+改变因子所有权，不授权改变数值；当前 production 仍直接按上面的每 patch `1×1` 公式计算。
+Foundation 默认的 `m_in/m_out` 仍是 RIS center scalar blockage 的复用值，不表示逐 q 遮挡。
+Focus 与 simulator 一致性由 [FND-QA-CC](work_items/foundation_0_1_1_coefficient_consistency.md)
+在 FND-QA-AP 签署 policy 后验证。若 policy 保持 1×1，只需证明现有中心路径相位等价；若选择
+多点求积，必须先经独立 production migration，不能只改 Focus 或只改 simulator。
+
 ### 孔径归一化不变量
 
 场幅与 `A_cell` 线性相关，因此固定 `W,H,eta` 和连续相位时，网格从 8×8 加密到
@@ -251,7 +274,19 @@ RIS_Gain_dB = P_with_RIS_dBm-P_baseline_dBm
 RIS Gain 可以为负，这是物理相消的合法结果。任何将负值强制截为零的显示或算法都违反
 规范。
 
-## 10. 噪声、SNR、Coverage 和容量
+## 10. 中心频率、噪声、SNR、Coverage 和容量
+
+`frequency_hz=fc` 是中心频率，信道只在 `fc` 评价并假定在 `bandwidth_hz=B` 内平坦：
+
+```text
+h(f) ≈ h(fc),  f in [fc-B/2,fc+B/2]
+```
+
+`Transmitter.power_w` 是 B 内总发射功率，不是 PSD；当前不建模子载波或带内功率分配。
+
+修改 `fc` 会重新计算 `lambda/k` 和所有复信道；只修改 `B` 不改变 `h(fc)`，但会改变噪声、
+SNR、容量和 coverage。稳定模型身份为
+`narrowband_center_frequency_flat_v1`；它属于运行 provenance，不是 Scene v1 字段。
 
 ```text
 N_dBm = -174 + 10*log10(B_Hz) + NF_dB
@@ -260,7 +295,9 @@ C_upper = B*log2(1+10^(SNR_dB/10))
 ```
 
 Coverage 是当前场图网格中 `SNR≥scene.coverage_threshold_db` 的比例；Dead Zone 为其补集。
-阈值是场景参数，结果记录必须携带阈值。`C_upper` 只能显示为 Shannon 理论上界。
+阈值是场景参数，结果记录必须携带阈值。`C_upper` 的准确含义是 **center-frequency
+flat-channel Shannon upper bound**，不能显示为 OFDM/频率选择性容量或真实吞吐量。完整决定见
+[ADR-0010](adr/0010-narrowband-center-frequency-flat-channel.md)。
 
 ## 11. Controller Model 与 Ground Truth
 
@@ -275,7 +312,7 @@ Controller Model 返回零位置/相位误差、单位效率缩放和名义墙�
 | RIS efficiency | 以 `N(1,sigma_eff²)` 缩放并裁剪到有效效率范围 |
 | Wall amplitude | 名义幅值乘 `N(1,sigma_wall_amp²)` 后裁剪 `[0,1]` |
 | Wall phase | 名义相位加 `N(0,sigma_wall_phase²)` |
-| Position | 同一实体使用固定三维 `N(0,sigma_pos²)` 平移 |
+| Position | 当前同一实体使用固定三维 `N(0,sigma_pos²)` 平移；墙体目标契约将只使用刚体 XY 分量，见 FND-FIX-WALL |
 | Measurement | 每次 oracle 调用加入时序 `N(0,sigma_measure²)` dB 噪声 |
 
 相同 seed、场景和调用顺序必须产生相同结果。baseline/with-RIS 比较使用相同 realization。
@@ -299,6 +336,13 @@ Controller Model 返回零位置/相位误差、单位效率缩放和名义墙�
 - 记录 `quadrature_policy_id/version`、适用域、runtime 和 memory；
 - 不把内部 refined scalar reference 称作 EM/full-wave/measurement truth；
 - partial-aperture blockage 必须等待独立 spatially resolved blockage model。
+
+Foundation 最终验收还必须证明：
+
+- wall floor-anchor/XY-only error 契约通过 FND-T19；
+- `fc/B` 平坦信道依赖和 model ID 通过 FND-T20；
+- RIS-only/Coherent Focus 与最终 Controller `a_n^C` 通过 FND-T21/T22；
+- 上述证据不把 Controller consistency 外推为 Ground Truth 最优性。
 
 改变公式、相位符号、方向图、面积标度或误差采样策略必须新增 ADR，更新物理性质测试和
 实验基准，不能只修改 docstring。

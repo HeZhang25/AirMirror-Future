@@ -4,7 +4,7 @@
 - Task ID：FND-QA-AP
 - Requirement IDs：AMF-RIS-011
 - 状态：Planned
-- 父项：Foundation 0.1.1 Final Exit Gate
+- 父项：Foundation 0.1.1 Final Exit Gate；下游为 FND-QA-CC
 - 依赖：A2 Verified；ADR-0008 Accepted；正式执行依赖 A3、B、C Implemented 和 experiment
   provenance 可用
 - 不属于：A2 重开、A4、P1A cache 实现、P1C 完整 aperture research
@@ -21,6 +21,10 @@ Aperture discretization accuracy = Verified only within the signed QA domain
 Electromagnetic/full-wave accuracy = Not claimed
 ```
 
+本工作项只签署 `a_n` 的 quadrature policy，不签署 Focus 与 simulator 的最终组合一致性。后者
+由 [ADR-0011](../adr/0011-controller-coefficient-focus-consistency.md) 和
+[FND-QA-CC](foundation_0_1_1_coefficient_consistency.md) 在必要 production migration 后完成。
+
 ## 状态与授权边界
 
 - 本工作项当前仅为 Planned；本文档不是 runner、测试或 policy 已实现的证据；
@@ -30,6 +34,7 @@ Electromagnetic/full-wave accuracy = Not claimed
 - 若候选 policy 均未通过，Foundation 保持 In Progress，P1A 不得开始；
 - 不修改当前 `.py`、GUI、场景或默认 1×1 行为，除非后续独立 implementation Work Item 和 ADR
   明确授权。
+- 本工作项通过也不自动授权 P1A；FND-PHY-NB、FND-QA-CC 与 Foundation final review 仍须完成。
 
 ## In / Out
 
@@ -62,6 +67,7 @@ schema 在进入 Ready 前冻结；在代码尚未实现时不得在 README 宣�
 |---|---|---|
 | `qa_schema_version` | str | QA 输出 schema |
 | `model_version`、`profile_id/version` | str | 本次系统级物理身份 |
+| `channel_frequency_model_id` | str | center-frequency/wideband contract identity |
 | `scene_id`、`geometry_case` | str | 固定几何配置和用途 |
 | `generation` | str | Current/Advanced/Future |
 | `frequency_hz` | Hz | operating frequency |
@@ -71,6 +77,7 @@ schema 在进入 Ready 前冻结；在代码尚未实现时不得在 README 宣�
 | `quadrature_rule` | str | midpoint/Gauss–Legendre |
 | `quadrature_order_x/y` | int | 每个 control patch 内 order |
 | `quadrature_policy_id/version` | str | 候选或最终 policy 身份 |
+| `coefficient_model_identity` | str | 候选 coefficient identity；最终签署属于 FND-QA-CC |
 | `h_ris_real/imag` | complex parts | 原始复数 RIS coefficient |
 | `complex_abs_error` | amplitude | 相对内部 reference 的绝对误差 |
 | `complex_robust_rel_error` | ratio/null | 带预登记 scale/floor 的误差 |
@@ -148,7 +155,8 @@ attenuation。结果元数据必须记录 blockage mode，不能把统一中心�
 | `FND-QA-AP-06` 冻结 production policy/cache identity | Planned | 0.5–1 天 | PASS decision 或 blocking ADR |
 
 若 implementation 需要改变生产散射公式，必须另建独立 Work Item；不得把 runner、生产迁移和
-P1A cache 混在一个提交中。
+P1A cache 混在一个提交中。迁移完成后还必须执行 FND-QA-CC，不能仅凭本 QA 结果推断 Focus
+已自动使用同一 integrated coefficient。
 
 ## 验收证据
 
@@ -179,5 +187,6 @@ P1A cache 混在一个提交中。
 - [x] Foundation plan、roadmap、status：增加 final gate 和顺序；
 - [x] physics、architecture、data/API、limitations：记录当前/目标边界；
 - [x] test、experiment、DoD：记录 QA 方法和 provenance；
+- [x] FND-QA-CC：记录 policy 签署后的 coefficient/Focus 一致性下游门禁；
 - [ ] GUI/scene schema：本工作项无修改；
 - [ ] code/tests/results：Planned，尚未实现。

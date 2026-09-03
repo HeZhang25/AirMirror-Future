@@ -5,10 +5,10 @@
 | 文档状态 | Operational / Normative for sequencing |
 | 当前实现基线 | v0.1 Verified，commit `edfa43c` |
 | 目标版本 | v0.1.1 Foundation |
-| 当前计划状态 | In Progress；A1/A2 Verified，A3、B/C 与 FND-QA-AP 尚未完成 |
+| 当前计划状态 | In Progress；A1/A2 Verified；A3、B/C、FND-QA-AP、FND-FIX-WALL、FND-PHY-NB、FND-QA-CC 尚未完成 |
 | 父级路线 | v0.1 Smart Space → Foundation 0.1.1 → P1A |
 | 主要责任 | 项目维护者、物理仿真负责人、GUI/测试负责人 |
-| 最后复核 | 2026-09-02（ADR-0008 / FND-QA-AP governance integration） |
+| 最后复核 | 2026-09-03（physics/algorithm master-plan integration；ADR-0009..0011） |
 
 本文是 AirMirror Future 在 v0.1 后的首个模型契约改进计划。它把当前代码事实、已发现的
 物理/算法/交互问题、目标架构、实施顺序、测试证据和退出门禁集中到同一个工作入口，供
@@ -69,7 +69,7 @@ Smart Space 垂直切片，核心定位是：
 原路线准备直接进入 P1A Geometry Cache and Matrix Evaluation。代码目前只有尚未使用的
 cache 容器，复杂的系数矩阵、失效键和增量更新尚未实现，因此现在调整契约的迁移成本最低。
 
-Foundation 前置有五个直接原因：
+Foundation 前置有八个直接原因：
 
 1. **优化目标尚未对齐**：当前 Focus 最大化 RIS 自身相干幅度，但规范目标是单 RX 总接收
    功率。即使某个场景中的数值收益很小，objective contract 仍必须正确，不能把一次演示增益
@@ -84,6 +84,14 @@ Foundation 前置有五个直接原因：
    一次隔离审计已观察到默认目标链路存在约 `0.430–0.848 dB` 的幅度差，但该结果尚未经过
    版本化 runner、代表性矩阵和正式 provenance。P1A 前必须通过 FND-QA-AP 冻结 `a_n` 的
    production quadrature policy，不能先缓存再验证。
+6. **墙体 z 语义与误差维度冲突**：当前墙面求交按绝对 `[0,height]` 处理而忽略端点 z，
+   Ground Truth 却对墙应用三维 position delta。默认 z=0 场景可运行，但不能继续把这种偶然兼容
+   描述成已定义的三维墙模型。
+7. **中心频率/带宽语义未形成稳定身份**：当前只计算 `h(fc)`，带宽只进入 noise 和 Shannon
+   公式；若不显式冻结 flat-channel 近似，100 MHz 容易被误读为已完成宽带/OFDM 仿真。
+8. **Focus 与待缓存 coefficient 可能在未来分叉**：当前 1×1 实数 modifier 下中心路径 Focus 与
+   复系数相位共轭等价；复杂 Profile 或多点 quadrature 后不必然等价，必须在 P1A 前证明
+   Controller simulator 和 Focus 共享同一 `a_n^C`。
 
 审计备注：commit `edfa43c` 的默认 Smart Room 中，1-bit pattern 加入公共相位 offset 后，
 目标点曾比现有 RIS-only Focus 改善约 `5.02 dB`。该数值只说明 objective 错位具有可观测影响，
@@ -94,10 +102,14 @@ Foundation 前置有五个直接原因：
 ```text
 v0.1 Verified
   → Foundation 0.1.1A：物理与算法契约
+  → FND-FIX-WALL：floor-anchored wall geometry closure
   → Foundation 0.1.1B：优化器与 GUI 语义
   → A/B Interim Checkpoint
   → Foundation 0.1.1C：PropagationProfile 接口
   → FND-QA-AP：Minimum Aperture Quadrature Validity
+  → conditional production quadrature migration（仅当 QA 要求）
+  → FND-PHY-NB：Narrowband Frequency Contract
+  → FND-QA-CC：Controller Coefficient Consistency
   → Foundation Final Exit Gate
   → P1A Geometry Cache and Matrix Evaluation
   → P1B/P1C 统计与孔径实验
@@ -122,8 +134,13 @@ Foundation 0.1.1 完成后，项目必须做到：
 - 让用户区分 UI 中待应用值、仿真实际值和 generation preset/customized 状态；
 - 让 Ground Truth 参数名称准确表达影响范围；
 - 建立最小 PropagationProfile 契约，并用一个默认 IndoorDeterministicProfile 复现 v0.1；
+- 将 Foundation Profile 冻结为 environment-only modifier，不重复 Friis/RIS carrier；
+- 冻结 v1 Wall 为 floor-anchored vertical wall，并只施加刚体 XY Ground Truth 偏移；
+- 明确 `frequency_hz=fc`、`bandwidth_hz=B` 和 center-frequency flat-channel capacity 语义；
 - 在 Foundation final exit 前固定 aperture/control/pattern、只细化独立 quadrature，确定
   control-level `a_n` 的 production policy、声明适用域和 cache identity；
+- 证明 RIS-only/Coherent Focus 与最终 Controller simulator 使用同一 `a_n^C`，且 Ground Truth
+  coefficient 不泄漏；
 - 为后续 cache、统计实验和场景扩展提供稳定的 ID、版本和结果 provenance。
 
 ### 4.2 非目标
@@ -137,6 +154,8 @@ Foundation 0.1.1 完成后，项目必须做到：
 - 自动把 RIS 实体尺寸绑定运行频率；
 - P1C 的完整 aperture sweep、convergence map、field-map quadrature research 或空间分辨遮挡；
 - 预先指定 `16×16 everywhere`，或在没有预注册适用域/容差时静默改变 production quadrature；
+- frequency-selective channel、PathEnsemble、delay spread、beam squint 或宽带容量积分；
+- 悬空/倾斜墙、墙厚、多层楼板或空间分辨 aperture blockage；
 - P1A 几何矩阵缓存、增量 Greedy 或性能重写；
 - 对历史实验结果进行无版本覆盖。
 
@@ -151,6 +170,9 @@ Foundation 0.1.1 完成后，项目必须做到：
 - 新增 Profile 或缓存时不需要重新定义 Scenario、Ground Truth 和 RIS 的职责；
 - 新增缓存前能证明它缓存的 `a_n` 来自已签署的 quadrature policy；若候选 policy 不通过，
   Foundation 保持 In Progress 而不是降低阈值；
+- 同一个最终 production policy 下，Focus 与 Controller channel 对 `a_n^C` 的定义没有分叉；
+- 使用者能从标签和 provenance 判断结果是 `h(fc)` 的 flat-channel 上界，而不是 OFDM/真实吞吐；
+- Wall 的 z/height/position error 不再存在“字段被接受但计算忽略”的歧义；
 - 旧 Phase Resolution 结果仍可识别其 model/focus 版本，不与新结果混用。
 
 ## 5. 目标模型契约
@@ -340,18 +362,21 @@ Applied + invalidate old workers + regenerate pattern/results
 
 ### 5.6 Ground Truth 参数命名
 
-当前 Position Error 同时平移 TX、RX、RIS、每堵墙和每个 obstacle，因此 GUI 改名为：
+当前 Position Error 会为 TX、RX、RIS、每堵墙和每个 obstacle 生成三维固定 delta，因此 GUI
+总标签仍改名为：
 
 - `Geometry Position Error σ / 几何位置误差 σ`。
 
-tooltip 必须说明这是每个实体由固定 seed 产生的三维固定偏移，不是仅 RX localization error。
+但当前 wall geometry 求交按 endpoint XY 和绝对 `[0,height_m]` 处理，不能可靠消费墙的 z delta。
+因此最终 tooltip 必须说明：TX/RX/RIS/obstacle 按各自三维模型处理；v1 floor-anchored wall 仅使用
+同一个刚体 XY 偏移。不能再笼统声称每类实体均有三维位置误差。
 
 当前 Measure Noise 只作用于 Measurement Oracle，因此改名为：
 
 - `Feedback Measurement Noise σ / 反馈测量噪声 σ`。
 
-本阶段不拆多个独立位置误差字段，避免扩大 Scene/GUI/实验契约；未来研究确有需要时再通过
-新 requirement 和 schema 评审拆分。
+本阶段不拆多个独立 sigma 字段。`AMF-SIM-006` / FND-FIX-WALL 只修正 wall 的消费语义和验证，
+不新增 Scene 字段；未来悬空墙、楼板或独立位置误差确有需要时再通过 schema/ADR 评审。
 
 ### 5.7 PropagationProfile 契约
 
@@ -382,20 +407,60 @@ Foundation 只实现或设计一个默认 `IndoorDeterministicProfile`，完整�
 - 明确职责，不成为包含 Scene、Ground Truth、RIS、噪声和 GUI 的 God object；
 - 默认行为与 v0.1 reference 在声明容差内一致。
 
-Profile 必须一致参与 direct path、每条 reflection leg、TX→RIS incident leg 和 RIS→RX
-scattered leg；不能只替换 direct path 而让 RIS 两段继续绕过场景传播规则。同时：
+Profile 必须一致参与 direct path、每条 wall-reflection path role、TX→RIS incident leg 和
+RIS→RX scattered leg；不能只替换 direct path 而让 RIS 两段继续绕过场景传播规则。一次墙反射
+仍由一个 `wall_reflection` modifier 汇总墙复系数和两段其他阻挡，不把整段 carrier 重算两次。
+同时：
 
 - Profile 负责环境传播，RIS model 仍负责孔径、方向图、效率和 commanded/actual phase；
-- ADR 必须明确 Profile 的 path response 是“完整复传播响应”还是“自由空间之外的环境修正”，
-  防止与 `ris_channel` 已包含的距离扩散和传播相位重复计算；
+- ADR-0009 已冻结 Profile path response 为“自由空间/几何 carrier 之外的 environment-only complex
+  modifier”，不得包含重复的距离扩散、传播相位、天线 gain 或 RIS device response；
 - Foundation 初次接入保持 v0.1 的 RIS 面板中心阻挡近似，以便分路径等价复现；逐 patch
   阻挡是独立物理改进，不能夹带进 Profile 重构；
 - 最小接口可使用小型 Protocol/strategy 和有限 path-role context，不建立插件注册中心、通用
   射线图 DSL、事件总线或 provider system。
 
-Scene 是否直接持有 profile 配置、还是由 scenario/engine 参数注入，必须由 architecture/schema
-ADR 决定。不得把 Python 类名直接作为持久化协议。未来 cache key 至少包含 profile identity、
-version、parameters 和所有影响系数的场景状态。
+ADR-0009 同时冻结：Foundation 不修改 Scene JSON v1；Profile 由 `SimulationEngine` 构造时注入，
+缺省为 `IndoorDeterministicProfile`。不得把 Python 类名直接作为持久化协议。未来 cache key 至少
+包含稳定的 profile ID/version/canonical parameters 和所有影响系数的场景状态。能够生成
+delay/angle/Doppler 多路径集合的 PathEnsemble 是后续独立能力，不能把 Profile modifier 静默
+扩成 God object。
+
+### 5.8 中心频率窄带与容量契约
+
+当前实际计算只在 `frequency_hz=fc` 处产生复信道，并把该值视为 `bandwidth_hz=B` 内的平坦
+响应。`B` 只进入 noise、SNR、coverage 与 `B*log2(1+SNR)`；它不会生成子载波或频率轴。
+Foundation 按 ADR-0010 冻结：
+
+- 修改 `fc` 重算 `lambda/k`、所有路径相位和 aperture diagnostics；
+- 只修改 `B` 不改变 `h(fc)`，但重算 link metrics；
+- capacity 的准确标签是 center-frequency flat-channel Shannon upper bound；
+- provenance 使用 `channel_frequency_model_id=narrowband_center_frequency_flat_v1`；
+- Scene v1 不新增该 identity 字段，legacy 结果不伪造回填；
+- 不以无来源的固定 `B/fc` 或 `B*delay` 阈值冒充场景有效性证明。
+
+完整执行由 [FND-PHY-NB](work_items/foundation_0_1_1_narrowband_contract.md) 负责；本计划不实现
+OFDM、beam squint、`Gamma(f)` 或 frequency-selective fading。
+
+### 5.9 Controller coefficient 与 Focus 一致性
+
+Foundation 最终 production policy 下的内部目标形式为：
+
+```text
+a_n^C = sum_q w_nq*K_geom(r_nq)*m_in^C(r_nq)*m_out^C(r_nq)
+Gamma_cmd,n = sqrt(eta_nominal,n)*exp(j*phi_cmd,n)
+h_RIS^C = sum_n a_n^C*Gamma_cmd,n
+```
+
+RIS-only Focus 使用 `-arg(a_n^C)`，Coherent Focus 使用
+`arg(h_baseline^C)-arg(a_n^C)` 并继续遵守 ADR-0006 的 finite-bit 搜索。Ground Truth 使用
+`a_n^GT/Gamma_actual`，只能通过 oracle 反馈，不能进入 model-based Focus。
+
+该分解首先是内部所有权契约，不改变 public phase-array API，不授权改变 efficiency/area 数值。
+FND-QA-AP 先决定 quadrature policy：若保持 1×1，则用测试证明当前中心路径实现等价；若采用
+多点或复相位 modifier，则必须先完成独立 production migration，让 simulator 与 Focus 共享同一
+coefficient builder。最后由 [FND-QA-CC](work_items/foundation_0_1_1_coefficient_consistency.md)
+签署一致性。该门禁不重开 A1/A2，也不实现 P1A cache。
 
 ## 6. Requirement 映射
 
@@ -407,8 +472,11 @@ version、parameters 和所有影响系数的场景状态。
 | `AMF-RIS-009` | 冻结 equivalent controllable patch 语义和有效 pitch 透明度 |
 | `AMF-RIS-010` | 在传播前验证 commanded hardware states |
 | `AMF-RIS-011` | 在 Foundation final exit/P1A 前验证独立求积并冻结 coefficient policy |
+| `AMF-RIS-012` | 最终 production policy 下对齐 Controller coefficient、Focus 与 simulator |
 | `AMF-OPT-004` | 分离 hardware phase resolution 与 optimizer search levels |
 | `AMF-SIM-005` | 建立 PropagationProfile 和默认 IndoorDeterministicProfile |
+| `AMF-SIM-006` | 冻结 floor-anchored Wall 和 XY-only rigid Ground Truth perturbation |
+| `AMF-PHY-007` | 冻结 center-frequency flat-channel、容量标签与模型身份 |
 | `AMF-UI-007` | 建立 pending/apply/preset/customized 状态语义 |
 | `AMF-UI-008` | Pattern 元数据、相位图例和准确 Ground Truth 标签 |
 | `AMF-EXP-006` | 实验记录 focus/profile/model/search provenance，保留历史可比性 |
@@ -503,18 +571,20 @@ version、parameters 和所有影响系数的场景状态。
 
 - Requirement：`AMF-SIM-005`；
 - 输入：Scene、TX/RX、Model、RIS patterns；
-- 输出：最小 Profile 协议、默认 IndoorDeterministicProfile、稳定 identity/version；
+- 输出：environment-only modifier Profile 协议、默认 IndoorDeterministicProfile、engine 构造注入、
+  稳定 identity/version；
 - 预计文档：ADR、architecture、public API、scene schema decision、limitations；
 - 预计代码：新的轻量 profile 模块和 `SimulationEngine` 编排调整；
 - 验收：默认 Profile 在未改变 Focus 的 reference 模式下复现 v0.1 分路径复信道；direct、
   reflection、RIS incident/scattered legs 均不能绕过 Profile；Profile 不依赖 GUI/optimizer，
-  不吞并 RIS device model；未来 cache key 能引用稳定 identity；未实现 Profile 明确拒绝而非
-  回退。
+  不吞并 carrier/RIS device/Ground Truth/noise；未来 cache key 能引用稳定 identity；Scene v1
+  不保存 Python 类名；未实现 Profile 明确拒绝而非回退。
 
 #### Deliverable C2：Minimum experiment provenance
 
 - Requirement：`AMF-EXP-006`；
-- 输入：focus mode、profile ID/version、search levels、model contract version；
+- 输入：focus mode、profile ID/version、channel frequency model ID、search levels、model/
+  quadrature/coefficient contract version；
 - 输出：Foundation 最小可解释实验 schema 和新的结果目录规则；
 - 预计文档：experiment spec、test strategy、results README；
 - 预计代码：实验字段和 schema test；
@@ -542,6 +612,40 @@ version、parameters 和所有影响系数的场景状态。
 - 详细契约：[ADR-0008](adr/0008-minimum-aperture-quadrature-validity-gate.md) 和
   [FND-QA-AP Work Item](work_items/foundation_0_1_1_qa_ap.md)。
 
+### 7.5 Foundation Cross-Cutting Closure — Geometry, Frequency and Coefficients
+
+#### FND-FIX-WALL：Wall Geometry Closure
+
+- 状态：**Planned**；Requirement `AMF-SIM-006`；
+- 依赖：v0.1 wall/blockage/reflection audit；可在 A3 后、B 前独立实施；
+- 输入：Wall endpoint/height、Ground Truth position delta、Scene v1；
+- 输出：floor-anchored wall、`start.z=end.z=0` 验证、同一刚体 XY perturbation；
+- 验收：FND-T19、z=0 round-trip、阻挡/反射同几何和三代兼容回归；
+- 边界：不实现悬空/倾斜墙、新 schema 字段或空间分辨 aperture blockage；
+- 详细契约：[FND-FIX-WALL Work Item](work_items/foundation_0_1_1_wall_geometry_closure.md)。
+
+#### FND-PHY-NB：Narrowband Frequency Contract
+
+- 状态：**Planned**；Requirement `AMF-PHY-007`；
+- 依赖：ADR-0010 Accepted、C2 provenance 可用；
+- 输入：`fc`、`B`、noise figure、center-frequency channel；
+- 输出：flat-channel capacity 标签、`channel_frequency_model_id`、legacy 规则；
+- 验收：FND-T20 与 GUI/CLI/实验人工文案检查；
+- 边界：不实现频率轴、OFDM、delay spread、beam squint 或 `Gamma(f)`；
+- 详细契约：[ADR-0010](adr/0010-narrowband-center-frequency-flat-channel.md) 和
+  [FND-PHY-NB Work Item](work_items/foundation_0_1_1_narrowband_contract.md)。
+
+#### FND-QA-CC：Controller Coefficient Consistency
+
+- 状态：**Planned**；Requirement `AMF-RIS-012`；
+- 依赖：C1 Profile、FND-QA-AP signed policy、FND-PHY-NB、必要时先完成独立 production migration；
+- 输入：最终 `a_n^C`、`Gamma_cmd`、baseline、两种 Focus、Controller/GT boundary；
+- 输出：Focus/simulator/QAP 一致性证据和分层 coefficient identity；
+- 验收：FND-T21/T22、Ground Truth 不泄漏、identity mutation matrix、三代回归；
+- 边界：不重开 A1/A2，不实现 cache，不让 Focus 读取 `a_n^GT`；
+- 详细契约：[ADR-0011](adr/0011-controller-coefficient-focus-consistency.md) 和
+  [FND-QA-CC Work Item](work_items/foundation_0_1_1_coefficient_consistency.md)。
+
 ## 8. L4 Tasks 和建议顺序
 
 每项控制在约 0.5–2 个开发日。L4 Task 是追踪单元，不等于 Git commit；依赖满足的任务可并行，
@@ -549,20 +653,23 @@ version、parameters 和所有影响系数的场景状态。
 
 | 顺序 | Task | 状态 | 完成输出 |
 |---:|---|---|---|
-| 1 | `FND-DOC-01` 建立 objective/geometry/profile 三个 ADR 草案 | Planned | 决策选项、后果、否决方案 |
+| 1 | `FND-DOC-01` 建立 Foundation objective/geometry/profile/frequency/coefficient ADR | Implemented | ADR-0006..0011 的决定、后果与否决方案 |
 | 2 | `FND-DOC-02` 冻结 equivalent patch、诊断量和 Deferred 边界 | Implemented | ADR-0007、data/physics/limitations/API 同步；FND-T09 |
 | 3 | `FND-TEST-01` 定义 Focus objective 契约测试 | Implemented | FND-T01..T05、错误契约、tie-break 和 1/2/3/4-bit 回归 |
 | 4 | `FND-TEST-02` 定义 commanded pattern 契约测试 | Planned | bits、modulo、tolerance、Actual error |
 | 5 | `FND-PHY-01` 实现两个具名 Focus | Implemented | RIS-only 保留、Coherent 新增且分层正确；ADR-0006 |
 | 6 | `FND-PHY-02` 实现 commanded validator | Planned | 所有公共传播入口共用且 Field Map 只验证一次 |
-| 7 | `FND-OPT-01` 增加 search levels 与结果元数据 | Planned | discrete/continuous 语义分离 |
-| 8 | `FND-UI-01` 建立 pending/apply/Optimize 门禁 | Planned | GUI 状态机 smoke tests |
-| 9 | `FND-UI-02` 增加 Customized、Pattern 信息和准确标签 | Planned | 可人工验收界面 |
-| 10 | `FND-QA-AB` A/B 中期验收与人工复核 | Planned | 三代 headless、GUI、临时隔离实验和审查记录 |
-| 11 | `FND-ARCH-01` 接入默认 PropagationProfile | Planned | 全路径角色调用、当前分量等价复现 |
-| 12 | `FND-EXP-01` 加入最小实验 provenance | Planned | versioned CSV/PNG、legacy 和 no-overwrite |
-| 13 | `FND-QA-AP` 最小孔径求积有效性门禁 | Planned | FND-T16..18、versioned matrix、signed coefficient policy |
-| 14 | `FND-QA-01` 全量回归、headless、GUI 和实验验收 | Planned | Foundation final exit evidence |
+| 7 | `FND-FIX-WALL` 冻结 floor-anchored Wall/XY perturbation | Planned | FND-T19、schema/error/compatibility evidence |
+| 8 | `FND-OPT-01` 增加 search levels 与结果元数据 | Planned | discrete/continuous 语义分离 |
+| 9 | `FND-UI-01` 建立 pending/apply/Optimize 门禁 | Planned | GUI 状态机 smoke tests |
+| 10 | `FND-UI-02` 增加 Customized、Pattern 信息和准确标签 | Planned | 可人工验收界面 |
+| 11 | `FND-QA-AB` A/B 中期验收与人工复核 | Planned | 三代 headless、GUI、临时隔离实验和审查记录 |
+| 12 | `FND-ARCH-01` 接入 environment-only PropagationProfile | Planned | 全路径角色调用、当前分量等价复现、稳定 identity |
+| 13 | `FND-EXP-01` 加入最小实验 provenance | Planned | versioned CSV/PNG、legacy 和 no-overwrite |
+| 14 | `FND-QA-AP` 最小孔径求积有效性门禁 | Planned | FND-T16..18、versioned matrix、signed coefficient policy |
+| 15 | `FND-PHY-NB` 冻结 center-frequency flat-channel contract | Planned | FND-T20、model ID 与准确标签 |
+| 16 | `FND-QA-CC` 验证 Controller coefficient/Focus 一致性 | Planned | FND-T21..22、identity/boundary review |
+| 17 | `FND-QA-01` 全量回归、headless、GUI 和实验验收 | Planned | Foundation final exit evidence |
 
 若任务实际超过两天，应继续拆分；不得把“完成 ChannelProfile”与“实现城市传播模型”合并。
 
@@ -572,15 +679,19 @@ version、parameters 和所有影响系数的场景状态。
 
 | 范畴 | 预计文件 | 目的 |
 |---|---|---|
-| 决策 | `docs/adr/0006-*.md`、`0007-*.md`、`0008-*.md`、未来 `0009-*.md` | objective、patch semantic、quadrature gate、profile ADR |
+| 决策 | `docs/adr/0006-*.md` 至 `0011-*.md` | objective、patch、quadrature、Profile、narrowband、coefficient |
 | 规范 | `physics_model.md`、`optimization_spec.md` | 目标算法和搜索/验证契约 |
 | 数据/API | `data_model.md`、`public_api.md`、必要时 `scene_schema.md` | 派生值、错误、兼容策略 |
-| 架构 | `architecture.md`、`limitations.md` | Profile 边界和适用域 |
+| 架构 | `architecture.md`、`limitations.md` | Profile、frequency/coefficient identity、适用域 |
 | GUI | `gui_spec.md`、`glossary.md` | pending/customized/pattern/误差文案 |
 | 实验 | `experiment_spec.md`、`results/README.md` | provenance 和历史结果保留 |
 | 追踪 | `requirements.md`、`roadmap.md`、`DEVELOPMENT_STATUS.md` | 状态闭环 |
 | 代码 | `ris/phase.py`、`simulation/engine.py`、`optimization/*`、`gui/*` | 后续实现，不在本文档提交中完成 |
 | 测试 | `test_ris.py`、`test_scene_engine.py`、`test_optimization.py`、`test_gui_smoke.py`、`test_documentation.py` | 性质、集成、GUI 和 schema |
+
+2026-09-03 的本轮 master-plan integration 仅修改 Markdown；不修改上表中的 Python、tests、GUI、
+scene、results、cache、production quadrature 或 Focus。后续每个 Work Item 仍需按自己的授权范围
+提交最小变更。
 
 ## 10. 测试设计和验收矩阵
 
@@ -608,6 +719,10 @@ version、parameters 和所有影响系数的场景状态。
 | FND-T16 | `test_quadrature_refinement_keeps_control_pattern_fixed` | series 中 aperture/control/pattern hash 不变，只改变 rule/order |
 | FND-T17 | `test_quadrature_reference_uses_successive_and_cross_rule_evidence` | reference 不固定冒充 16×16 truth；未收敛 case 明确失败 |
 | FND-T18 | `test_quadrature_report_guards_nulls_and_records_policy_identity` | 深相消不输出 Inf/误导 phase/gain；provenance 和 policy 完整 |
+| FND-T19 | `test_floor_anchored_wall_uses_rigid_xy_truth_delta` | 非零 wall z 被拒绝；阻挡/反射共享 floor-anchor 与 XY 刚体误差 |
+| FND-T20 | `test_narrowband_frequency_and_bandwidth_dependencies` | `fc` 重算 h；`B` 只改变 noise/link metrics；model ID 稳定 |
+| FND-T21 | `test_ris_only_focus_matches_controller_coefficients` | 最终 policy 下 RIS-only Focus 与同一 `a_n^C` 相位共轭；1×1 保持兼容 |
+| FND-T22 | `test_coherent_focus_uses_controller_simulator_coefficients` | Coherent objective 与 engine 共用 `a_n^C/h_b^C`，且不读取 Ground Truth |
 
 物理/算法实现完成后至少运行：
 
@@ -627,6 +742,11 @@ python -m airmirror_future --headless --scene scenes/smart_room.json --generatio
 normalized complex error、幅度/功率差和有保护的 phase/RIS Gain。reference convergence 和
 production adequacy 容差必须在正式结果前预注册；不得在失败后放宽。最小 QA 避开 partial
 blockage boundary；P1C 再扩大 frequency/angle/near-field、field-map 和遮挡边缘适用域。
+
+FND-T19 独立关闭 wall 几何语义，不把 z delta 映射成 wall height。FND-T20 只验证当前
+center-frequency flat-channel 合同，不借机加入频率轴。FND-T21/T22 必须在 FND-QA-AP 签署
+production policy 后执行；若 QAP 要求多点 production，先完成独立 migration，再验证 Focus、
+simulator 和 QA runner 共用 coefficient。四项均为 Planned，不因文档测试设计而提前通过。
 
 ## 11. 实验、兼容和版本策略
 
@@ -677,6 +797,10 @@ Foundation 不向 Scene v1 写入 `design_frequency_hz`；该问题已 Deferred�
 | Profile 抽象过度设计 | 默认 Profile 代码规模和依赖审查 | 只保留最小 protocol/strategy，不建插件系统 |
 | Profile 接入造成数值漂移 | 分路径 complex reference comparison | 继续调用原 physics 纯函数，逐步迁移编排 |
 | Profile 与 RIS 公式重复计算距离损耗/相位 | path-response 契约测试和分量对照 | ADR 明确 full transfer 或 environment modifier，禁止混用 |
+| Wall endpoint z 被接受后计算忽略 | loader/geometry/FND-T19 | 收紧 v1 为 floor anchor，墙只用刚体 XY delta |
+| 100 MHz 被误称已做宽带/OFDM | 标签、FND-T20、provenance review | 固定 flat-channel model ID，不做无来源自动有效性判定 |
+| quadrature/Profile 升级后 Focus 仍用中心路径 | FND-T21/T22 coefficient comparison | 独立 production migration；未闭环则阻断 Foundation/P1A |
+| coefficient identity 漏掉 gain/direction/world model | mutation matrix / cache design review | 分层补齐 canonical identity，未完成前不启用 cache |
 | 新实验覆盖旧结果 | 输出目录存在检查、metadata test | 默认拒绝覆盖或创建新 run 目录 |
 | Foundation 扩展到新场景/衰落/MIMO | Work Item scope review | 移回 roadmap，不在当前分支实现 |
 
@@ -691,7 +815,12 @@ Foundation 不向 Scene v1 写入 `design_frequency_hz`；该问题已 Deferred�
 1. ADR-0006：Physics Focus objective、baseline phase alignment 与 model-based optimizer 分层；
 2. ADR-0007：Equivalent controllable aperture patch semantics；
 3. ADR-0008：最小 aperture quadrature validity gate、A2/P1A/P1C 边界；
-4. 未来 ADR-0009：PropagationProfile ownership、path-response 语义、identity 和 Scene binding。
+4. ADR-0009：PropagationProfile 为 environment-only modifier、engine 注入、稳定 identity；
+5. ADR-0010：center-frequency flat-channel、带宽/容量标签与 model ID；
+6. ADR-0011：Controller `a_n^C/Gamma_cmd` 分解、Focus 一致性与条件迁移顺序。
+
+以上六项均已 Accepted。Wall floor-anchor 是对当前 v1 计算歧义的最小 closure，由稳定 requirement
+和 FND-FIX-WALL 跟踪；若未来支持悬空/倾斜墙或改变 schema 结构，再新建 ADR。
 
 Commanded validation、search levels 和 GUI dirty state 如果不改变层依赖/schema major，可作为
 上述 ADR 的后果和 requirements 实现；若评审发现存在新的高影响选择，再单独建 ADR。
@@ -700,16 +829,19 @@ Commanded validation、search levels 和 GUI dirty state 如果不改变层依�
 
 以下是依赖顺序，不要求与 L4 Task 或最终 commit 数量一一对应：
 
-1. `docs: freeze focus, equivalent-patch and profile contracts`
-2. `feat: add coherent target focus with contract tests`
-3. `feat: enforce commanded hardware states with contract tests`
+1. `docs: freeze Foundation physics/algorithm contracts`（本轮只完成治理，不提升能力状态）
+2. `feat: enforce commanded hardware states with contract tests`（A3）
+3. `fix: close floor-anchored wall geometry and XY truth delta`（FND-FIX-WALL）
 4. `feat: separate hardware and search resolution`
 5. `ui: clarify applied state, pattern metadata and ground-truth labels`
 6. **A/B checkpoint：暂停功能扩展并完成人工复核**
-7. `refactor: introduce default propagation profile`
+7. `refactor: introduce environment-only default propagation profile`
 8. `experiment: add minimum foundation provenance`
 9. `qa: establish minimum aperture quadrature validity and freeze coefficient policy`
-10. `docs/qa: close foundation evidence and status`
+10. 若 QA 要求，先建立并完成独立 production quadrature migration；若保留 1×1 则跳过迁移
+11. `physics/docs: close narrowband frequency/model identity contract`（FND-PHY-NB）
+12. `qa: prove Controller coefficient and Focus consistency`（FND-QA-CC）
+13. `docs/qa: close foundation evidence and status`
 
 可以在本地 TDD 过程中先看到红灯，但不得把“只有失败测试”的提交作为可交付历史推送或合并；
 测试应与最小实现组成绿色提交，或在合并前 squash。每个交付提交必须可评审、测试通过并更新
@@ -722,7 +854,7 @@ Commanded validation、search levels 和 GUI dirty state 如果不改变层依�
 
 开始任何代码实现前必须满足：
 
-- `AMF-RIS-008..011`、`AMF-OPT-004`、`AMF-SIM-005`、`AMF-UI-007..008`、
+- `AMF-RIS-008..012`、`AMF-PHY-007`、`AMF-OPT-004`、`AMF-SIM-005..006`、`AMF-UI-007..008`、
   `AMF-EXP-006` 已在 requirements 中保持 Planned/Ready；
 - 当前要进入的子 Capability 对应 ADR 选项、影响和否决方案已评审；
 - 第 10 节相关行为测试已经设计；红灯可存在于本地 TDD 过程，但交付 commit 必须保持绿色；
@@ -738,6 +870,9 @@ Commanded validation、search levels 和 GUI dirty state 如果不改变层依�
 - equivalent patch 语义和限制进入规范；
 - 物理性质测试与三代 headless 通过；
 - 旧行为差异有 ADR 和版本记录。
+
+Foundation A exit 后、B 开始前执行 FND-FIX-WALL；A1/A2 的 Verified 状态不受该独立 closure
+影响，但 FND-T19 未通过时 Foundation final gate 仍被阻断。
 
 ### 14.3 Foundation 0.1.1B Exit Gate
 
@@ -762,6 +897,8 @@ Commanded validation、search levels 和 GUI dirty state 如果不改变层依�
 - 默认 IndoorDeterministicProfile 可复现 v0.1 reference 物理组件；
 - direct、reflection、RIS incident/scattered path roles 均经过同一 Profile 契约，且没有与 RIS
   距离扩散/相位公式重复计算；
+- Profile 返回 environment-only complex modifier；自由空间 carrier、RIS device、Ground Truth 和
+  noise 的所有权未被吞并；
 - Profile identity/version/parameters 有稳定契约；
 - Controller/GroundTruth、RIS 和 Profile 职责没有互相吞并；
 - Scene/schema 决策和迁移策略完整；
@@ -778,8 +915,14 @@ Commanded validation、search levels 和 GUI dirty state 如果不改变层依�
 - reference/production tolerance 在正式结果前登记，结果失败后未通过放宽阈值取得 PASS；
 - production `quadrature_policy_id/version` 已签署；若需要改变散射实现，独立 implementation
   Work Item 已完成并重新运行三代回归；
+- FND-FIX-WALL/FND-T19 已关闭 wall endpoint z、height 和 Ground Truth XY perturbation 歧义；
+- FND-PHY-NB/FND-T20 已冻结 `narrowband_center_frequency_flat_v1`，标签/provenance 不把
+  `h(fc)` 平坦上界误称宽带或真实吞吐；
+- FND-QA-CC/FND-T21..22 已证明 RIS-only/Coherent Focus、Controller simulation 与 QA runner
+  使用同一最终 `a_n^C` 或等价实现，且没有 Ground Truth coefficient 泄漏；
 - partial-aperture blockage 明确不在本门禁声明范围，当前 scalar blockage 未被误称空间分辨；
-- P1A cache key 所需 Profile、geometry、pattern 和 quadrature policy identity 已冻结；
+- P1A cache key 所需 frequency model、Profile、geometry/gains/direction、world model 和 quadrature
+  policy identity 已冻结；pattern/B/NF/measurement noise 的不同所有权也已记录；
 - requirements、ADR、README、roadmap、status 和测试证据闭环。
 
 全部完成后，Foundation Capability 才能由 Implemented 经人工验收升为 Verified，P1A 才能
@@ -818,6 +961,13 @@ Foundation 之后按以下顺序推进：
 - [ ] 我知道 `phase_bits` 与 `search_levels` 是不同维度；
 - [ ] 我知道 Generation 是 preset 来源，Customized 只能是派生显示；
 - [ ] 我知道 Controller/GroundTruth 与 PropagationProfile 职责不同；
+- [ ] 我知道 Foundation Profile 是 environment-only modifier，不重复距离/传播相位，未来
+  PathEnsemble 是独立能力；
+- [ ] 我知道 `frequency_hz` 是中心频率，`bandwidth_hz` 不会生成频率轴，容量只是 flat-channel
+  Shannon 上界；
+- [ ] 我知道 v1 Wall 目标是 floor-anchored/XY-only truth delta，当前非零 endpoint z 尚有歧义；
+- [ ] 我知道 A1 objective Verified 不等于未来 quadrature/Profile 下 Focus/coefficient 自动一致；
+- [ ] 我知道 FND-QA-AP 先选 production policy，必要时独立迁移，最后 FND-QA-CC 才签一致性；
 - [ ] 我确认没有在 Foundation 中实现缓存、新场景、MIMO 或 fading；
 - [ ] 我已找到 requirement ID、ADR 触发条件、测试和 Exit Gate；
 - [ ] 我会在同一变更中同步 requirements、规范、测试和 DEVELOPMENT_STATUS。
@@ -832,14 +982,20 @@ Foundation 之后按以下顺序推进：
 - A2 由 ADR-0007 选择只展示 effective pitch/波长比例，不输出未验证的 phase-span；
 - ADR-0008 保持 A2 Verified，并把最小 coefficient quadrature validity 放到 Foundation final
   exit/P1A 前；P1C 保留更完整的 aperture research。
+- ADR-0009 选择 environment-only Profile、engine 构造注入和 Scene v1 不持有 Profile 类名；
+- ADR-0010 冻结 center-frequency flat-channel 语义和稳定 model ID，不建立自动窄带阈值；
+- ADR-0011 冻结 Controller `a_n^C/Gamma_cmd` 所有权、Ground Truth 隔离和条件 production
+  migration 顺序。
 
 以下问题在正式实现前不得由单个开发者静默选择：
 
-1. PropagationProfile 由 Scene 持有、scenario 注入还是 engine 显式参数传入，以及 path
-   response 返回 full transfer 还是 environment-only modifier；
-2. continuous Physics-Guided 是否允许连续 initial 与离散搜索结果混合；
-3. 历史结果目录的版本命名和默认覆盖策略；
+1. continuous Physics-Guided 是否允许连续 initial 与离散搜索结果混合；
+2. 历史结果目录的版本命名和默认覆盖策略；
+3. C1 Profile context/canonical parameter 的具体 Python 类型和序列化编码；所有权和 modifier
+   语义已经关闭，不得重新选择 full transfer；
 4. FND-QA-AP 的预注册 reference/production tolerance、最终 fixed/adaptive policy 和是否需要
    production migration；这些必须在 Work Item 进入 Ready/查看正式结果前关闭，不能静默选择。
+5. FND-FIX-WALL 对 endpoint z 的数值容差和外部非零-z v1 文件的最终错误文案；
+6. FND-QA-CC coefficient builder 的具体内部模块/类型；公共 phase-array API 和因子所有权已关闭。
 
 未决项存在不表示计划阻塞；它们是对应 ADR/Work Item 进入 Ready 前必须关闭的选择。

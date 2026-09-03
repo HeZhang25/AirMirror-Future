@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Informative，默认值由代码/scene 提供 |
-| 基线版本 | v0.1 |
+| 基线版本 | v0.1 + Foundation model-boundary clarification |
 
 ## 1. 使用原则
 
@@ -47,6 +47,10 @@ Future 仍遵守与 Current 相同的传播公式、孔径归一化、效率上�
 更新、低损耗、高精度相位、宽带、自感知、通信感知定位融合。大规模实现不能创建百万
 Python cell objects，应使用等效孔径/tiles/矩阵分块，并验证与细网格基准的一致性。
 
+Foundation 的 PropagationProfile 只负责 environment-only modifier；不同场景并不会因共享接口
+而自动共享同一个传播模型。宽带/OFDM、frequency-dependent `Gamma_n(f)`、phase-amplitude
+coupling、delay/Doppler PathEnsemble 仍需独立 requirement/ADR、数据模型和验证证据。
+
 ## 5. 尚未允许的外推
 
 - passive efficiency `>1`；
@@ -55,6 +59,8 @@ Python cell objects，应使用等效孔径/tiles/矩阵分块，并验证与细
 - Future 直接乘固定倍数；
 - update rate 或 self sensing 自动变成 RF gain；
 - 将 Shannon 上界称为真实 throughput；
+- 将中心频率 `h(fc)` 的 flat-channel 上界称为已完成宽带/OFDM；
+- 让 model-based Focus 读取 Ground Truth coefficient；
 - 将 Privacy spatial suppression 称为 encryption；
 - 将概念性 Electromagnetic Corridor 画成不经过引擎的覆盖带。
 

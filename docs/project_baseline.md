@@ -41,7 +41,10 @@ Programmable Network 到 Programmable Electromagnetic Space 的可能演进。
 7. Future 只能通过显式孔径、效率、相位精度、更新率等参数表达；
 8. 随机模型必须有固定 seed，实验可重放；
 9. Controller Model 与 Ground Truth 必须隔离，反馈算法只读 measurement oracle；
-10. Shannon 容量只能称为理论上界；系统模型不能冒充全波结果。
+10. Shannon 容量只能称为中心频率平坦信道理论上界；系统模型不能冒充宽带、协议或全波结果；
+11. model-based Focus 必须优化 Controller simulator 使用的同一 nominal coefficient，不能读取
+    Ground Truth coefficient；
+12. 场景传播律、RIS device response 和 Controller/Ground Truth uncertainty 必须保持独立所有权。
 
 违反任一项属于 P0 缺陷，不允许通过放宽测试阈值掩盖。
 
@@ -51,7 +54,7 @@ Programmable Network 到 Programmable Electromagnetic Space 的可能演进。
 
 - Python 3.11+、CPU、离线、Windows 优先；
 - 三维实体位置与二维俯视显示；
-- 窄带复数 Friis LOS、几何阻挡、一次墙面镜面反射；
+- 中心频率平坦窄带复数 Friis LOS、几何阻挡、一次墙面镜面反射；
 - 单次 `TX → RIS → RX`、有限孔径和前向方向图；
 - continuous 与 1/2/3/4-bit 相位、Physics Focus；
 - Current/Advanced/Future 可编辑代表性 preset；
@@ -77,7 +80,7 @@ Programmable Network 到 Programmable Electromagnetic Space 的可能演进。
 | 可启动 | `python -m airmirror_future` 打开 Smart Space GUI |
 | Headless | 指定场景、代际、质量后输出结构化指标 |
 | 正确性 | `requirements.md` 中所有 Implemented 条目有自动或人工证据 |
-| 物理合理性 | 必需物理测试、孔径收敛和 focus/random 对照通过 |
+| 物理合理性 | 必需物理测试、孔径不发散/独立求积门禁和 focus/random 对照通过；不把内部参考称全波真值 |
 | 稳定性 | 非法参数明确报错，不产生未处理 NaN/Inf |
 | 交互性 | 场图/优化不阻塞 GUI；可取消；旧任务不覆盖新场景 |
 | 可信度 | UI 显示模型定位、Future 假设和限制 |

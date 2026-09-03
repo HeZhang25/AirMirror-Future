@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative / Operational |
-| 基线版本 | v0.1 + Foundation A1-A2 + FND-QA-AP plan |
+| 基线版本 | v0.1 + Foundation A1-A2 + final physics/algorithm gates plan |
 | 测试框架 | pytest 9+，pytest-qt |
 
 ## 1. 目标
@@ -57,6 +57,10 @@ python -m airmirror_future.experiments.phase_bits --output results/phase_bits
 | FND-T16 | quadrature ownership boundary | 固定 aperture/control/pattern/Profile，只改变 rule/order | Planned：FND-QA-AP |
 | FND-T17 | refined reference construction | successive refinement + independent rule；未收敛明确失败 | Planned：FND-QA-AP |
 | FND-T18 | quadrature report/provenance guards | 深相消不输出 Inf/误导 phase/gain；policy identity 完整 | Planned：FND-QA-AP |
+| FND-T19 | floor-anchored wall geometry | 非零 endpoint z 拒绝；Ground Truth wall 仅刚体 XY 平移；blockage/reflection 同几何 | Planned：FND-FIX-WALL |
+| FND-T20 | center-frequency flat-channel contract | `fc` 改变 h；`B` 不改变 h(fc) 但改变 noise/SNR/capacity；model ID 稳定 | Planned：FND-PHY-NB |
+| FND-T21 | RIS-only coefficient consistency | Focus 与最终 Controller `a_n^C` 相位共轭；1×1 时与历史中心路径等价 | Planned：FND-QA-CC |
+| FND-T22 | Coherent coefficient consistency | Focus objective 与 Controller simulation 共用 `a_n^C/h_baseline^C`，保留 A1 量化/退化规则 | Planned：FND-QA-CC |
 
 若更换物理近似导致这些容差不再适用，必须先提交 ADR 解释新性质，并加入等价或更强的
 测试；不得先删除失败测试。
@@ -97,12 +101,35 @@ FND-QA-AP 是 cross-cutting Foundation final gate，不是 A2 的重新验收。
 truth。若当前 1×1 不通过，测试本身不静默切换 production；必须由独立 implementation Work
 Item 和必要 ADR 接入 policy，再重跑完整回归。
 
+### 3.2 Foundation final physics/algorithm closure
+
+FND-T19..22 是相互独立但都位于 Foundation final exit 前的门禁：
+
+1. **FND-T19 / wall**：构造与 Scene loader 都不能接受随后被 geometry 忽略的非零 wall z；
+   同一 seed 的 wall XY delta 必须刚体、可重放，并同时进入 blockage/reflection；
+2. **FND-T20 / narrowband**：比较时固定除一个变量外的所有输入。改变 `fc` 必须重算
+   `lambda/k/h`；只改变 `B` 时 LOS/wall/RIS/total complex channel 必须不变，noise/SNR/capacity
+   按 ADR-0010 变化；
+3. **FND-T21/T22 / coefficient**：必须在 FND-QA-AP 签署 production policy 后运行。若保持
+   `1×1`，验证 center-path 与 `a_n^C` 等价；若改为多点，先完成独立 migration，再验证 Focus、
+   engine 和 QA runner 共用 coefficient；
+4. coefficient test 只能读取 Controller nominal values。改变隐藏 Ground Truth realization 不得
+   改变 model-based pattern，但可以改变 oracle measurement；
+5. identity mutation matrix 必须区分 coefficient inputs 与 link-metric-only inputs：frequency、
+   gain、geometry、direction exponent、Profile/quadrature/world model 影响 coefficient；pattern、
+   `B`、NF、measurement noise 不应被误当成同一层的几何 coefficient。
+
+这些测试不能因 A1/A2 已 Verified 而省略，也不能用它们重开 A1/A2；它们验证的是最终
+Foundation 组合契约。
+
 ## 4. 数据与 API 测试
 
 - Scene 保存/加载后名称、几何、cell count 和默认语义一致；
 - schema version 不支持时拒绝；后续应增加未知/缺失字段和重复 id tests；
 - 所有公共参数边界至少有一个非法值测试；
 - pattern shape、active RIS、空 TX/RX 和 id 不存在需要逐步补错误契约测试；
+- Wall v1 floor-anchor 收紧必须有旧 z=0 round-trip 与非零 z migration/error 测试；
+- Foundation provenance 必须区分 Profile、frequency model、quadrature 与 coefficient identities；
 - FieldMap 四个数组形状一致，coverage+dead-zone 约 100%；
 - public top-level exports 能导入。
 

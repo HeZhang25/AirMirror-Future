@@ -4,7 +4,7 @@
 |---|---|
 | 文档状态 | Normative / 规范性 |
 | 基线版本 | v0.1 |
-| 最后复核 | 2026-09-02（ADR-0008 / FND-QA-AP aperture quadrature gate planning） |
+| 最后复核 | 2026-09-03（Foundation physics/algorithm master-plan integration） |
 | 维护责任 | 修改相关代码的开发者 |
 
 本目录是 AirMirror Future 的工程事实源。根目录的 `项目说明提示词.md` 保存原始愿景和
@@ -20,7 +20,10 @@
 3. [foundation_0_1_1_plan.md](foundation_0_1_1_plan.md)：当前基线之后的模型契约改进计划；
    其中最小孔径求积门禁详见
    [FND-QA-AP](work_items/foundation_0_1_1_qa_ap.md) 与
-   [ADR-0008](adr/0008-minimum-aperture-quadrature-validity-gate.md)；
+   [ADR-0008](adr/0008-minimum-aperture-quadrature-validity-gate.md)，墙体、窄带与系数一致性收尾
+   分别见 [FND-FIX-WALL](work_items/foundation_0_1_1_wall_geometry_closure.md)、
+   [FND-PHY-NB](work_items/foundation_0_1_1_narrowband_contract.md) 和
+   [FND-QA-CC](work_items/foundation_0_1_1_coefficient_consistency.md)；
 4. [requirements.md](requirements.md)：带稳定编号的需求与验收映射；
 5. [architecture.md](architecture.md)：模块边界、依赖方向和数据流；
 6. [data_model.md](data_model.md) 与 [public_api.md](public_api.md)：代码契约；
@@ -79,6 +82,10 @@
 |---|---|
 | 物理公式/符号 | physics、requirements、ADR、单元测试、实验可比性 |
 | 数值求积/精度声明 | physics、ADR、test/experiment、limitations、cache identity、provenance |
+| 中心频率/带宽/容量语义 | physics、data/API、GUI labels、experiment provenance、cache invalidation |
+| 环境传播/Profile | architecture、physics、ADR、scene/schema、Ground Truth 边界、cache identity |
+| Controller coefficient/Focus | physics、optimization、ADR、quadrature policy、tests、cache identity |
+| 墙体几何/误差 | data/schema、blockage/reflection、Ground Truth、GUI labels、round-trip tests |
 | 公共类/函数 | data model、public API、scene schema、调用方、兼容测试 |
 | JSON 字段 | scene schema、schema version、迁移策略、round-trip 测试 |
 | GUI 行为 | GUI spec、需求追踪、烟雾测试、截图/演示说明 |

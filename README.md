@@ -22,8 +22,12 @@
 RIS 网格语义、Commanded Pattern 硬件约束、优化搜索分辨率、GUI 状态和传播 Profile。
 在 Foundation final exit/P1A 缓存前还必须完成
 [FND-QA-AP 最小孔径求积有效性门禁](docs/work_items/foundation_0_1_1_qa_ap.md)，冻结待缓存
-control-level coefficient 的 quadrature policy。Foundation 当前为 In Progress：A1 与 A2 已
-Verified，A3、B/C 与 FND-QA-AP 尚未完成。未达到
+control-level coefficient 的 quadrature policy；随后依次关闭
+[Wall 几何](docs/work_items/foundation_0_1_1_wall_geometry_closure.md)、
+[中心频率窄带语义](docs/work_items/foundation_0_1_1_narrowband_contract.md) 和
+[Controller coefficient/Focus 一致性](docs/work_items/foundation_0_1_1_coefficient_consistency.md)。
+Foundation 当前为 In Progress：A1 与 A2 已 Verified；A3、B/C 和上述 cross-cutting gates 尚未
+完成。未达到
 Implemented 的计划项不得描述为当前功能。
 
 ## 安装
@@ -87,6 +91,11 @@ Future 参数始终显示 `Future Scenario Assumption`，不表示当前产品�
 - 热噪声为 `-174 + 10log10(B) + NF` dBm；
 - 界面容量指标仅代表 Shannon 理论上界。
 
+更准确地说，当前 `frequency_hz` 是中心频率 `fc`，引擎只计算 `h(fc)` 并假定其在
+`bandwidth_hz` 内平坦；带宽用于接收噪声和 flat-channel Shannon upper bound，不表示已实现
+OFDM 或频率选择性信道。当前所有场景仍使用同一固定传播编排，Foundation 的
+environment-only PropagationProfile 尚未接入。
+
 详细公式与适用边界见 [docs/physics_model.md](docs/physics_model.md)。
 
 ## RIS 技术代际
@@ -138,3 +147,7 @@ python -m airmirror_future.experiments.phase_bits --output results/phase_bits
 当前 production RIS 孔径积分为每个 equivalent control patch 一个中心点。A2 已验证 patch
 语义，但独立 quadrature accuracy 尚未验证；三代精确 dBm 应理解为 current scalar
 center-point model 的输出，而不是 full-wave/测量真值。
+
+当前默认墙端点 z=0 可运行，但 wall endpoint z 与 Ground Truth 三维偏移尚有契约歧义；
+FND-FIX-WALL 将其收紧为 floor-anchored/XY-only wall。A1 已验证现有 Focus objective，但在最终
+quadrature/Profile 下的 coefficient 一致性仍须 FND-QA-CC 证明；两项均不是当前已实现功能。

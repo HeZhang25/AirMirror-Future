@@ -2,11 +2,43 @@
 
 | 属性 | 值 |
 |---|---|
-| 状态快照 | 2026-09-02 |
+| 状态快照 | 2026-09-03 |
 | 当前 release | v0.1 |
 | release 状态 | Verified |
 | 规范基线 | [docs/README.md](docs/README.md) |
 | 当前 Capability | Foundation 0.1.1A Physics and Algorithm Contract（In Progress） |
+
+## Foundation physics/algorithm master-plan integration
+
+2026-09-03 完成一次纯 Markdown 的 Foundation 方案整合。本轮只把已评审的物理/架构结论纳入
+正式事实源，没有修改 Python、tests、GUI、scene、results、cache、production quadrature behavior
+或任何 Focus 实现：
+
+- 接受 [ADR-0009](docs/adr/0009-environment-modifier-propagation-profile.md)：Foundation
+  `PropagationProfile` 冻结为 environment-only complex modifier，由 engine 构造注入，不重复
+  Friis/RIS carrier，不修改 Scene JSON v1；未来多路径 `PathEnsemble` 保持独立；
+- 接受 [ADR-0010](docs/adr/0010-narrowband-center-frequency-flat-channel.md)：明确
+  `frequency_hz=fc`、`h(fc)` 在 `bandwidth_hz=B` 内按平坦信道处理，容量只是 flat-channel
+  Shannon upper bound；
+- 接受 [ADR-0011](docs/adr/0011-controller-coefficient-focus-consistency.md)：最终 production
+  policy 下，RIS-only/Coherent Focus 与 Controller simulator 必须使用同一 control-level
+  coefficient；Ground Truth coefficient 不得泄漏；
+- 新增 Planned requirements `AMF-SIM-006`、`AMF-PHY-007`、`AMF-RIS-012`，以及 Planned
+  Work Items [FND-FIX-WALL](docs/work_items/foundation_0_1_1_wall_geometry_closure.md)、
+  [FND-PHY-NB](docs/work_items/foundation_0_1_1_narrowband_contract.md)、
+  [FND-QA-CC](docs/work_items/foundation_0_1_1_coefficient_consistency.md)；
+- 正式顺序补充为 A3 → FND-FIX-WALL → B → A/B checkpoint → C → FND-QA-AP → 必要时独立
+  production migration → FND-PHY-NB → FND-QA-CC → Foundation final verification → P1A；
+- 当前 Wall z/三维误差冲突、当前 `h(fc)` flat assumption、以及未来 quadrature/Profile 下的
+  coefficient/Focus 分叉风险均被明确记录，但没有被误标为已修复。
+
+本轮文档门禁：`tests/test_documentation.py` 9 项全部通过；完整 pytest 74 项全部通过；
+`git diff --check` 通过。`FND-DOC-01` 可记为 Implemented（ADR/规范治理输出已落盘），但这不
+等价于其约束的任何 Planned 代码能力已实现。
+
+状态保持：A1 Verified；A2 Verified；Foundation 0.1.1A、AMF-RIS-008、AMF-RIS-009 和
+Foundation 0.1.1 保持 In Progress；AMF-RIS-011/012、AMF-PHY-007、AMF-SIM-006 及四个
+cross-cutting Work Items 保持 Planned。本轮不构成任何能力的 Implemented/Verified 证据。
 
 ## Foundation aperture quadrature governance update
 
@@ -128,6 +160,11 @@ Target 新默认。A2 已 Verified，A3 commanded pattern hardware boundary 尚�
 - continuous hardware 与反馈优化的 8-state search 尚未在接口/UI 中拆分；
 - GUI Generation 立即应用、普通参数等待 Apply，但没有 pending/customized 状态提示；
 - 所有场景仍共用固定传播编排，尚无 PropagationProfile identity；
+- Profile 的 target ownership 已由 ADR-0009 冻结，但 C1 尚未实现；
+- `frequency_hz/bandwidth_hz` 的 flat-channel 语义已由 ADR-0010 冻结，但 model ID、标签和
+  provenance closure 尚未实现；
+- 墙 endpoint z 当前未可靠进入求交，Ground Truth wall delta 却是三维；FND-FIX-WALL 尚未实现；
+- FND-QA-AP 后仍须 FND-QA-CC 证明最终 Controller coefficient 与两种 Focus 一致；
 - 高质量 `200×160` 场图在 Future 64×48 网格下计算较慢，但运行于后台且可取消；
 - 当前场图采用逐评价点计算，尚未建立跨点 RIS 系数矩阵缓存；
 - 墙面反射是二维平面几何加三维路径高度检查，不是完整材料/极化模型；
@@ -143,12 +180,13 @@ Target 新默认。A2 已 Verified，A3 commanded pattern hardware boundary 尚�
 ## 下一阶段
 
 1. 按 [Foundation 0.1.1 计划](docs/foundation_0_1_1_plan.md) 完成 A3 commanded pattern
-   hardware boundary；
-2. 完成 optimizer/GUI 语义和实验 provenance；
-3. 建立最小 PropagationProfile，冻结 cache identity；
-4. 执行 FND-QA-AP，冻结 production quadrature policy 和 coefficient/cache identity；
-5. Foundation final verification 通过后再进入 P1A 几何系数缓存与矩阵求值；
-6. 随后完成相位误差和 P1C 扩展孔径研究，再扩展 XR/Factory/City。
+   hardware boundary，再完成 FND-FIX-WALL；
+2. 完成 optimizer/GUI 语义和 A/B checkpoint；
+3. 建立 environment-only PropagationProfile 与最小实验 provenance；
+4. 执行 FND-QA-AP，冻结 production quadrature policy；若要求改变 production，先走独立迁移；
+5. 完成 FND-PHY-NB 和 FND-QA-CC，冻结 frequency/coefficient/cache identity；
+6. Foundation final verification 通过后再进入 P1A 几何系数缓存与矩阵求值；
+7. 随后完成相位误差和 P1C 扩展孔径研究，再扩展 XR/Factory/City。
 
 阶段顺序、entry/exit gate 和工作颗粒度以 [docs/roadmap.md](docs/roadmap.md) 为准。本页只
 记录状态，不新增需求或改变优先级。

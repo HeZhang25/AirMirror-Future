@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| 基线版本 | v0.1 |
+| 基线版本 | v0.1 + Foundation physics/algorithm closure gates |
 
 ## 1. 为什么需要统一门禁
 
@@ -106,6 +106,20 @@ Release 达到以上门禁并经项目维护者确认后，还必须完成 GitHu
 5. 内部 refined reference 不得称 Ground Truth、EM truth、full-wave 或 measurement；
 6. policy identity/version 进入结果 provenance；影响 cache coefficient 时进入 cache key；
 7. partial-aperture blockage 必须由空间分辨模型验证，不能从求积点数量推断。
+
+Foundation 0.1.1 在进入最终人工验收前还必须满足：
+
+1. FND-FIX-WALL 已使 Wall 数据、阻挡、反射和 Ground Truth 扰动共享 floor-anchored/XY-only
+   契约；非零 endpoint z 不再被静默忽略；
+2. FND-PHY-NB 已记录 `channel_frequency_model_id`，并证明 `fc` 与 `B` 的依赖符合中心频率
+   flat-channel 定义；GUI/实验不把上界称真实吞吐；
+3. FND-QA-AP 已签署 production quadrature policy；若要求行为迁移，独立 migration 已完成；
+4. FND-QA-CC 已证明 RIS-only/Coherent Focus、Controller simulation 和 QA runner 使用同一
+   control-level coefficient 或等价实现，且 Ground Truth coefficient 未泄漏；
+5. Profile、frequency model、quadrature 和 coefficient identities 已进入最小 provenance，未来
+   P1A cache 的 coefficient/link-metric 失效层次可明确判断；
+6. 上述工作项任一仍为 Planned/In Progress 时，Foundation 不得标为 Implemented/Verified，
+   P1A 不得进入 In Progress。
 
 ## 8. 禁止用作“完成”的证据
 

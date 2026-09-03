@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| 基线版本 | v0.1 + Foundation A1-A2 + aperture quadrature gate plan |
+| 基线版本 | v0.1 + Foundation A1-A2 + physics/algorithm master-plan integration |
 | 编号规则 | `AMF-<DOMAIN>-<NNN>`；删除后不复用 |
 
 状态含义见 [glossary.md](glossary.md)。证据列必须是测试、命令或人工验收步骤；仅有源码
@@ -21,6 +21,7 @@
 | AMF-PHY-004 | 墙体采用有限线段 image method 一次反射，`|Γ|≤1` | Implemented | `physics/reflections.py` | `test_image_method_finds_specular_point_on_finite_wall` |
 | AMF-PHY-005 | 墙/矩形障碍物求交后按 dB 施加幅度衰减 | Implemented | `physics/blockage.py` | `test_complete_los_path_applies_wall_attenuation` |
 | AMF-PHY-006 | v0.1 明确不包含衍射、高阶反射、互耦和极化 | Verified | docs、Model Info | `docs/limitations.md`, GUI smoke |
+| AMF-PHY-007 | `frequency_hz` 明确为中心频率，信道在 `bandwidth_hz` 内采用平坦窄带近似；容量与 provenance 不得误称宽带/真实吞吐 | Planned | [ADR-0010](adr/0010-narrowband-center-frequency-flat-channel.md)、[FND-PHY-NB](work_items/foundation_0_1_1_narrowband_contract.md) | FND-T20、Model Info/实验字段人工复核 |
 
 ## RIS
 
@@ -37,6 +38,7 @@
 | AMF-RIS-009 | `nx/ny` 定义为 equivalent controllable aperture patches，并显示有效 pitch/波长比例和限制 | In Progress | A2: `ris/aperture.py`、ADR-0007；GUI 只读接入待 B 阶段 | `tests/test_aperture_diagnostics.py` FND-T09；[A2 Work Item](work_items/foundation_0_1_1_a2.md) |
 | AMF-RIS-010 | 传播前验证 commanded pattern 符合 phase bits；Actual Ground Truth error 不再量化 | Planned | — | `foundation_0_1_1_plan.md` FND-T06..08 |
 | AMF-RIS-011 | 在 Foundation final exit/P1A 前固定 aperture/control/pattern、仅细化独立 quadrature，冻结可重放的 coefficient policy 和声明适用域 | Planned | [ADR-0008](adr/0008-minimum-aperture-quadrature-validity-gate.md)、[FND-QA-AP](work_items/foundation_0_1_1_qa_ap.md) | FND-T16..18、versioned QA matrix、人工 policy 签署；不等同 EM/full-wave truth |
+| AMF-RIS-012 | 最终 production policy 下，RIS-only/Coherent Focus 与 Controller simulator 使用同一 control-level 复系数定义；Ground Truth 系数不得泄漏给 Focus | Planned | [ADR-0011](adr/0011-controller-coefficient-focus-consistency.md)、[FND-QA-CC](work_items/foundation_0_1_1_coefficient_consistency.md) | FND-T21..22、Controller/GT boundary 与 identity review |
 
 ## 仿真、数据与优化
 
@@ -51,7 +53,8 @@
 | AMF-OPT-003 | 大 RIS 优化使用 tile grouping，支持取消与进度 | Implemented | `greedy.py`, `gui/workers.py` | GUI smoke；人工 Optimize/Cancel 步骤 |
 | AMF-SIM-004 | 固定几何预计算 `a_n`、多点分块矩阵和增量贪心 | Planned | — | 进入 P1 性能里程碑前补基准测试 |
 | AMF-OPT-004 | hardware phase resolution 与 optimizer search levels 分离并进入结果元数据 | Planned | — | `foundation_0_1_1_plan.md` FND-T10 |
-| AMF-SIM-005 | 建立 PropagationProfile 和默认 IndoorDeterministicProfile，保持环境模型与 Ground Truth 分离 | Planned | — | `foundation_0_1_1_plan.md` FND-T13..14 |
+| AMF-SIM-005 | 建立 environment-only PropagationProfile 和默认 IndoorDeterministicProfile，保持环境模型、RIS 与 Ground Truth 分离 | Planned | [ADR-0009](adr/0009-environment-modifier-propagation-profile.md) | `foundation_0_1_1_plan.md` FND-T13..14 |
+| AMF-SIM-006 | v1 Wall 冻结为地面锚定竖直墙；端点 z 为 0，Ground Truth 只对墙施加刚体 XY 平移 | Planned | [FND-FIX-WALL](work_items/foundation_0_1_1_wall_geometry_closure.md) | FND-T19、默认 Scene round-trip 与阻挡/反射一致性 |
 
 ## 场景与 GUI
 

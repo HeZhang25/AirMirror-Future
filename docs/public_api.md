@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| API 基线 | 0.1 + Foundation A1-A2 additive API + ADR-0008 planning boundary |
+| API 基线 | 0.1 + Foundation A1-A2 additive API + planned closure boundaries |
 | Python | 3.11+ |
 
 ## 1. 稳定性政策
@@ -36,6 +36,7 @@ SimulationEngine.compute_channel(
 - 每个 pattern 是弧度一维数组，长度严格等于对应 `cell_count`；
 - `model=None` 等价 ControllerModel；
 - 结果包含同一 world realization 下的所有路径与指标；
+- 四个 complex channel 都是在 Scene 中心频率 `fc` 处计算；`bandwidth_hz` 不创建频率维；
 - active RIS、零距离或非法 pattern 明确抛异常。
 
 ```python
@@ -128,6 +129,12 @@ production policy，公共/内部接口、默认兼容、异常、policy identit
 独立 Work Item 文档化；`Gamma` 的公共 shape 仍保持 `[nx*ny]`，quadrature subpoints 不增加
 commanded phase 自由度。
 
+ADR-0009 的目标 Profile 注入、ADR-0011 的 `a_n/Gamma_n` 分解均为 Planned 内部/构造边界，
+不是当前公共 API。C1 预期通过 `SimulationEngine(profile=...)` 注入不可变
+`IndoorDeterministicProfile`，Scene JSON v1 不保存 Python 类名。internal coefficient 不替换
+`ris_patterns: Mapping[str,np.ndarray]` 的 commanded phase API；若具体签名变化，C1/FND-QA-CC
+必须先更新本文件和兼容测试。
+
 低层 `ris_channel_for_points` 是物理层 API，输入 receiver array 形状 `[N,3]`，输出
 complex `[N]`；调用者通常应使用 SimulationEngine 以获得阻挡、反射和指标。
 
@@ -169,6 +176,11 @@ GroundTruthModel；它不读取 MeasurementOracle。unknown/disabled/ambiguous R
 `delta=0` 退化规则，并拒绝非有限复分量。完整 objective 与退化规则见
 [ADR-0006](adr/0006-coherent-target-focus-objective.md)。
 
+FND-QA-CC 将在最终 production quadrature policy 下证明该策略与 Controller simulator 使用同一
+control-level coefficient。该门禁尚未实现；A1 Verified 只证明当前 1×1 nominal objective，
+不得据此假设未来多点 quadrature/complex Profile 已自动一致。完整边界见
+[ADR-0011](adr/0011-controller-coefficient-focus-consistency.md)。
+
 ```python
 MeasurementOracle.measure(patterns: dict[str, np.ndarray]) -> float
 ```
@@ -201,6 +213,10 @@ python -m airmirror_future --headless [--scene PATH]
 质量固定映射：Fast `80×60`、Balanced `120×90`、High `200×160`。Headless stdout 是
 UTF-8 JSON，字段为 model、generation、future_assumption、baseline/focused power、
 target gain、SNR、coverage/dead-zone、runtime 和 grid。错误写 stderr 并返回非零状态。
+
+当前 `shannon_capacity_bps` 采用 `h(fc)` 在 `B` 内平坦的上界语义；Foundation provenance
+计划使用 `channel_frequency_model_id=narrowband_center_frequency_flat_v1`。在 FND-PHY-NB
+完成前，不得声称现有 CLI 已输出该新字段。
 
 实验入口：
 

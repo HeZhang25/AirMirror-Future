@@ -16,12 +16,17 @@ python -m pytest
 
 1. 在 `docs/requirements.md` 找到稳定 ID；没有则先以 Planned 添加。
 2. 用 `docs/templates/work_item.md` 确认工作层级、输入输出和验收。
-3. 检查是否触发 ADR；物理、schema major、层依赖、objective 和时间模型通常会触发。
+3. 检查是否触发 ADR；物理、频率/带宽语义、Profile 所有权、coefficient 因子分解、schema
+   major、层依赖、objective 和时间模型通常会触发。
 4. 先增加/更新测试，再实现最小 headless 纵向结果。
 5. GUI 只在 headless capability 通过后接入 worker。
 6. 同一变更更新 requirements 证据、相关规格和 DEVELOPMENT_STATUS。
 7. 运行自动测试、headless/demo/实验中受影响的命令。
 8. 按 Definition of Done 复核并清理缓存/临时文件。
+
+Foundation 0.1.1 开发还必须遵守 [主计划](docs/foundation_0_1_1_plan.md) 的顺序和独立 Work
+Item 边界。尤其不得把 FND-QA-AP 的 runner、条件性 production migration、FND-QA-CC 或 P1A
+cache 合并成一个不可审查变更。
 
 ## 编码规则
 
@@ -30,6 +35,7 @@ python -m pytest
 - 无全局 scene/pattern/random state；使用 `default_rng(seed)`；
 - 内部 SI，UI 边界换算；
 - GUI 不写物理公式；optimizer 不读 Ground Truth 私有参数；
+- Profile 不重复自由空间 carrier/RIS device；model-based Focus 不读取 Ground Truth coefficient；
 - 不吞掉校验错误，不用 NaN/零值伪装“不适用”；
 - 不增加未经命名和说明的 dB gain、future multiplier 或绘制热点；
 - 保持 NumPy 数组 shape 契约，避免大量 cell Python objects。
