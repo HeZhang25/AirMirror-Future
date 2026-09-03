@@ -83,9 +83,9 @@ Requirement IDs、L3/L4 工作项、测试、兼容策略和 Exit Gate 见
 10. 冻结 `h(fc)` 在 B 内平坦的 narrowband/capacity/provenance 语义；
 11. 验证 RIS-only/Coherent Focus 与最终 Controller `a_n^C` 一致，Ground Truth 不泄漏。
 
-B-stage implementation handoff 见 [combined B Work Item](work_items/foundation_0_1_1_b.md)。
-本次只同步到 implementation-level，不执行 A/B Interim Checkpoint，不提升 Foundation 或 B
-deliverables 为 Verified。
+B-stage implementation handoff 见 [combined B Work Item](work_items/foundation_0_1_1_b.md)。A/B Interim
+Checkpoint 已按 [checkpoint Work Item](work_items/foundation_0_1_1_ab_checkpoint.md) 完成并记录为
+checkpoint / non-formal provenance；不提升 Foundation 或 B deliverables 为 Verified。
 
 Exit gate：三个子 Capability 全部达到各自门禁，默认 Profile 可解释地复现 v0.1 reference，
 FND-T13c/T13d 证明墙系数与反射两段 modifier 各只应用一次并排除反射墙自身；

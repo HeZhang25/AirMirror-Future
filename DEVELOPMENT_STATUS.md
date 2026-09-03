@@ -6,7 +6,20 @@
 | 当前 release | v0.1 |
 | release 状态 | Verified |
 | 规范基线 | [docs/README.md](docs/README.md) |
-| 当前 Capability | Foundation 0.1.1B Optimizer and GUI Semantics（Implemented，待独立审查；Foundation overall In Progress） |
+| 当前 Capability | Foundation 0.1.1 A/B Interim Checkpoint（Checkpoint PASS；非正式 provenance；Foundation overall In Progress） |
+
+## Foundation 0.1.1 A/B Interim Checkpoint
+
+2026-09-03 已按 [A/B Interim Checkpoint Work Item](docs/work_items/foundation_0_1_1_ab_checkpoint.md)
+完成 §14.4 checkpoint。完整 pytest、Current/Advanced/Future fast headless、隔离 Phase Resolution
+复算与 `git diff --check` 均通过；Phase Resolution 输出位于
+`results/checkpoints/foundation_0_1_1_ab_checkpoint_20260903/`，未覆盖 `results/phase_bits/`
+legacy。B1/B2/B3 implementation independent review、真实 GUI 人工验收与 RIS Gain visualization
+修复审查均为外部提供的通过证据，并非本次 Codex 自行完成的人工验收。
+
+该 checkpoint 明确标记为 **checkpoint / non-formal provenance**，在 C2 provenance 完成前不得
+作为正式 Foundation experiment 发布。Foundation 仍为 **In Progress**；不进入 C，不解除 P1A
+门禁，也不执行后续 verification closure。无真实 blocker。
 
 ## Foundation 0.1.1B implementation handoff
 

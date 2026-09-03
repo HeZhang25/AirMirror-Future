@@ -22,6 +22,8 @@
    [A3 Work Item](work_items/foundation_0_1_1_a3.md)；
    Foundation B1/B2/B3 的 Ready/implementation 证据见
    [combined B Work Item](work_items/foundation_0_1_1_b.md)；
+   A/B Interim Checkpoint 的自动、headless、隔离实验和外部人工证据见
+   [checkpoint Work Item](work_items/foundation_0_1_1_ab_checkpoint.md)；
    其中最小孔径求积门禁详见
    [FND-QA-AP](work_items/foundation_0_1_1_qa_ap.md) 与
    [ADR-0008](adr/0008-minimum-aperture-quadrature-validity-gate.md)，墙体、窄带与系数一致性收尾
