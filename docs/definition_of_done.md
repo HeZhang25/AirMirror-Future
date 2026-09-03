@@ -120,7 +120,10 @@ Foundation 0.1.1 在进入最终人工验收前还必须满足：
    P1A cache 的 coefficient/link-metric 失效层次可明确判断；
 6. C1 已证明墙反射采用 `h_FS(L)*Gamma_wall*m_before_env*m_after_env` 的唯一分解；反射墙排除、
    `Gamma_wall`/Profile 独立扰动和 Controller/Ground Truth 墙系数消费测试均通过；
-7. 上述工作项任一仍为 Planned/In Progress 时，Foundation 不得标为 Implemented/Verified，
+7. C2 新实验使用稳定 schema/version 和 exclusive no-overwrite run directory；旧文件只读标记
+   legacy；尚未由 FND-PHY-NB/FND-QA-AP/FND-QA-CC 签署的 identity 只能为空/显式 candidate，
+   并保持 `partial`/pending，不得伪造 Verified/default provenance；
+8. 上述工作项任一仍为 Planned/Ready/In Progress 时，Foundation 不得标为 Implemented/Verified，
    P1A 不得进入 In Progress。
 
 ## 8. 禁止用作“完成”的证据

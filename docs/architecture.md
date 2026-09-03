@@ -67,12 +67,34 @@ FND-FIX-WALL 后，Ground Truth 的三维 position realization 对 Wall 只消�
 交给 LOS blockage 和 reflection。Wall 数据构造先执行 floor-anchor 容差验证；physics 层无需
 再次猜测 endpoint z 含义。
 
-Foundation C1 将在不改变上述用户级流程的前提下引入 engine-owned
-`IndoorDeterministicProfile`。按
+Foundation C1 已通过 Definition of Ready、尚未实现；它将在不改变上述用户级流程的前提下引入
+engine-owned `IndoorDeterministicProfile`。按
 [ADR-0012](adr/0012-wall-reflection-coefficient-ownership.md)，它只提供 environment modifier，
 不拥有 Friis carrier、`Gamma_wall`、RIS device、Ground Truth 或 noise；Scene JSON v1 不保存
-Python Profile 类名。ADR-0009 已被取代。该段是 Planned
-架构，当前 engine 尚未接入 Profile。
+Python Profile 类名。ADR-0009 已被取代。精确 Protocol/context/identity 见
+[C Work Item](work_items/foundation_0_1_1_c.md)；该段是 Ready target 架构，当前 engine 尚未接入
+Profile。
+
+五个固定环境 role 为 `direct`、`reflection_before`、`reflection_after`、`ris_incident`、
+`ris_scattered`。engine 先建立所选 Controller/GT world 的显式 working geometry，再向 Profile
+传入 Scene 与只读 role/start/end/相关 wall 或 RIS ID context；不传 Model、seed、sigma、error
+callback 或 oracle。Profile 可以对显式 working geometry 求环境 modifier，但不知道、读取或选择
+隐藏 realization。Profile 返回 finite complex value 和只读诊断 blocker IDs；只有 value 进入
+复信道乘法。RIS 两段仍按 surface center 各调用一次，不随 patch/quadrature 点调用。
+
+一次墙反射的内部调用图冻结为：
+
+```text
+single_wall_reflection_path -> point + total distance + h_FS carrier
+selected world model        -> one effective Gamma_wall
+Profile reflection_before   -> one m_before_env
+Profile reflection_after    -> one m_after_env
+engine                      -> carrier * Gamma_wall * before * after
+```
+
+carrier-only helper 不查询 blocker、不应用墙系数。反射墙只通过唯一 wall ID 从两个 leg 查询排除；
+duplicate wall ID 在任何 Profile/reflection 求值前抛 `ValueError`，不按对象地址、列表位置或坐标
+回退。该 validation tightening 不增加 Scene v1 字段。
 
 ### 场图
 

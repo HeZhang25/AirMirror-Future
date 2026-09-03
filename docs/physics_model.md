@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| 基线版本 | v0.1 + Foundation 0.1.1 A1-A3 + FND-FIX-WALL contract integration |
+| 基线版本 | v0.1 + Foundation 0.1.1 A1-A3/FND-FIX-WALL/B + C Ready contract |
 | 模型标签 | System-level electromagnetic approximation |
 | 对应 ADR | ADR-0001、ADR-0003、ADR-0006..0012 |
 
@@ -113,6 +113,12 @@ h_wall = h_FS(L) * Gamma_wall * m_before_env * m_after_env
 `profile_identity`。完整所有权决定见
 [ADR-0012](adr/0012-wall-reflection-coefficient-ownership.md)。
 
+C1 Ready contract 要求 wall ID 在 Scene 内唯一；duplicate ID 在任何 Profile/reflection 求值前
+明确失败，不能因 ID-based exclusion 而排除多堵墙。reflection helper 只返回有效点、总距离和
+一次 Friis carrier；engine 在唯一编排点分别乘一次有效 `Gamma_wall`、`reflection_before` 和
+`reflection_after` modifier。精确接口与兼容容差见
+[C Work Item](work_items/foundation_0_1_1_c.md)。
+
 v0.1 不叠加反射角 Fresnel 极化系数；`rho,phi` 是场景可配置系统级系数。
 
 ## 6. RIS 几何
@@ -182,6 +188,8 @@ h_RIS = sum_n(h_n)
 
 方向图中的平方根表示从功率方向因子转为场幅因子。任一方向位于背面时贡献为零。
 TX-RIS 和 RIS-RX 的中心路径可受几何阻挡；v0.1 不逐 cell 计算不同阻挡边缘。
+C1 仅把这两个标量分别路由为 `ris_incident` 与 `ris_scattered`；它不改变散射公式，也不按
+patch/quadrature sample 计算遮挡。direct 路径使用 `direct` role，墙反射使用上节两个独立 role。
 
 ### Target control-level coefficient factorization（Planned）
 

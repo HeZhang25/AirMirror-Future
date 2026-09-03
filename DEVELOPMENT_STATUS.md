@@ -6,7 +6,32 @@
 | 当前 release | v0.1 |
 | release 状态 | Verified |
 | 规范基线 | [docs/README.md](docs/README.md) |
-| 当前 Capability | Foundation 0.1.1B verification/status closure（B 与 Foundation 0.1.1A Verified；A/B checkpoint PASS；Foundation overall In Progress） |
+| 当前 Capability | Foundation 0.1.1C Ready Review（C1/C2 Ready，blocking ambiguity 0；尚未实现；Foundation overall In Progress） |
+
+## Foundation 0.1.1C Definition of Ready
+
+2026-09-03 已建立 focused
+[Foundation 0.1.1C Work Item](docs/work_items/foundation_0_1_1_c.md)，并完成 C1 PropagationProfile
+与 C2 Minimum Experiment Provenance 的 Ready Review：**Ready / blocking ambiguity 0**。
+
+本轮在基线 `d9ab04a502055af3b519a781629e6e83f0ded9d8` 上只修改 Markdown，冻结：
+
+- 五个 path roles、只读 context、Profile finite/exception contract、默认不可变确定性 Profile 和
+  tagged-canonical-JSON/SHA-256 跨进程 identity；
+- direct、reflection before/after、RIS incident/scattered 的统一接入，以及 carrier-only reflection
+  path、有效 `Gamma_wall`、两段 modifier 的唯一应用点；
+- reflecting wall 只按唯一 wall ID 自排除；duplicate wall ID 在 Profile/reflection 求值前明确失败；
+- Controller/Ground Truth 先建立显式 working geometry，Profile 不接收 model/seed/error callback，
+  不读取或选择隐藏 realization；不实现最终 coefficient builder；
+- 最小 `finite_wall_single_bounce_image/1` reflection model 契约，不建立插件系统；
+- `airmirror_experiment_provenance/1`、partial/complete 与 pending-contract 规则、只读 legacy 分类和
+  exclusive no-overwrite run directory；FND-PHY-NB/FND-QA-AP/FND-QA-CC 未签署的 identity 不得
+  伪造为 Verified/default provenance；
+- `FND-T15` 及 legacy/pending/no-overwrite 子项已补入 test strategy traceability。
+
+`AMF-SIM-005`、`AMF-EXP-006` 和 C1/C2 仅由 Planned 提升为 **Ready**；没有 Python/tests/results/
+GUI/Scene 变化，也没有功能状态提升。Foundation overall 保持 **In Progress**，P1A gate 保持关闭。
+本轮未发现需要新 ADR 的高影响歧义；ADR-0011/0012 的所有权决定不变。
 
 ## Foundation 0.1.1B verification/status closure
 
@@ -310,8 +335,9 @@ Implemented/Verified。
   A2 只读 pitch/波长诊断；最小独立求积有效性进入 Foundation final exit 前的 FND-QA-AP，
   P1C 保留完整 aperture/field-map/适用域研究；
 - A3 commanded hardware-state validation、B1/B2/B3 及其五个 B requirements 已 Verified；
-- 所有场景仍共用固定传播编排，尚无 PropagationProfile identity；
-- Profile/Reflection 的 target ownership 已由 ADR-0012 冻结，但 C1 尚未实现；
+- 所有场景仍共用固定传播编排，尚无 PropagationProfile identity；C1 Protocol/identity 已 Ready，
+  但尚未实现；
+- Profile/Reflection 的 target ownership 已由 ADR-0012 与 C Ready Review 冻结，但 C1 尚未实现；
 - `frequency_hz/bandwidth_hz` 的 flat-channel 语义已由 ADR-0010 冻结，但 model ID、标签和
   provenance closure 尚未实现；
 - FND-FIX-WALL 已 Verified：floor-anchored Wall/XY-only Ground Truth 语义当前仍不支持悬空/倾斜墙；
@@ -330,8 +356,9 @@ Implemented/Verified。
 
 ## 下一阶段
 
-1. 进入 [Foundation 0.1.1C](docs/foundation_0_1_1_plan.md) / environment-only PropagationProfile；
-2. 在 C 阶段建立最小实验 provenance；
+1. 按 [Foundation 0.1.1C Work Item](docs/work_items/foundation_0_1_1_c.md) 独立实现/评审 C1
+   environment-only PropagationProfile；
+2. 在 C1 后独立实现/评审 C2 minimum experiment provenance；
 3. 执行 FND-QA-AP，冻结 production quadrature policy；若要求改变 production，先走独立迁移；
 4. 完成 FND-PHY-NB 和 FND-QA-CC，冻结 frequency/coefficient/cache identity；
 5. Foundation final verification 通过后再进入 P1A 几何系数缓存与矩阵求值；

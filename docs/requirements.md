@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| 基线版本 | v0.1 + Foundation A1-A3/FND-FIX-WALL + B-stage implementation |
+| 基线版本 | v0.1 + Foundation A1-A3/FND-FIX-WALL/B Verified + C Ready contracts |
 | 编号规则 | `AMF-<DOMAIN>-<NNN>`；删除后不复用 |
 
 状态含义见 [glossary.md](glossary.md)。证据列必须是测试、命令或人工验收步骤；仅有源码
@@ -53,7 +53,7 @@
 | AMF-OPT-003 | 大 RIS 优化使用 tile grouping，支持取消与进度 | Implemented | `greedy.py`, `gui/workers.py` | GUI smoke；人工 Optimize/Cancel 步骤 |
 | AMF-SIM-004 | 固定几何预计算 `a_n`、多点分块矩阵和增量贪心 | Planned | — | 进入 P1 性能里程碑前补基准测试 |
 | AMF-OPT-004 | hardware phase resolution 与 optimizer search levels 分离并进入结果元数据 | Verified | `optimization/greedy.py`, `optimization/physics_guided.py`, `core/types.py` | `tests/test_optimization.py::test_search_levels_are_distinct_from_hardware_bits`, `test_finite_bit_candidates_are_hardware_states_even_with_search_override`, `test_continuous_physics_guided_preserves_initial_when_search_does_not_improve`, `test_feedback_optimizer_is_reproducible_for_fixed_seed_and_options`；§14.3 hardware/search gate；B1 外部独立审查 PASS、blocking issues 0；[B Work Item](work_items/foundation_0_1_1_b.md) |
-| AMF-SIM-005 | 建立不含 carrier、`Gamma_wall` 或 RIS response 的 environment-only PropagationProfile 和默认 IndoorDeterministicProfile；保持 Profile、Reflection、RIS 与 Ground Truth 所有权分离 | Planned | [ADR-0012](adr/0012-wall-reflection-coefficient-ownership.md) | `foundation_0_1_1_plan.md` FND-T13..14 |
+| AMF-SIM-005 | 建立不含 carrier、`Gamma_wall` 或 RIS response 的 environment-only PropagationProfile 和默认 IndoorDeterministicProfile；保持 Profile、Reflection、RIS 与 Ground Truth 所有权分离 | Ready | [ADR-0012](adr/0012-wall-reflection-coefficient-ownership.md)、[C Work Item](work_items/foundation_0_1_1_c.md) | C Ready Review blocking ambiguity 0；implementation 后执行 FND-T13..14 |
 | AMF-SIM-006 | v1 Wall 冻结为地面锚定竖直墙；端点 z 为 0，Ground Truth 只对墙施加刚体 XY 平移 | Verified | `core/types.py`、`simulation/engine.py`、[FND-FIX-WALL](work_items/foundation_0_1_1_wall_geometry_closure.md) | `tests/test_wall_geometry.py` FND-T19、默认 Scene round-trip 与阻挡/反射回归；implementation commit `8841ef2` 独立验收 G0–G8 PASS、blocking issues 0 |
 
 ## 场景与 GUI
@@ -78,7 +78,7 @@
 | AMF-ENG-001 | Python 3.11+ 可 editable install，CPU/离线运行 | Verified | `pyproject.toml` | `pip install -e ".[dev]"`, headless run |
 | AMF-ENG-002 | GUI 与物理分层，GUI 不定义传播公式 | Verified | package architecture | architecture review + imports audit |
 | AMF-EXP-001 | Phase Resolution 固定孔径扫 1/2/3/4/continuous，输出 CSV/PNG | Implemented | `experiments/phase_bits.py` | generated `results/phase_bits/*` |
-| AMF-EXP-006 | 实验分开记录 focus mode、profile/reflection/channel model version、search levels，且不覆盖 legacy 结果 | Planned | — | `foundation_0_1_1_plan.md` FND-T15 |
+| AMF-EXP-006 | 实验分开记录 focus mode、profile/reflection/channel model version、search levels，且不覆盖 legacy 结果 | Ready | [C Work Item](work_items/foundation_0_1_1_c.md)、[experiment_spec.md](experiment_spec.md) | C Ready Review blocking ambiguity 0；implementation 后执行 FND-T15..T15d |
 | AMF-DOC-001 | Future 假设、模型限制和术语均有规范文档 | Verified | docs | `tests/test_documentation.py` |
 | AMF-DOC-002 | 需求、测试和状态可追踪，文档链接无断链 | Implemented | requirements、test strategy | `tests/test_documentation.py` |
 

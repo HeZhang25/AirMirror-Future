@@ -66,7 +66,7 @@ schema 在进入 Ready 前冻结；在代码尚未实现时不得在 README 宣�
 | 字段 | 类型/单位 | 语义 |
 |---|---|---|
 | `qa_schema_version` | str | QA 输出 schema |
-| `model_version`、`profile_id/version` | str | 本次系统级物理身份 |
+| C2 `profile_*`、`reflection_model_*`、`world_model_*` | str/JSON | 本次实际 Profile/Reflection/world 身份 |
 | `channel_frequency_model_id` | str | center-frequency/wideband contract identity |
 | `scene_id`、`geometry_case` | str | 固定几何配置和用途 |
 | `generation` | str | Current/Advanced/Future |
@@ -91,6 +91,11 @@ schema 在进入 Ready 前冻结；在代码尚未实现时不得在 README 宣�
 | `status/reason` | enum/str | pass/fail/ill-conditioned/not-applicable |
 
 不得使用 `ground_truth`、`EM truth` 或 `exact` 命名内部细化参考。
+
+该 runner 必须复用 C2 `airmirror_experiment_provenance/1` 的 run-level 字段和 no-overwrite 规则。
+FND-QA-AP 尚未签署时，候选 `quadrature_policy_id/version` 和
+`coefficient_model_identity` 即使非空，`FND-QA-AP`/`FND-QA-CC` 仍留在
+`pending_contracts_json`，结果保持 `partial`；不得把 candidate 记录成 Verified/default policy。
 
 ## 物理/算法约束
 

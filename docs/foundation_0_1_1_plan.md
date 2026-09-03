@@ -5,10 +5,10 @@
 | 文档状态 | Operational / Normative for sequencing |
 | 当前实现基线 | v0.1 Verified，commit `edfa43c` |
 | 目标版本 | v0.1.1 Foundation |
-| 当前计划状态 | Foundation 0.1.1 In Progress；Foundation 0.1.1A、A1/A2/A3、FND-FIX-WALL、B1/B2/B3 Verified；C、FND-QA-AP、FND-PHY-NB、FND-QA-CC 尚未完成 |
+| 当前计划状态 | Foundation 0.1.1 In Progress；Foundation 0.1.1A、A1/A2/A3、FND-FIX-WALL、B1/B2/B3 Verified；C1/C2 Ready、尚未实现；FND-QA-AP、FND-PHY-NB、FND-QA-CC 尚未完成 |
 | 父级路线 | v0.1 Smart Space → Foundation 0.1.1 → P1A |
 | 主要责任 | 项目维护者、物理仿真负责人、GUI/测试负责人 |
-| 最后复核 | 2026-09-03（Foundation 0.1.1B verification/status closure；Profile ownership 仍以 ADR-0012 为准） |
+| 最后复核 | 2026-09-03（Foundation 0.1.1C Ready Review；Profile ownership 仍以 ADR-0012 为准） |
 
 本文是 AirMirror Future 在 v0.1 后的首个模型契约改进计划。它把当前代码事实、已发现的
 物理/算法/交互问题、目标架构、实施顺序、测试证据和退出门禁集中到同一个工作入口，供
@@ -594,10 +594,18 @@ coefficient builder。最后由 [FND-QA-CC](work_items/foundation_0_1_1_coeffici
 
 ### 7.3 Foundation 0.1.1C — PropagationProfile Boundary
 
+状态：**Ready（2026-09-03）**；C1/C2 blocking ambiguity 0，尚未实现。精确 Protocol/context、
+canonical identity、reflection split、duplicate wall ID、provenance schema/legacy/no-overwrite 与
+future identity pending 规则以
+[Foundation 0.1.1C Work Item](work_items/foundation_0_1_1_c.md) 为准。本 Ready 状态不构成
+Implemented/Verified 证据，也不签署 FND-QA-AP、FND-PHY-NB 或 FND-QA-CC。
+
 #### Deliverable C1：Profile ADR and minimal implementation
 
+- 状态：**Ready**；Task `FND-ARCH-01A..01E`；
 - Requirement：`AMF-SIM-005`；
-- 输入：Scene、TX/RX、Model、RIS patterns；
+- 输入：engine 显式选定的 working Scene、只读 path-role context；Profile 不接收 Model、seed、
+  hidden-realization callback 或 RIS patterns；
 - 输出：不含 `Gamma_wall` 的 environment-only modifier Profile 协议、默认
   IndoorDeterministicProfile、engine 构造注入、稳定 identity/version；
 - 预计文档：ADR、architecture、public API、scene schema decision、limitations；
@@ -610,6 +618,7 @@ coefficient builder。最后由 [FND-QA-CC](work_items/foundation_0_1_1_coeffici
 
 #### Deliverable C2：Minimum experiment provenance
 
+- 状态：**Ready**；Task `FND-EXP-01A..01C`；C1 metadata 是实现依赖；
 - Requirement：`AMF-EXP-006`；
 - 输入：focus mode、profile ID/version、reflection model ID/version、channel frequency model ID、
   search levels、model/quadrature/coefficient contract version；
@@ -617,7 +626,8 @@ coefficient builder。最后由 [FND-QA-CC](work_items/foundation_0_1_1_coeffici
 - 预计文档：experiment spec、test strategy、results README；
 - 预计代码：实验字段和 schema test；
 - 验收：旧 `results/phase_bits` 不被覆盖；新旧结果能通过字段判断采用何种 Focus 和 Profile；
-  缺失 provenance 的历史文件被明确标记 legacy，而不是伪造默认值。
+  缺失 provenance 的历史文件被明确标记 legacy，而不是伪造默认值；FND-PHY-NB/FND-QA-AP/
+  FND-QA-CC 尚未签署的 identity 必须为空或显式 candidate，并以 `partial`/pending contract 标记。
 
 完整历史迁移工具、结果索引和统计报告治理可在 P1B 完善，但上述最小字段、legacy 标记和
 不覆盖规则不得推迟到 P1B，也不能仅用 `results/v0.1.1/` 目录名代替。
@@ -695,8 +705,8 @@ coefficient builder。最后由 [FND-QA-CC](work_items/foundation_0_1_1_coeffici
 | 9 | `FND-UI-01` 建立 pending/apply/Optimize 门禁 | Implemented | `docs/work_items/foundation_0_1_1_b.md`；GUI smoke tests |
 | 10 | `FND-UI-02` 增加 Customized、Pattern 信息和准确标签 | Implemented | `docs/work_items/foundation_0_1_1_b.md`；Pattern metadata/GUI smoke 与人工清单 |
 | 11 | `FND-QA-AB` A/B 中期验收与人工复核 | Verified | 三代 headless、GUI、临时隔离实验和独立审查记录；§14.4 checkpoint PASS |
-| 12 | `FND-ARCH-01` 接入 environment-only PropagationProfile | Planned | 全路径角色调用、当前分量等价复现、稳定 identity |
-| 13 | `FND-EXP-01` 加入最小实验 provenance | Planned | versioned CSV/PNG、legacy 和 no-overwrite |
+| 12 | `FND-ARCH-01` 接入 environment-only PropagationProfile | Ready | C Work Item 01A..01E；全路径角色调用、当前分量等价复现、稳定 identity |
+| 13 | `FND-EXP-01` 加入最小实验 provenance | Ready | C Work Item 01A..01C；schema v1、partial/pending、legacy 和 no-overwrite |
 | 14 | `FND-QA-AP` 最小孔径求积有效性门禁 | Planned | FND-T16..18、versioned matrix、signed coefficient policy |
 | 15 | `FND-PHY-NB` 冻结 center-frequency flat-channel contract | Planned | FND-T20、model ID 与准确标签 |
 | 16 | `FND-QA-CC` 验证 Controller coefficient/Focus 一致性 | Planned | FND-T21..22、identity/boundary review |
@@ -1035,15 +1045,18 @@ Foundation 之后按以下顺序推进：
   wall id、具体字段、实际值和显式归零迁移指引。兼容审计未发现受支持的非零-z Scene，故
   schema version 保持 1，不触发新 ADR；implementation commit `8841ef2` 后的独立审查 G0–G8
   PASS、blocking issues 0，已提升为 Verified。
+- B Ready/verification 已冻结 continuous Physics-Guided 的 continuous initial + finite search-level
+  refinement；C Ready Review 已冻结 Profile context/canonical identity、Foundation run directory、
+  legacy/no-overwrite 和 pending future identity 规则。
 
 以下问题在正式实现前不得由单个开发者静默选择：
 
-1. continuous Physics-Guided 是否允许连续 initial 与离散搜索结果混合；
-2. 历史结果目录的版本命名和默认覆盖策略；
-3. C1 Profile context/canonical parameter 的具体 Python 类型和序列化编码；所有权和 modifier
-   语义已经关闭，不得重新选择 full transfer，也不得把 `Gamma_wall` 并回 Profile；
-4. FND-QA-AP 的预注册 reference/production tolerance、最终 fixed/adaptive policy 和是否需要
+1. FND-QA-AP 的预注册 reference/production tolerance、最终 fixed/adaptive policy 和是否需要
    production migration；这些必须在 Work Item 进入 Ready/查看正式结果前关闭，不能静默选择。
-5. FND-QA-CC coefficient builder 的具体内部模块/类型；公共 phase-array API 和因子所有权已关闭。
+2. FND-QA-CC coefficient builder 的具体内部模块/类型；公共 phase-array API 和因子所有权已关闭。
 
 未决项存在不表示计划阻塞；它们是对应 ADR/Work Item 进入 Ready 前必须关闭的选择。
+
+2026-09-03 C Ready Review 已关闭原 C 未决项：Foundation run directory、legacy/no-overwrite 规则，
+以及 Profile context/canonical identity 编码均由
+[C Work Item](work_items/foundation_0_1_1_c.md) 冻结，blocking ambiguity 0。

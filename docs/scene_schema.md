@@ -81,6 +81,11 @@ Foundation 不向 Scene v1 增加 `profile`、`channel_frequency_model_id` 或 P
 Profile 与 frequency-model identity 属于运行/实验 provenance；若未来需要场景持久化选择，应
 通过新的 schema/ADR 评审，而不是依赖 reader 忽略未知字段。
 
+C1 Ready contract 不增加 Wall 字段，但将 `walls[*].id` 收紧为数组内必须唯一，以保证 reflecting
+wall self-exclusion 只排除一堵墙。实现后 duplicate wall ID 在 Scene 构造/加载时抛包含重复值的
+`ValueError`，engine 还会防御可变 list 的事后重复；不自动改名、选首项或按对象 identity 回退。
+该 validation tightening 尚未实现，仓库受支持 scene 已审计为无重复值，因此保持 schema v1。
+
 ## 5. Obstacle
 
 ```json
@@ -123,7 +128,8 @@ Profile 与 frequency-model identity 属于运行/实验 provenance；若未来�
 ## 7. 标识符和引用
 
 - 同一数组中的 id 必须唯一；推荐全 scene 唯一以便日志定位；
-- v1 reader 尚未自动检查重复 id，创建/评审 scene 时必须人工或由上层校验；
+- 当前 v0.1 reader 尚未自动检查重复 id；C1 Ready target 只把 wall ID 的构造/reader/engine
+  enforcement 纳入本轮后续实现，其他数组仍按既有显式引用边界校验；
 - JSON 不存对象引用，patterns/metrics 只在运行时按 id 关联；
 - 修改 id 是破坏性场景变更，会使外部实验记录无法关联。
 

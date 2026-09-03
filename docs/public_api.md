@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| API 基线 | 0.1 + Foundation A1-A3 + FND-FIX-WALL + B1 additive API + planned closure boundaries |
+| API 基线 | 0.1 + Foundation A1-A3/FND-FIX-WALL/B + C Ready + planned closure boundaries |
 | Python | 3.11+ |
 
 ## 1. 稳定性政策
@@ -43,6 +43,9 @@ SimulationEngine.compute_channel(
 - 结果包含同一 world realization 下的所有路径与指标；
 - 四个 complex channel 都是在 Scene 中心频率 `fc` 处计算；`bandwidth_hz` 不创建频率维；
 - active RIS、零距离或非法 pattern 明确抛异常。
+
+C1 Ready target 另要求 Scene wall ID 在每次 channel/map 计算的任何 Profile/reflection 求值前
+唯一；duplicate 值抛含 ID 的 `ValueError`。该收紧尚未在 0.1.0 实现。
 
 ```python
 SimulationEngine.compute_field_map(
@@ -153,13 +156,42 @@ production policy，公共/内部接口、默认兼容、异常、policy identit
 独立 Work Item 文档化；`Gamma` 的公共 shape 仍保持 `[nx*ny]`，quadrature subpoints 不增加
 commanded phase 自由度。
 
-ADR-0012 的目标 Profile/Reflection ownership 与注入、ADR-0011 的 `a_n/Gamma_n` 分解均为
-Planned 内部/构造边界，
-不是当前公共 API。C1 预期通过 `SimulationEngine(profile=...)` 注入不可变
-`IndoorDeterministicProfile`，但 `Gamma_wall` 继续通过 Wall/Reflection Model 进入反射路径，
-不成为 Profile 返回值。Scene JSON v1 不保存 Python 类名。internal coefficient 不替换
-`ris_patterns: Mapping[str,np.ndarray]` 的 commanded phase API；若具体签名变化，C1/FND-QA-CC
-必须先更新本文件和兼容测试。
+ADR-0012 的 Profile/Reflection ownership 与注入、ADR-0011 的 `a_n/Gamma_n` 分解不是当前
+0.1.0 API。C1 已达到 Ready、尚未实现；其目标公共构造边界冻结为：
+
+```python
+SimulationEngine(profile: PropagationProfile | None = None)
+
+class PropagationProfile(Protocol):
+    @property
+    def profile_id(self) -> str: ...
+    @property
+    def profile_version(self) -> str: ...
+    @property
+    def canonical_parameters(
+        self,
+    ) -> tuple[tuple[str, None | bool | int | float | str], ...]: ...
+    def environment_modifier(
+        self,
+        *,
+        scene: Scene,
+        context: PropagationPathContext,
+    ) -> PropagationModifier: ...
+```
+
+`PropagationPathContext` 是 frozen/slots 值对象，字段为 role、`start/end`、可选且受 role 约束的
+`reflecting_wall_id/ris_id`；role 只能是 `direct`、`reflection_before`、`reflection_after`、
+`ris_incident`、`ris_scattered`。`None` 在 engine 构造时解析为不可变
+`IndoorDeterministicProfile()`；不提供运行中 Profile setter。Profile 返回 finite 无量纲 complex
+`PropagationModifier.value`；同一 frozen result 的 `blocker_ids: tuple[str,...]` 只作诊断，不参与
+第二次衰减。非法 context/config/output 抛 `ValueError`，不支持必需 role 时不得静默回退。
+
+模块级 `profile_identity(profile)` 按
+[C Work Item](work_items/foundation_0_1_1_c.md) 的 tagged canonical JSON + SHA-256 计算，不能使用
+Python `hash()`、对象地址或类名。`Gamma_wall` 继续通过 Wall/Reflection Model 进入反射路径，
+不成为 Profile 返回值。Scene JSON v1 不保存 Python 类名；本边界不建立 Profile/Reflection 插件
+注册中心。internal coefficient 不替换 `ris_patterns: Mapping[str,np.ndarray]` 的 commanded phase
+API，C1 不实现最终 coefficient builder。
 
 低层 `ris_channel_for_points` 是物理层 API，输入 receiver array 形状 `[N,3]`，输出
 complex `[N]`；它与 `ris_channel` 都先复用同一 commanded validator，再加入可选 actual phase/
@@ -259,6 +291,10 @@ target gain、SNR、coverage/dead-zone、runtime 和 grid。错误写 stderr 并
 ```text
 python -m airmirror_future.experiments.phase_bits --output PATH
 ```
+
+C2 Ready target 将 `PATH` 定义为必须不存在的完整 run directory；默认根为
+`results/foundation_0_1_1/phase_bits/<run_id>/`，已存在时在计算前抛 `FileExistsError`，不提供
+`--force`。当前 0.1.0 runner 尚未实现该收紧，不得再把 tracked `results/phase_bits` 用作复算目标。
 
 ## 7. 异常契约
 
