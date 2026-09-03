@@ -74,7 +74,8 @@ Requirement IDs、L3/L4 工作项、测试、兼容策略和 Exit Gate 见
 3. 建立 Commanded Pattern hardware-state validation；
 4. 分离 hardware phase resolution 与 optimizer search levels；
 5. 建立 GUI pending/apply/preset/customized 和准确 Ground Truth 标签；
-6. 建立最小 PropagationProfile 与默认 IndoorDeterministicProfile；
+6. 建立不含 `Gamma_wall` 的最小 PropagationProfile 与默认 IndoorDeterministicProfile；墙面复反射
+   系数保持由 Wall/Reflection Model 唯一拥有；
 7. 版本化实验 provenance，不覆盖 v0.1 历史结果。
 8. 在 final exit 前完成最小 aperture quadrature validity，冻结 P1A 将缓存的 control-level
    coefficient policy；A2 语义验收与求积精度验收分层。
@@ -83,6 +84,7 @@ Requirement IDs、L3/L4 工作项、测试、兼容策略和 Exit Gate 见
 11. 验证 RIS-only/Coherent Focus 与最终 Controller `a_n^C` 一致，Ground Truth 不泄漏。
 
 Exit gate：三个子 Capability 全部达到各自门禁，默认 Profile 可解释地复现 v0.1 reference，
+FND-T13c/T13d 证明墙系数与反射两段 modifier 各只应用一次并排除反射墙自身；
 FND-QA-AP 的代表性矩阵和 FND-T16..18 通过，production quadrature policy 已签署；FND-T19..22
 关闭 Wall、narrowband 和 coefficient/Focus 一致性；目标算法变化有 ADR/测试/实验版本记录，
 P1A cache identity 所需契约冻结。任一 cross-cutting gate 不通过时

@@ -5,7 +5,7 @@
 | 文档状态 | Normative |
 | 基线版本 | v0.1 + Foundation 0.1.1 physics/algorithm contract integration |
 | 模型标签 | System-level electromagnetic approximation |
-| 对应 ADR | ADR-0001、ADR-0003、ADR-0006..0011 |
+| 对应 ADR | ADR-0001、ADR-0003、ADR-0006..0012 |
 
 ## 1. 适用范围
 
@@ -84,7 +84,7 @@ a_block = 10^(-attenuation_db/20)
 
 ## 5. 一次墙面镜面反射
 
-墙复反射系数：
+墙面名义复反射系数由 `Wall` 的幅值/相位参数定义，并由 Wall/Reflection Model 域唯一拥有：
 
 ```text
 Gamma_wall = rho * exp(j*phi_wall), 0≤rho≤1
@@ -96,8 +96,21 @@ Gamma_wall = rho * exp(j*phi_wall), 0≤rho≤1
 2. 镜像点到 RX 的线与有限墙段相交，得到反射点；
 3. 反射点必须在墙宽度和高度范围内；
 4. 总长度 `L=d_TX-reflection+d_reflection-RX`；
-5. 以 `h_FS(L)*Gamma_wall` 计算；
-6. 反射前后路径受到除反射墙本身外的其他阻挡衰减。
+5. Reflection Model 在所选 Controller/Ground Truth world model 下取得该墙唯一的有效
+   `Gamma_wall`；
+6. PropagationProfile 分别为反射前后两段提供 environment-only modifier，并从 blocker 查询中
+   排除反射墙自身；
+7. 按以下分解计算，所有因子恰好出现一次：
+
+```text
+h_wall = h_FS(L) * Gamma_wall * m_before_env * m_after_env
+```
+
+`h_FS(L)` 包含总反射路径的自由空间幅度、天线 gain 和传播相位；`Gamma_wall` 包含墙面反射
+响应；`m_before_env/m_after_env` 只包含对应路径段的其他环境修正。Profile 不得返回或再次应用
+`Gamma_wall`。总体 coefficient/world-model identity 必须包含墙反射状态，但该状态不属于
+`profile_identity`。完整所有权决定见
+[ADR-0012](adr/0012-wall-reflection-coefficient-ownership.md)。
 
 v0.1 不叠加反射角 Fresnel 极化系数；`rho,phi` 是场景可配置系统级系数。
 

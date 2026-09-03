@@ -14,9 +14,14 @@
 正式事实源，没有修改 Python、tests、GUI、scene、results、cache、production quadrature behavior
 或任何 Focus 实现：
 
-- 接受 [ADR-0009](docs/adr/0009-environment-modifier-propagation-profile.md)：Foundation
-  `PropagationProfile` 冻结为 environment-only complex modifier，由 engine 构造注入，不重复
-  Friis/RIS carrier，不修改 Scene JSON v1；未来多路径 `PathEnsemble` 保持独立；
+- 接受 [ADR-0012](docs/adr/0012-wall-reflection-coefficient-ownership.md)，完整取代存在所有权
+  冲突的 ADR-0009：Foundation `PropagationProfile` 冻结为不含 `Gamma_wall` 的
+  environment-only complex modifier，由 engine 构造注入；Wall/Reflection Model 唯一拥有墙面
+  复反射系数，反射前后两段 Profile modifier 分开应用，并排除反射墙自身；不修改 Scene JSON
+  v1，未来多路径 `PathEnsemble` 保持独立；
+- 当前 v0.1 `single_wall_reflection` 已实际按 carrier、有效墙系数、before/after 阻挡分别相乘，
+  因此本次是目标架构/验收契约纠偏，不是 production 数值修复；C1 新增 FND-T13c/T13d，分别
+  锁定因子只应用一次和反射墙自身排除；
 - 接受 [ADR-0010](docs/adr/0010-narrowband-center-frequency-flat-channel.md)：明确
   `frequency_hz=fc`、`h(fc)` 在 `bandwidth_hz=B` 内按平坦信道处理，容量只是 flat-channel
   Shannon upper bound；
@@ -160,7 +165,7 @@ Target 新默认。A2 已 Verified，A3 commanded pattern hardware boundary 尚�
 - continuous hardware 与反馈优化的 8-state search 尚未在接口/UI 中拆分；
 - GUI Generation 立即应用、普通参数等待 Apply，但没有 pending/customized 状态提示；
 - 所有场景仍共用固定传播编排，尚无 PropagationProfile identity；
-- Profile 的 target ownership 已由 ADR-0009 冻结，但 C1 尚未实现；
+- Profile/Reflection 的 target ownership 已由 ADR-0012 冻结，但 C1 尚未实现；
 - `frequency_hz/bandwidth_hz` 的 flat-channel 语义已由 ADR-0010 冻结，但 model ID、标签和
   provenance closure 尚未实现；
 - 墙 endpoint z 当前未可靠进入求交，Ground Truth wall delta 却是三维；FND-FIX-WALL 尚未实现；

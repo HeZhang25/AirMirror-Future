@@ -42,13 +42,15 @@ Work/XR/IoT/Privacy objective presets、轨迹动画、多目标 coverage 优化
 
 ```text
 Scenario/Scene geometry and parameters
-  -> PropagationProfile environment modifier
-  -> geometric carriers / blockage / reflection roles
+  -> Physics Kernel geometric carriers / propagation phase
+  -> Reflection Model geometry and Gamma_wall
+  -> PropagationProfile direct/per-leg environment modifiers
   -> RIS device and commanded/actual state
   -> coherent received channel and link metrics
 ```
 
-ADR-0009 只为 Foundation 默认室内确定性模型建立 environment-only Profile；它不表示 XR、
+ADR-0012 只为 Foundation 默认室内确定性模型建立不含 `Gamma_wall` 的 environment-only Profile；
+墙系数由 Wall/Reflection Model 唯一拥有。该决定不表示 XR、
 Factory、City、Tunnel 或 UAV channel 已实现。未来场景必须分别定义有来源的 path loss、
 LOS/NLOS、fading/dynamics 和有效域；需要多路径 delay/angle/Doppler 时建立独立 PathEnsemble，
 不能把所有场景简单映射到一个 1/d² multiplier。

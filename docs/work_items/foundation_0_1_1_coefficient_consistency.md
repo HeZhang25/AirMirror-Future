@@ -30,7 +30,8 @@
 
 - 冻结 Controller `a_n^C`、`Gamma_cmd`、Ground Truth `a_n^GT/Gamma_actual` 的所有权；
 - RIS-only/Coherent Focus 与 simulation coefficient 的公共来源或等价证明；
-- Profile/quadrature/geometry/gain/direction/blockage 的 identity 依赖审计；
+- Profile/Reflection Model/`Gamma_wall`/quadrature/geometry/gain/direction/blockage 的分层 identity
+  依赖审计；
 - 1×1 保留路径和条件性多点 production 路径的测试策略；
 - Ground Truth 不泄漏和 public phase-array API 兼容回归。
 
@@ -62,7 +63,9 @@ h_RIS^GT = sum_n a_n^GT * Gamma_actual,n
 ## 物理/算法约束
 
 - 面积、天线 gain、direction factor、efficiency 各出现一次；
-- ADR-0009 environment modifier 不重复距离扩散或传播相位；
+- ADR-0012 environment modifier 不重复距离扩散、传播相位或墙面 `Gamma_wall`；
+- `Gamma_wall` 由 Wall/Reflection Model 唯一拥有，不与 RIS `Gamma_cmd/Gamma_actual` 或 Profile
+  modifier 混用；
 - continuous RIS-only 使非退化 `a_n^C*Gamma_cmd,n` 同相；
 - continuous Coherent 使其合成与 `h_baseline^C` 同相；
 - finite-bit 保留 ADR-0006 公共 offset 搜索和 A3 合法 hardware state；

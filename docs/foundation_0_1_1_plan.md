@@ -8,7 +8,7 @@
 | 当前计划状态 | In Progress；A1/A2 Verified；A3、B/C、FND-QA-AP、FND-FIX-WALL、FND-PHY-NB、FND-QA-CC 尚未完成 |
 | 父级路线 | v0.1 Smart Space → Foundation 0.1.1 → P1A |
 | 主要责任 | 项目维护者、物理仿真负责人、GUI/测试负责人 |
-| 最后复核 | 2026-09-03（physics/algorithm master-plan integration；ADR-0009..0011） |
+| 最后复核 | 2026-09-03（wall/Profile ownership closure；ADR-0009 superseded by ADR-0012） |
 
 本文是 AirMirror Future 在 v0.1 后的首个模型契约改进计划。它把当前代码事实、已发现的
 物理/算法/交互问题、目标架构、实施顺序、测试证据和退出门禁集中到同一个工作入口，供
@@ -384,12 +384,10 @@ Applied + invalidate old workers + regenerate pattern/results
 
 ```text
 Scenario / Scene
-  → PropagationProfile
-      → direct propagation
-      → blockage / LOS-NLOS classification
-      → reflections
-      → optional fading hook (Foundation uses None)
-  → RIS model
+  → Physics Kernel: Friis carrier / propagation phase
+  → Reflection Model: image geometry / Gamma_wall
+  → PropagationProfile: direct and per-leg environment modifiers
+  → RIS Model: aperture / direction / commanded-or-actual reflection state
   → coherent effective channel
   → received power / noise / SNR
 
@@ -398,8 +396,8 @@ Controller Model / Ground Truth Model
   → does not choose the environment propagation law
 ```
 
-Foundation 只实现或设计一个默认 `IndoorDeterministicProfile`，完整复用 v0.1 的 Friis、几何
-遮挡、一次墙反射和有限孔径 RIS。Profile 必须有：
+Foundation 只实现或设计一个默认 `IndoorDeterministicProfile`，让 engine 在不改变 v0.1 Friis、
+一次墙反射、几何阻挡和有限孔径 RIS 数值的前提下抽出环境 modifier。Profile 必须有：
 
 - 稳定 ID；
 - model/profile version；
@@ -407,24 +405,35 @@ Foundation 只实现或设计一个默认 `IndoorDeterministicProfile`，完整�
 - 明确职责，不成为包含 Scene、Ground Truth、RIS、噪声和 GUI 的 God object；
 - 默认行为与 v0.1 reference 在声明容差内一致。
 
-Profile 必须一致参与 direct path、每条 wall-reflection path role、TX→RIS incident leg 和
-RIS→RX scattered leg；不能只替换 direct path 而让 RIS 两段继续绕过场景传播规则。一次墙反射
-仍由一个 `wall_reflection` modifier 汇总墙复系数和两段其他阻挡，不把整段 carrier 重算两次。
+Profile 必须一致参与 direct path、每条 wall-reflection 的 before/after legs、TX→RIS incident leg
+和 RIS→RX scattered leg；不能只替换 direct path 而让 RIS 或反射路径段绕过环境规则。一次墙
+反射必须保持以下唯一分解：
+
+```text
+h_wall = h_FS(L_reflection) * Gamma_wall * m_before_env * m_after_env
+```
+
+其中 Reflection Model 拥有反射几何和 `Gamma_wall`，Profile 只拥有两段 environment modifier，
+且反射墙自身必须从两段 blocker 查询中排除；不得再返回包含墙系数的聚合
+`wall_reflection` multiplier。
 同时：
 
-- Profile 负责环境传播，RIS model 仍负责孔径、方向图、效率和 commanded/actual phase；
-- ADR-0009 已冻结 Profile path response 为“自由空间/几何 carrier 之外的 environment-only complex
-  modifier”，不得包含重复的距离扩散、传播相位、天线 gain 或 RIS device response；
+- Physics Kernel 负责 Friis carrier/传播相位，Reflection Model 负责反射几何/墙系数，Profile
+  负责环境 modifier，RIS model 负责孔径、方向图、效率和 commanded/actual phase；
+- ADR-0012 已冻结 Profile path response 为“自由空间/几何 carrier 和 `Gamma_wall` 之外的
+  environment-only complex modifier”，不得包含重复的距离扩散、传播相位、天线 gain、墙面
+  复反射系数或 RIS device response；
 - Foundation 初次接入保持 v0.1 的 RIS 面板中心阻挡近似，以便分路径等价复现；逐 patch
   阻挡是独立物理改进，不能夹带进 Profile 重构；
 - 最小接口可使用小型 Protocol/strategy 和有限 path-role context，不建立插件注册中心、通用
   射线图 DSL、事件总线或 provider system。
 
-ADR-0009 同时冻结：Foundation 不修改 Scene JSON v1；Profile 由 `SimulationEngine` 构造时注入，
+ADR-0012 同时冻结：Foundation 不修改 Scene JSON v1；Profile 由 `SimulationEngine` 构造时注入，
 缺省为 `IndoorDeterministicProfile`。不得把 Python 类名直接作为持久化协议。未来 cache key 至少
-包含稳定的 profile ID/version/canonical parameters 和所有影响系数的场景状态。能够生成
-delay/angle/Doppler 多路径集合的 PathEnsemble 是后续独立能力，不能把 Profile modifier 静默
-扩成 God object。
+分层包含稳定的 profile ID/version/canonical parameters、Reflection Model ID/version、墙几何/
+名义反射参数、所选 world model 的有效墙状态，以及所有其他影响系数的场景状态。墙系数不进入
+`profile_identity`，但不能从总体 coefficient/world-model identity 省略。能够生成 delay/angle/
+Doppler 多路径集合的 PathEnsemble 是后续独立能力，不能把 Profile modifier 静默扩成 God object。
 
 ### 5.8 中心频率窄带与容量契约
 
@@ -479,7 +488,7 @@ coefficient builder。最后由 [FND-QA-CC](work_items/foundation_0_1_1_coeffici
 | `AMF-PHY-007` | 冻结 center-frequency flat-channel、容量标签与模型身份 |
 | `AMF-UI-007` | 建立 pending/apply/preset/customized 状态语义 |
 | `AMF-UI-008` | Pattern 元数据、相位图例和准确 Ground Truth 标签 |
-| `AMF-EXP-006` | 实验记录 focus/profile/model/search provenance，保留历史可比性 |
+| `AMF-EXP-006` | 实验分开记录 focus/profile/reflection/model/search provenance，保留历史可比性 |
 
 这些 requirement IDs 的状态必须按各自实现与验收证据更新，不得因本文的汇总表述整体提升。
 
@@ -571,20 +580,21 @@ coefficient builder。最后由 [FND-QA-CC](work_items/foundation_0_1_1_coeffici
 
 - Requirement：`AMF-SIM-005`；
 - 输入：Scene、TX/RX、Model、RIS patterns；
-- 输出：environment-only modifier Profile 协议、默认 IndoorDeterministicProfile、engine 构造注入、
-  稳定 identity/version；
+- 输出：不含 `Gamma_wall` 的 environment-only modifier Profile 协议、默认
+  IndoorDeterministicProfile、engine 构造注入、稳定 identity/version；
 - 预计文档：ADR、architecture、public API、scene schema decision、limitations；
 - 预计代码：新的轻量 profile 模块和 `SimulationEngine` 编排调整；
 - 验收：默认 Profile 在未改变 Focus 的 reference 模式下复现 v0.1 分路径复信道；direct、
-  reflection、RIS incident/scattered legs 均不能绕过 Profile；Profile 不依赖 GUI/optimizer，
-  不吞并 carrier/RIS device/Ground Truth/noise；未来 cache key 能引用稳定 identity；Scene v1
-  不保存 Python 类名；未实现 Profile 明确拒绝而非回退。
+  reflection before/after、RIS incident/scattered legs 均不能绕过 Profile；Reflection Model 独立且
+  只应用一次 `Gamma_wall`，反射墙不作为自身路径 blocker；Profile 不依赖 GUI/optimizer，
+  不吞并 carrier/墙系数/RIS device/Ground Truth/noise；profile identity 与 reflection/world-model
+  identity 分层明确；Scene v1 不保存 Python 类名；未实现 Profile 明确拒绝而非回退。
 
 #### Deliverable C2：Minimum experiment provenance
 
 - Requirement：`AMF-EXP-006`；
-- 输入：focus mode、profile ID/version、channel frequency model ID、search levels、model/
-  quadrature/coefficient contract version；
+- 输入：focus mode、profile ID/version、reflection model ID/version、channel frequency model ID、
+  search levels、model/quadrature/coefficient contract version；
 - 输出：Foundation 最小可解释实验 schema 和新的结果目录规则；
 - 预计文档：experiment spec、test strategy、results README；
 - 预计代码：实验字段和 schema test；
@@ -713,8 +723,10 @@ scene、results、cache、production quadrature 或 Focus。后续每个 Work It
 | FND-T11 | `test_pending_parameters_block_optimize_until_apply` | UI 不用旧模型静默优化 |
 | FND-T12 | `test_generation_customized_is_display_only` | 数据 generation 保持合法 preset 值 |
 | FND-T13 | `test_default_profile_matches_v01_reference_components` | 默认 Profile 分路径复信道等价 |
-| FND-T13b | `test_profile_is_used_by_all_environment_path_roles` | direct、reflection 和 RIS 两段均不能绕过 Profile |
-| FND-T14 | `test_profile_identity_changes_with_version_or_parameters` | 影响系数的 Profile 版本/参数改变稳定身份，供未来 cache key 使用 |
+| FND-T13b | `test_profile_is_used_by_all_environment_path_roles` | direct、reflection before/after 和 RIS 两段均不能绕过 Profile；modifier 不含 carrier/`Gamma_wall` |
+| FND-T13c | `test_wall_coefficient_and_profile_modifiers_are_applied_once` | 独立缩放 `Gamma_wall` 或任一 leg modifier，只产生一次对应幅度缩放 |
+| FND-T13d | `test_reflecting_wall_is_excluded_from_reflection_leg_blockers` | 反射墙不同时成为自身 blocker，其他阻挡仍按对应路径段生效 |
+| FND-T14 | `test_profile_identity_changes_with_version_or_parameters` | Profile identity 只跟随 Profile；墙系数另行失效总体 coefficient/world-model identity |
 | FND-T15 | `test_experiment_schema_records_model_provenance` | 结果可判断 focus/profile/search/model version |
 | FND-T16 | `test_quadrature_refinement_keeps_control_pattern_fixed` | series 中 aperture/control/pattern hash 不变，只改变 rule/order |
 | FND-T17 | `test_quadrature_reference_uses_successive_and_cross_rule_evidence` | reference 不固定冒充 16×16 truth；未收敛 case 明确失败 |
@@ -815,11 +827,14 @@ Foundation 不向 Scene v1 写入 `design_frequency_hz`；该问题已 Deferred�
 1. ADR-0006：Physics Focus objective、baseline phase alignment 与 model-based optimizer 分层；
 2. ADR-0007：Equivalent controllable aperture patch semantics；
 3. ADR-0008：最小 aperture quadrature validity gate、A2/P1A/P1C 边界；
-4. ADR-0009：PropagationProfile 为 environment-only modifier、engine 注入、稳定 identity；
+4. ADR-0009：历史 Profile 决定，已由 ADR-0012 完整取代；
 5. ADR-0010：center-frequency flat-channel、带宽/容量标签与 model ID；
-6. ADR-0011：Controller `a_n^C/Gamma_cmd` 分解、Focus 一致性与条件迁移顺序。
+6. ADR-0011：Controller `a_n^C/Gamma_cmd` 分解、Focus 一致性与条件迁移顺序；
+7. ADR-0012：Profile environment modifier 与 Reflection Model `Gamma_wall` 的唯一所有权、engine
+   注入和分层 identity。
 
-以上六项均已 Accepted。Wall floor-anchor 是对当前 v1 计算歧义的最小 closure，由稳定 requirement
+ADR-0006..0008、0010..0012 已 Accepted；ADR-0009 已 Superseded。Wall floor-anchor 是对当前
+v1 计算歧义的最小 closure，由稳定 requirement
 和 FND-FIX-WALL 跟踪；若未来支持悬空/倾斜墙或改变 schema 结构，再新建 ADR。
 
 Commanded validation、search levels 和 GUI dirty state 如果不改变层依赖/schema major，可作为
@@ -961,7 +976,8 @@ Foundation 之后按以下顺序推进：
 - [ ] 我知道 `phase_bits` 与 `search_levels` 是不同维度；
 - [ ] 我知道 Generation 是 preset 来源，Customized 只能是派生显示；
 - [ ] 我知道 Controller/GroundTruth 与 PropagationProfile 职责不同；
-- [ ] 我知道 Foundation Profile 是 environment-only modifier，不重复距离/传播相位，未来
+- [ ] 我知道 Foundation Profile 是 environment-only modifier，不重复距离/传播相位或
+  `Gamma_wall`；墙系数由 Wall/Reflection Model 拥有且每条反射路径只应用一次；未来
   PathEnsemble 是独立能力；
 - [ ] 我知道 `frequency_hz` 是中心频率，`bandwidth_hz` 不会生成频率轴，容量只是 flat-channel
   Shannon 上界；
@@ -982,7 +998,8 @@ Foundation 之后按以下顺序推进：
 - A2 由 ADR-0007 选择只展示 effective pitch/波长比例，不输出未验证的 phase-span；
 - ADR-0008 保持 A2 Verified，并把最小 coefficient quadrature validity 放到 Foundation final
   exit/P1A 前；P1C 保留更完整的 aperture research。
-- ADR-0009 选择 environment-only Profile、engine 构造注入和 Scene v1 不持有 Profile 类名；
+- ADR-0012 取代 ADR-0009，保留 environment-only Profile、engine 构造注入和 Scene v1 不持有
+  Profile 类名，同时把 `Gamma_wall` 唯一归属 Wall/Reflection Model；
 - ADR-0010 冻结 center-frequency flat-channel 语义和稳定 model ID，不建立自动窄带阈值；
 - ADR-0011 冻结 Controller `a_n^C/Gamma_cmd` 所有权、Ground Truth 隔离和条件 production
   migration 顺序。
@@ -992,7 +1009,7 @@ Foundation 之后按以下顺序推进：
 1. continuous Physics-Guided 是否允许连续 initial 与离散搜索结果混合；
 2. 历史结果目录的版本命名和默认覆盖策略；
 3. C1 Profile context/canonical parameter 的具体 Python 类型和序列化编码；所有权和 modifier
-   语义已经关闭，不得重新选择 full transfer；
+   语义已经关闭，不得重新选择 full transfer，也不得把 `Gamma_wall` 并回 Profile；
 4. FND-QA-AP 的预注册 reference/production tolerance、最终 fixed/adaptive policy 和是否需要
    production migration；这些必须在 Work Item 进入 Ready/查看正式结果前关闭，不能静默选择。
 5. FND-FIX-WALL 对 endpoint z 的数值容差和外部非零-z v1 文件的最终错误文案；

@@ -62,8 +62,10 @@ Scene + TX + RX + patterns + Model
 `ChannelResult` 是数值结果边界；GUI 不重新计算指标。
 
 Foundation C1 将在不改变上述用户级流程的前提下引入 engine-owned
-`IndoorDeterministicProfile`。按 ADR-0009，它只提供 environment modifier，不拥有 Friis carrier、
-RIS device、Ground Truth 或 noise；Scene JSON v1 不保存 Python Profile 类名。该段是 Planned
+`IndoorDeterministicProfile`。按
+[ADR-0012](adr/0012-wall-reflection-coefficient-ownership.md)，它只提供 environment modifier，
+不拥有 Friis carrier、`Gamma_wall`、RIS device、Ground Truth 或 noise；Scene JSON v1 不保存
+Python Profile 类名。ADR-0009 已被取代。该段是 Planned
 架构，当前 engine 尚未接入 Profile。
 
 ### 场图
@@ -126,7 +128,8 @@ coefficient_geometry_key = (
   channel_frequency_model_id, frequency,
   tx_position, evaluation_points, tx_gain, rx_gain,
   ris_position, yaw, width, height, nx, ny, direction_exponent,
-  wall_geometry_and_coefficients, obstacle_geometry_and_attenuation,
+  reflection_model_identity, wall_geometry_and_coefficients,
+  obstacle_geometry_and_attenuation,
   world_model_geometry_environment_identity,
   profile_identity, quadrature_policy_identity
 )
@@ -143,7 +146,8 @@ link_metric_key = (
 | TX/RX/评价网格位置 | 相应距离、方向图、阻挡和反射 |
 | RIS 几何/朝向/网格 | cell centers、d1/d2、方向图、patterns |
 | quadrature rule/order/policy version | control-level `a_n`、几何 A 和对应 benchmark reference |
-| walls/obstacles | LOS、反射点、路径衰减 |
+| wall geometry / Reflection Model / `Gamma_wall` / effective wall truth state | 反射点、wall channel 和依赖它的 baseline；不得只失效 Profile identity |
+| obstacles / Profile parameters | 对应 LOS、反射路径段和 RIS legs 的 environment modifier |
 | phase pattern | 只失效 `A @ Gamma` 结果，不失效几何 A |
 | noise/bandwidth/NF | SNR/capacity/coverage，不失效 `h(fc)` 或 control coefficient |
 
@@ -169,10 +173,14 @@ implementation Work Item 冻结。不得构造不可控的 `N_points×N_control�
 
 ### 6.1 Planned Profile 与 coefficient 数据流
 
-ADR-0009/0011 冻结以下目标所有权；它不表示当前代码或缓存已经实现：
+ADR-0011/0012 冻结以下目标所有权；它不表示当前代码或缓存已经实现：
 
 ```text
-geometry carrier + Profile environment modifiers
+direct: Physics carrier * Profile direct modifier
+wall:   Physics carrier * Reflection Model Gamma_wall
+                          * Profile before/after modifiers
+
+RIS geometry carrier + Profile incident/scattered modifiers
   -> a_control^Controller[N_control]
 commanded phase + nominal efficiency
   -> Gamma_command[N_control]
@@ -184,6 +192,10 @@ command + actual phase/efficiency errors
   -> Gamma_actual
 h_RIS^GT = dot(a_control^GT, Gamma_actual)
 ```
+
+`Gamma_wall` 与 RIS 的 `Gamma_command/Gamma_actual` 是不同物理对象：前者是墙反射路径响应，由
+Wall/Reflection Model 拥有；后者是 RIS control patch 状态，由 RIS Model 拥有。Profile 对两者均
+无所有权。反射墙自身必须从其 before/after blocker 查询中排除。
 
 RIS-only/Coherent Focus、SimulationEngine、FND-QA-AP 与未来 P1A 必须共享同一 Controller
 coefficient builder 或有等价证明。`a^GT` 只能留在 Ground Truth/oracle 路径。FND-QA-CC 在

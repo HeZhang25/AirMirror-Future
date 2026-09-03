@@ -47,8 +47,9 @@ Future 仍遵守与 Current 相同的传播公式、孔径归一化、效率上�
 更新、低损耗、高精度相位、宽带、自感知、通信感知定位融合。大规模实现不能创建百万
 Python cell objects，应使用等效孔径/tiles/矩阵分块，并验证与细网格基准的一致性。
 
-Foundation 的 PropagationProfile 只负责 environment-only modifier；不同场景并不会因共享接口
-而自动共享同一个传播模型。宽带/OFDM、frequency-dependent `Gamma_n(f)`、phase-amplitude
+Foundation 的 PropagationProfile 只负责 environment-only modifier，不拥有墙面 `Gamma_wall`；
+不同场景并不会因共享接口而自动共享同一个传播模型。宽带/OFDM、frequency-dependent
+`Gamma_n(f)`、phase-amplitude
 coupling、delay/Doppler PathEnsemble 仍需独立 requirement/ADR、数据模型和验证证据。
 
 ## 5. 尚未允许的外推

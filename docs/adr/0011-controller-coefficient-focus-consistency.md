@@ -37,7 +37,7 @@ h_RIS^C = sum_n a_n^C * Gamma_cmd,n
 
 `w_nq` 为 patch 内 normalized quadrature weights，满足 `sum_q w_nq=1`；当前 production
 `1×1` midpoint 是 `q=1,w=1` 的特例。面积只在 `K_geom` 中出现一次。Profile modifier 的边界
-遵循 ADR-0009，不得重复传播 carrier。Foundation 默认 blocker 仍按 RIS center 得到统一标量并
+遵循 ADR-0012，不得重复传播 carrier。Foundation 默认 blocker 仍按 RIS center 得到统一标量并
 复用于各 q；写成 `m(r_nq)` 不表示已获得 spatially resolved blockage。
 
 Ground Truth 使用自己的几何/环境系数和 actual reflection state：

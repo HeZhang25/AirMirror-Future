@@ -118,7 +118,9 @@ Foundation 0.1.1 在进入最终人工验收前还必须满足：
    control-level coefficient 或等价实现，且 Ground Truth coefficient 未泄漏；
 5. Profile、frequency model、quadrature 和 coefficient identities 已进入最小 provenance，未来
    P1A cache 的 coefficient/link-metric 失效层次可明确判断；
-6. 上述工作项任一仍为 Planned/In Progress 时，Foundation 不得标为 Implemented/Verified，
+6. C1 已证明墙反射采用 `h_FS(L)*Gamma_wall*m_before_env*m_after_env` 的唯一分解；反射墙排除、
+   `Gamma_wall`/Profile 独立扰动和 Controller/Ground Truth 墙系数消费测试均通过；
+7. 上述工作项任一仍为 Planned/In Progress 时，Foundation 不得标为 Implemented/Verified，
    P1A 不得进入 In Progress。
 
 ## 8. 禁止用作“完成”的证据

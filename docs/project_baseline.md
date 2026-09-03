@@ -44,7 +44,8 @@ Programmable Network 到 Programmable Electromagnetic Space 的可能演进。
 10. Shannon 容量只能称为中心频率平坦信道理论上界；系统模型不能冒充宽带、协议或全波结果；
 11. model-based Focus 必须优化 Controller simulator 使用的同一 nominal coefficient，不能读取
     Ground Truth coefficient；
-12. 场景传播律、RIS device response 和 Controller/Ground Truth uncertainty 必须保持独立所有权。
+12. 场景环境 modifier、Wall/Reflection Model 的 `Gamma_wall`、RIS device response 和
+    Controller/Ground Truth uncertainty 必须保持独立所有权；任何反射/器件因子只应用一次。
 
 违反任一项属于 P0 缺陷，不允许通过放宽测试阈值掩盖。
 

@@ -129,9 +129,11 @@ production policy，公共/内部接口、默认兼容、异常、policy identit
 独立 Work Item 文档化；`Gamma` 的公共 shape 仍保持 `[nx*ny]`，quadrature subpoints 不增加
 commanded phase 自由度。
 
-ADR-0009 的目标 Profile 注入、ADR-0011 的 `a_n/Gamma_n` 分解均为 Planned 内部/构造边界，
+ADR-0012 的目标 Profile/Reflection ownership 与注入、ADR-0011 的 `a_n/Gamma_n` 分解均为
+Planned 内部/构造边界，
 不是当前公共 API。C1 预期通过 `SimulationEngine(profile=...)` 注入不可变
-`IndoorDeterministicProfile`，Scene JSON v1 不保存 Python 类名。internal coefficient 不替换
+`IndoorDeterministicProfile`，但 `Gamma_wall` 继续通过 Wall/Reflection Model 进入反射路径，
+不成为 Profile 返回值。Scene JSON v1 不保存 Python 类名。internal coefficient 不替换
 `ris_patterns: Mapping[str,np.ndarray]` 的 commanded phase API；若具体签名变化，C1/FND-QA-CC
 必须先更新本文件和兼容测试。
 

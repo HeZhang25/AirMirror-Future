@@ -44,6 +44,7 @@ phase resolution，纵轴为 target RIS gain dB，用于观察收益递减。
 | `bandwidth_hz` | Hz | 等效占用/接收噪声带宽 |
 | `channel_frequency_model_id` | str | Foundation 目标值 `narrowband_center_frequency_flat_v1`；legacy 可缺失 |
 | `profile_id`,`profile_version` | str | Foundation 环境传播身份；legacy 可缺失且不得回填 |
+| `reflection_model_id`,`reflection_model_version` | str | 墙反射几何/系数模型身份；与 Profile 身份分离，legacy 可缺失且不得回填 |
 | `generation` | str | preset 标签 |
 | `ris_count` | int | 场景 RIS 数 |
 | `ris_width_m`,`ris_height_m` | m | 实体孔径 |
@@ -63,8 +64,10 @@ phase resolution，纵轴为 target RIS gain dB，用于观察收益递减。
 | `random_seed` | int | 重放 seed |
 
 Foundation 新 schema 还必须记录 `focus_mode`、`search_levels`、`quadrature_policy_id/version` 和
-`coefficient_model_identity`（若该 run 使用已冻结 coefficient contract）。这些是 Planned 的 C2/
-FND-PHY-NB/FND-QA-CC 输出；当前 v0.1 CSV 没有这些列，必须标记 legacy，不能假定或伪造默认值。
+`coefficient_model_identity`（若该 run 使用已冻结 coefficient contract）。墙几何、名义反射参数
+及 Ground Truth 有效墙状态必须进入总体 coefficient/world-model identity，不能伪装成
+`profile_id/version` 的变化。这些是 Planned 的 C2/FND-PHY-NB/FND-QA-CC 输出；当前 v0.1 CSV
+没有这些列，必须标记 legacy，不能假定或伪造默认值。
 
 新增实验可增加列，不得删除这些共同追踪字段；不适用的指标应为空并在实验文档解释，
 不能填零冒充测量值。
@@ -101,7 +104,7 @@ Truth realization 和 baseline。禁止随 order 重新生成 Focus。
 最小输出除第 3 节可复用字段外，还必须记录：
 
 - `qa_schema_version`、`geometry_case`、实际 TX/RX/RIS 坐标；
-- `profile_id/version`、`channel_frequency_model_id`、`model_version`、
+- `profile_id/version`、`reflection_model_id/version`、`channel_frequency_model_id`、`model_version`、
   `quadrature_policy_id/version`、候选 `coefficient_model_identity`；
 - `pattern_class/hash`、预登记 random seed；
 - `quadrature_rule/order_x/order_y`；

@@ -54,6 +54,10 @@ python -m airmirror_future.experiments.phase_bits --output results/phase_bits
 | FND-T04 | finite-bit common offset | 候选首项精确 `0.0`；结果不差于 unshifted | `test_quantized_common_offset_beats...` |
 | FND-T05 | degenerate deterministic fallback | 零/相对近零分量返回 `delta=0`，不产生 NaN/Inf | `test_zero_baseline_focus...` |
 | FND-T09 | equivalent patch diagnostics | 改 `nx/ny` 只改变 pitch；改 `fc` 不改变实体孔径 | `test_effective_pitch_changes_without_resizing_aperture` |
+| FND-T13/T13b | default Profile / all environment roles | 分路径复现 v0.1；direct、reflection before/after、RIS 两段均调用 Profile，且 modifier 不含 carrier/`Gamma_wall` | Planned：C1 |
+| FND-T13c | wall/Profile factor ownership | 独立缩放 `Gamma_wall` 或任一 reflection-leg modifier 时，wall amplitude 恰好缩放一次 | Planned：C1 |
+| FND-T13d | reflecting-wall exclusion | 反射墙不作为自身路径 blocker；其他阻挡仍只作用于命中的路径段 | Planned：C1 |
+| FND-T14 | Profile/reflection identity layering | Profile 参数只改变 profile identity；墙系数改变总体 coefficient/world identity 而不冒充 Profile 变化 | Planned：C1 |
 | FND-T16 | quadrature ownership boundary | 固定 aperture/control/pattern/Profile，只改变 rule/order | Planned：FND-QA-AP |
 | FND-T17 | refined reference construction | successive refinement + independent rule；未收敛明确失败 | Planned：FND-QA-AP |
 | FND-T18 | quadrature report/provenance guards | 深相消不输出 Inf/误导 phase/gain；policy identity 完整 | Planned：FND-QA-AP |
@@ -78,6 +82,11 @@ commanded pattern、只细化独立 quadrature，并冻结最小 production coef
 
 FND-T09 验证 A2 的所有权边界，而不是证明真实阵元满足 `lambda/2` 或当前 patch 已数值收敛。
 补充测试覆盖非法频率、非有限孔径、非整数 patch 数以及三代 preset 诊断全为有限正值。
+
+FND-T13..T14 验证 ADR-0012 的因子分解，而不只验证最终 wall-channel 数字碰巧相等。测试必须
+分别扰动 `Gamma_wall`、before modifier 和 after modifier，防止重复与遗漏互相抵消；还必须验证
+Controller/Ground Truth 的有效墙系数由 Reflection Model 消费，隐藏 truth realization 不进入
+Profile identity 或 nominal Focus。
 
 ### 3.1 FND-QA-AP 独立求积验证规则
 
@@ -116,7 +125,8 @@ FND-T19..22 是相互独立但都位于 Foundation final exit 前的门禁：
 4. coefficient test 只能读取 Controller nominal values。改变隐藏 Ground Truth realization 不得
    改变 model-based pattern，但可以改变 oracle measurement；
 5. identity mutation matrix 必须区分 coefficient inputs 与 link-metric-only inputs：frequency、
-   gain、geometry、direction exponent、Profile/quadrature/world model 影响 coefficient；pattern、
+   gain、geometry、direction exponent、Reflection Model/`Gamma_wall`、Profile/quadrature/world
+   model 影响 coefficient；pattern、
    `B`、NF、measurement noise 不应被误当成同一层的几何 coefficient。
 
 这些测试不能因 A1/A2 已 Verified 而省略，也不能用它们重开 A1/A2；它们验证的是最终

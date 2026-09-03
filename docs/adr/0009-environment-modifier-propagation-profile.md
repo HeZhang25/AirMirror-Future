@@ -1,10 +1,17 @@
 # ADR-0009：Foundation PropagationProfile 使用环境修正因子
 
-- 状态：Accepted
+- 状态：Superseded
 - 日期：2026-09-03
 - Supersedes：无；关闭 Foundation 计划中的 Profile path-response 未决项
+- Superseded by：[ADR-0012](0012-wall-reflection-coefficient-ownership.md)
 - 关联需求：AMF-SIM-005
 - 关联工作项：[Foundation 0.1.1C / C1](../foundation_0_1_1_plan.md#73-foundation-011c--propagationprofile-boundary)
+
+> 历史记录：本 ADR 曾将墙面复反射系数并入 `wall_reflection` Profile modifier，造成与
+> `physics_model.md` 中 Reflection Model 所有权冲突。ADR-0012 完整取代本 ADR：保留
+> environment-only Profile、engine 构造注入、稳定 identity、Scene v1 不持有 Python 类名和
+> PathEnsemble 独立等决定，但将 `Gamma_wall` 明确归还 Wall/Reflection Model。以下正文仅为
+> 决策历史，不得作为新实现依据。
 
 ## 背景
 

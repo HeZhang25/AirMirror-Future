@@ -4,7 +4,7 @@
 |---|---|
 | 文档状态 | Normative / 规范性 |
 | 基线版本 | v0.1 |
-| 最后复核 | 2026-09-03（Foundation physics/algorithm master-plan integration） |
+| 最后复核 | 2026-09-03（Foundation wall/Profile ownership closure） |
 | 维护责任 | 修改相关代码的开发者 |
 
 本目录是 AirMirror Future 的工程事实源。根目录的 `项目说明提示词.md` 保存原始愿景和
@@ -83,7 +83,7 @@
 | 物理公式/符号 | physics、requirements、ADR、单元测试、实验可比性 |
 | 数值求积/精度声明 | physics、ADR、test/experiment、limitations、cache identity、provenance |
 | 中心频率/带宽/容量语义 | physics、data/API、GUI labels、experiment provenance、cache invalidation |
-| 环境传播/Profile | architecture、physics、ADR、scene/schema、Ground Truth 边界、cache identity |
+| 环境传播/Profile/墙反射所有权 | architecture、physics、ADR、scene/schema、Ground Truth 边界、provenance、cache identity |
 | Controller coefficient/Focus | physics、optimization、ADR、quadrature policy、tests、cache identity |
 | 墙体几何/误差 | data/schema、blockage/reflection、Ground Truth、GUI labels、round-trip tests |
 | 公共类/函数 | data model、public API、scene schema、调用方、兼容测试 |

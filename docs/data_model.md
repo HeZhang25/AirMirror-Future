@@ -56,7 +56,10 @@
 | `reflection_phase_rad` | float | π rad | finite |
 | `blocks_los` | bool | true | false 时仍可反射 |
 
-派生属性 `reflection_coefficient=rho*exp(j*phase)`。
+派生属性 `reflection_coefficient=rho*exp(j*phase)` 是 Wall/Reflection Model 域的名义墙面复反射
+响应，不属于 `PropagationProfile`。Ground Truth 可以生成有效墙系数误差，但仍由 Reflection
+Model 消费且每条反射路径只应用一次；见
+[ADR-0012](adr/0012-wall-reflection-coefficient-ownership.md)。
 
 当前实现按绝对高度 `[0,height_m]` 判断阻挡/反射，因此不能把任意 `start.z/end.z` 解释为悬空
 墙底；Ground Truth 当前又会产生三维 wall delta。`AMF-SIM-006` 的目标 v1 契约为
@@ -185,11 +188,13 @@ flat-channel Shannon upper bound。`path_details` 不是稳定持久化 schema�
 
 ### Planned internal coefficient/profile identities（非当前公共类型）
 
-ADR-0009/0011 要求 Foundation 内部拥有稳定的 `profile_identity`、
-`channel_frequency_model_id`、`quadrature_policy_identity` 和 `coefficient_model_identity`。
+ADR-0011/0012 要求 Foundation 内部拥有稳定的 `profile_identity`、
+`reflection_model_identity`、`channel_frequency_model_id`、`quadrature_policy_identity` 和
+`coefficient_model_identity`。
 它们先进入 experiment/cache contract，不自动加入 Scene v1 或顶层 public dataclass。具体只读
 类型与 canonical serialization 必须在 C1/C2/FND-QA-CC Ready review 中冻结；当前调用者不得
-假设这些字段已经存在。
+假设这些字段已经存在。`profile_identity` 只标识环境 modifier 规则；墙系数属于独立的
+reflection/world-model identity，并仍须进入总体 coefficient identity。
 
 ### `FieldMapResult`
 
