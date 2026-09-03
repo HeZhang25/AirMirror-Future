@@ -6,9 +6,30 @@
 | 当前 release | v0.1 |
 | release 状态 | Verified |
 | 规范基线 | [docs/README.md](docs/README.md) |
-| 当前 Capability | Foundation 0.1.1 A/B Interim Checkpoint（Checkpoint PASS；非正式 provenance；Foundation overall In Progress） |
+| 当前 Capability | Foundation 0.1.1B verification/status closure（B 与 Foundation 0.1.1A Verified；A/B checkpoint PASS；Foundation overall In Progress） |
 
-## Foundation 0.1.1 A/B Interim Checkpoint
+## Foundation 0.1.1B verification/status closure
+
+2026-09-03 已完成 Foundation 0.1.1B verification/status closure。B implementation 及补充测试/可视化
+修复 commits `c08c8bd81972119abf88bbee279cc29a7a45d820`、`7c4a33bb2a108cfff798045b53016999e13abc1c`
+和 `be52a60f6a06e80620869096700cd21ad453c657` 的独立审查为 **PASS，blocking issues = 0**；真实 GUI
+人工验收和 RIS Gain visualization review 亦为 PASS。
+
+| 状态项 | before → after | 依据 |
+|---|---|---|
+| `AMF-RIS-008` | Implemented → Verified | A1 Focus evidence + B GUI default/alternate Focus smoke；真实 GUI 与 external independent review PASS |
+| `AMF-RIS-009` | Implemented → Verified | A2 semantic evidence + B equivalent-patch pitch/λ read-only 接线；真实 GUI 与 external independent review PASS |
+| `AMF-OPT-004` | Implemented → Verified | B1 search-level/hardware-state/reproducibility tests；§14.3 hardware/search gate；independent review PASS |
+| `AMF-UI-007` | Implemented → Verified | B2 Pending/Apply/Optimize、preset confirm/cancel、Customized tests；真实 GUI 清单 PASS |
+| `AMF-UI-008` | Implemented → Verified | B3 Pattern metadata/states/error/legend 与 RIS Gain visualization tests；真实 GUI 清单 PASS |
+| Foundation 0.1.1B Work Item | Implemented → Verified | §14.3 Exit Gate + §14.4 checkpoint evidence；all B subitems independently PASS，blocking 0 |
+| Foundation 0.1.1A parent | In Progress → Verified | A1/A2/A3 已 Verified；§14.2 五项门禁、DoD Capability criteria 与依赖均满足 |
+
+Foundation 0.1.1 overall **保持 In Progress**。本轮不实现 C，不执行 FND-QA-AP、FND-PHY-NB 或
+FND-QA-CC，不解除 P1A gate；C2 provenance、最终 Foundation gate 及其余 cross-cutting 依赖仍未闭合。
+本轮仅修改 Markdown/status 事实源，未修改 Python、tests、physics、GUI、results 或 Scene。
+
+## Foundation 0.1.1 A/B Interim Checkpoint（历史记录）
 
 2026-09-03 已按 [A/B Interim Checkpoint Work Item](docs/work_items/foundation_0_1_1_ab_checkpoint.md)
 完成 §14.4 checkpoint。完整 pytest、Current/Advanced/Future fast headless、隔离 Phase Resolution
@@ -19,15 +40,15 @@ legacy。B1/B2/B3 implementation independent review、真实 GUI 人工验收与
 
 该 checkpoint 明确标记为 **checkpoint / non-formal provenance**，在 C2 provenance 完成前不得
 作为正式 Foundation experiment 发布。Foundation 仍为 **In Progress**；不进入 C，不解除 P1A
-门禁，也不执行后续 verification closure。无真实 blocker。
+门禁。该 checkpoint 不包含 B verification 签署；后续 closure 见本页顶部。无真实 blocker。
 
-## Foundation 0.1.1B implementation handoff
+## Foundation 0.1.1B implementation handoff（历史记录）
 
 Foundation 0.1.1B 的 Ready Review 已于 2026-09-03 重新完成，blocking ambiguity 为 0。两项冻结
 决策为：continuous Physics Focus initial + finite `search_levels` feedback refinement；以及
 Generation pending 状态的 confirm-discard / cancel-preserve。
 
-B1/B2/B3 已达到 implementation-level：
+B1/B2/B3 在本次历史 handoff 已达到 implementation-level；当前已由顶部 closure 标记为 Verified：
 
 - `AMF-OPT-004`：hardware phase bits 与 optimizer search levels 分离；finite-bit 候选固定为合法
   `2**phase_bits`，continuous search levels 可配置并进入 `OptimizationResult` metadata；
@@ -37,10 +58,11 @@ B1/B2/B3 已达到 implementation-level：
 - `AMF-UI-008`：Pattern Grid/Hardware Phase/Allowed-Used States/Source/Actual error/legend，以及
   准确的 Geometry Position Error 与 Feedback Measurement Noise 标签。
 
-对应 combined Work Item：[Foundation 0.1.1B](docs/work_items/foundation_0_1_1_b.md)。本次仅同步到
-Implemented，不声明 Verified；未执行 A/B Interim Checkpoint，不涉及 C、QA、cache、P1 或新场景。
+对应 combined Work Item：[Foundation 0.1.1B](docs/work_items/foundation_0_1_1_b.md)。当时仅同步到
+Implemented、等待独立审查；后续 B verification/status closure 与 A/B checkpoint 见本页顶部。
+该历史 handoff 不涉及 C、QA、cache、P1 或新场景。
 
-## Foundation / FND-FIX-WALL verification/status closure
+## Foundation / FND-FIX-WALL verification/status closure（历史记录）
 
 FND-FIX-WALL（Wall Geometry Closure）已完成独立人工验收并达到 **Verified**：
 
@@ -84,7 +106,7 @@ FND-FIX-WALL（Wall Geometry Closure）已完成独立人工验收并达到 **Ve
 0.1.1A 和 Foundation 0.1.1 保持 In Progress；B/C、FND-QA-AP、FND-PHY-NB、FND-QA-CC、
 cache 和新场景均未改变。
 
-## Foundation 0.1.1A / A3 final verification closure
+## Foundation 0.1.1A / A3 final verification closure（历史记录）
 
 Deliverable A3（Commanded Pattern hardware boundary）已完成独立人工验收并达到
 **Verified**：
@@ -92,7 +114,7 @@ Deliverable A3（Commanded Pattern hardware boundary）已完成独立人工验�
 - 验收对象：implementation commit `fb5ec093e78e588a65a661abf3b32d744d04ae04`；
 - Gate 结果：G0–G8 全部 PASS；
 - blocking issues：0；
-- 状态边界：A1/A2 保持 Verified；Foundation 0.1.1A 和 Foundation 0.1.1 仍为 In Progress；
+- 状态边界（本历史记录时点）：A1/A2 保持 Verified；Foundation 0.1.1A 和 Foundation 0.1.1 仍为 In Progress；
   其他 Planned/In Progress 能力不变。
 
 本次 verification/status closure 仅修改 Markdown 状态事实源；documentation tests `9 passed`、
@@ -134,7 +156,7 @@ complex/off-grid phase 和非法 `phase_bits` 类型现在明确失败。
 保持 In Progress。FND-FIX-WALL 的后续 Verified 状态见本页最新快照；B/C、FND-QA-AP、
 FND-PHY-NB、FND-QA-CC、cache 和其他后续能力未改变。
 
-## Foundation physics/algorithm master-plan integration
+## Foundation physics/algorithm master-plan integration（历史记录）
 
 2026-09-03 完成一次纯 Markdown 的 Foundation 方案整合。本轮只把已评审的物理/架构结论纳入
 正式事实源，没有修改 Python、tests、GUI、scene、results、cache、production quadrature behavior
@@ -171,7 +193,7 @@ FND-PHY-NB、FND-QA-CC、cache 和其他后续能力未改变。
 Foundation 0.1.1 保持 In Progress；AMF-RIS-011/012、AMF-PHY-007、AMF-SIM-006 及四个
 cross-cutting Work Items 保持 Planned。本轮不构成任何能力的 Implemented/Verified 证据。
 
-## Foundation aperture quadrature governance update
+## Foundation aperture quadrature governance update（历史记录）
 
 2026-09-02 完成新的物理/架构评审并接受
 [ADR-0008](docs/adr/0008-minimum-aperture-quadrature-validity-gate.md)。本轮是纯文档治理更新，
@@ -195,7 +217,7 @@ cross-cutting Work Items 保持 Planned。本轮不构成任何能力的 Impleme
 状态保持：A1 Verified；A2 Verified；Foundation 0.1.1A、AMF-RIS-009 和 Foundation 0.1.1
 保持 In Progress；AMF-RIS-011 与 FND-QA-AP 保持 Planned。没有任何状态因本次规划自动提升。
 
-## Foundation 0.1.1A / A2 最终验收快照
+## Foundation 0.1.1A / A2 最终验收快照（历史记录）
 
 Deliverable A2（RIS aperture patch semantic contract）已完成最终人工验收并达到
 **Verified**：
@@ -214,7 +236,7 @@ Deliverable A2（RIS aperture patch semantic contract）已完成最终人工验
 - ratio 仅作透明度信息，不实现 `lambda/2` pass/fail；A2 明确不输出未验证的 phase-span；
 - `RISSurface` 现在拒绝非有限孔径尺寸、bool/小数/非正 patch count；
 - ADR-0007 冻结未来拆分 control/quadrature/physical layout 的触发条件；GUI 只读接入留在
-  B 阶段，因此 `AMF-RIS-009` 仍为 In Progress。
+  B 阶段，因此 `AMF-RIS-009` 在本历史记录时点仍为 In Progress；当前状态见顶部 closure。
 
 本机 Windows / Python 3.14.3 实现门禁：
 
@@ -229,16 +251,16 @@ Deliverable A2（RIS aperture patch semantic contract）已完成最终人工验
 三代目标数值与 A1 基线一致；它们是 current scalar center-point model 的兼容回归，显示到四位
 小数不代表具有相同物理精度。运行时间波动不构成数值变化。A2 没有修改散射核心算法、GUI、
 A3、PropagationProfile、缓存或实验逻辑。状态边界保持：A1 Verified；A2 Verified；
-Foundation 0.1.1A、AMF-RIS-009 和 Foundation 0.1.1 均为 In Progress。
+Foundation 0.1.1A、AMF-RIS-009 和 Foundation 0.1.1 均为 In Progress（本历史记录时点）。
 
-## Foundation 0.1.1A / A1 最终验收快照
+## Foundation 0.1.1A / A1 最终验收快照（历史记录）
 
 Deliverable A1（Focus objective）已完成最终人工验收并达到 **Verified**：
 
 - 验收依据：closure commit `87495ec91a490d5cd5331ad9c4a0a2e863c10b40`；
 - Gate 结果：G0–G8 全部 PASS；
 - blocking issues：0；
-- 状态边界：Foundation 0.1.1A、AMF-RIS-008 和 Foundation 0.1.1 仍为 In Progress。
+- 状态边界（本历史记录时点）：Foundation 0.1.1A、AMF-RIS-008 和 Foundation 0.1.1 仍为 In Progress。
 
 - 新增显式 `RIS-only Phase-Conjugate Focus`，兼容函数 `generate_focus_pattern()` 输出不变；
 - 新增 `Coherent Target Focus`，continuous 使用 nominal baseline 解析相位对齐，finite-bit
@@ -287,8 +309,7 @@ Implemented/Verified。
 - `nx/ny` 的 equivalent patch 语义已冻结，但仍同时承担控制与中心点求积；GUI 已接入
   A2 只读 pitch/波长诊断；最小独立求积有效性进入 Foundation final exit 前的 FND-QA-AP，
   P1C 保留完整 aperture/field-map/适用域研究；
-- A3 commanded hardware-state validation 已 Verified；B1/B2/B3 已达到 implementation-level，
-  待独立审查；
+- A3 commanded hardware-state validation、B1/B2/B3 及其五个 B requirements 已 Verified；
 - 所有场景仍共用固定传播编排，尚无 PropagationProfile identity；
 - Profile/Reflection 的 target ownership 已由 ADR-0012 冻结，但 C1 尚未实现；
 - `frequency_hz/bandwidth_hz` 的 flat-channel 语义已由 ADR-0010 冻结，但 model ID、标签和

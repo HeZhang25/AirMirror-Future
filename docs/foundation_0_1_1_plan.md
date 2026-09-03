@@ -5,10 +5,10 @@
 | 文档状态 | Operational / Normative for sequencing |
 | 当前实现基线 | v0.1 Verified，commit `edfa43c` |
 | 目标版本 | v0.1.1 Foundation |
-| 当前计划状态 | In Progress；A1/A2/A3、FND-FIX-WALL Verified；B1/B2/B3 Implemented（待独立审查）；C、FND-QA-AP、FND-PHY-NB、FND-QA-CC 尚未完成 |
+| 当前计划状态 | Foundation 0.1.1 In Progress；Foundation 0.1.1A、A1/A2/A3、FND-FIX-WALL、B1/B2/B3 Verified；C、FND-QA-AP、FND-PHY-NB、FND-QA-CC 尚未完成 |
 | 父级路线 | v0.1 Smart Space → Foundation 0.1.1 → P1A |
 | 主要责任 | 项目维护者、物理仿真负责人、GUI/测试负责人 |
-| 最后复核 | 2026-09-03（B-stage implementation handoff；Profile ownership 仍以 ADR-0012 为准） |
+| 最后复核 | 2026-09-03（Foundation 0.1.1B verification/status closure；Profile ownership 仍以 ADR-0012 为准） |
 
 本文是 AirMirror Future 在 v0.1 后的首个模型契约改进计划。它把当前代码事实、已发现的
 物理/算法/交互问题、目标架构、实施顺序、测试证据和退出门禁集中到同一个工作入口，供
@@ -497,10 +497,12 @@ coefficient builder。最后由 [FND-QA-CC](work_items/foundation_0_1_1_coeffici
 
 ### 7.1 Foundation 0.1.1A — Physics and Algorithm Contract
 
+状态：**Verified（2026-09-03）**；A1/A2/A3 均已 Verified，§14.2 Exit Gate 与依赖均满足。
+
 #### Deliverable A1：Focus objective ADR
 
 - 状态：**Verified（2026-09-02）**；验收依据 commit `87495ec`，G0–G8 PASS，
-  blocking issues 0；Foundation 0.1.1A 仍为 In Progress，A2/A3 后续均已 Verified；
+  blocking issues 0；Foundation 0.1.1A 现为 Verified，A2/A3 亦已 Verified；
 
 - Requirement：`AMF-RIS-008`；
 - 输入：当前 Focus、nominal baseline、Controller Model、phase bits；
@@ -519,7 +521,8 @@ coefficient builder。最后由 [FND-QA-CC](work_items/foundation_0_1_1_coeffici
 #### Deliverable A2：RIS aperture patch semantic contract
 
 - 状态：**Verified（2026-09-02）**；验收依据 implementation commit `974885fc5b1864ecd9c303e56400308cbaa316fa`，
-  G0–G8 PASS，blocking issues 0；
+  G0–G8 PASS，blocking issues 0；A2 的剩余 GUI/只读接线已由 B verification closure 补齐，
+  `AMF-RIS-009` 当前为 Verified；
 - Requirement：`AMF-RIS-009`；
 - 输入：`width/height/nx/ny/frequency`；
 - 输出：术语、派生 pitch/波长比例、适用性说明和未来拆网格触发条件；
@@ -531,7 +534,7 @@ coefficient builder。最后由 [FND-QA-CC](work_items/foundation_0_1_1_coeffici
 - 实现证据：[ADR-0007](adr/0007-equivalent-controllable-aperture-patches.md)、
   [A2 Work Item](work_items/foundation_0_1_1_a2.md)、`tests/test_aperture_diagnostics.py`；
 - 兼容结果：Scene v1、散射公式、GUI/CLI 默认和代际 preset 数值不变；GUI 只读诊断接入
-  留在 B 阶段，因此 `AMF-RIS-009` 仍为 In Progress。
+  已在 B verification closure 中完成，`AMF-RIS-009` 不再保留为待接线状态。
 
 #### Deliverable A3：Commanded Pattern hardware boundary
 
@@ -555,6 +558,8 @@ coefficient builder。最后由 [FND-QA-CC](work_items/foundation_0_1_1_coeffici
 
 #### Deliverable B1：Search resolution contract
 
+- 状态：**Verified（2026-09-03）**；B1 自动回归、§14.3 hardware/search gate 与外部
+  independent review 均 PASS，blocking issues 0；详见 [B Work Item](work_items/foundation_0_1_1_b.md)；
 - Requirement：`AMF-OPT-004`；
 - 输入：hardware phase bits、search levels、initial pattern；
 - 输出：显式 optimizer 参数、结果元数据和 CLI/GUI 文案；
@@ -564,6 +569,8 @@ coefficient builder。最后由 [FND-QA-CC](work_items/foundation_0_1_1_coeffici
 
 #### Deliverable B2：Pending/apply/preset state
 
+- 状态：**Verified（2026-09-03）**；B2 GUI offscreen/真实 GUI 人工清单与 §14.3 state gate 均 PASS，
+  blocking issues 0；详见 [B Work Item](work_items/foundation_0_1_1_b.md)；
 - Requirement：`AMF-UI-007`；
 - 输入：当前 applied Scene、编辑控件、generation preset；
 - 输出：dirty 状态、Apply/Optimize 门禁、Customized 派生标签和覆盖提示；
@@ -574,6 +581,9 @@ coefficient builder。最后由 [FND-QA-CC](work_items/foundation_0_1_1_coeffici
 
 #### Deliverable B3：Pattern transparency and Ground Truth labels
 
+- 状态：**Verified（2026-09-03）**；B3 metadata/label/legend 回归、真实 GUI 人工清单、RIS Gain
+  visualization review 与 §14.3 label gate 均 PASS，blocking issues 0；详见
+  [B Work Item](work_items/foundation_0_1_1_b.md)；
 - Requirement：`AMF-UI-008`；
 - 输入：RIS、commanded/actual arrays、pattern source、误差配置；
 - 输出：相位图例和 Pattern/误差元数据；
@@ -910,6 +920,10 @@ FND-QA-CC 及其他既有门禁阻断。
 - GUI smoke 和人工清单通过；
 - A/B checkpoint 临时结果进入隔离目录且不覆盖 legacy；在 C2 provenance 完成前不得作为正式
   Foundation 实验发布。
+
+2026-09-03 verification/status closure：B1/B2/B3 与 `AMF-RIS-008/009`、`AMF-OPT-004`、
+`AMF-UI-007/008` 的自动和外部人工证据均完整，independent review / real GUI / RIS Gain
+visualization 均 PASS，blocking issues 0；上述五个 requirements 与 B Deliverable 已提升为 Verified。
 
 ### 14.4 A/B Interim Checkpoint
 

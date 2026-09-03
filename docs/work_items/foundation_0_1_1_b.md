@@ -2,7 +2,7 @@
 
 - 层级：L3 Deliverable
 - Requirement IDs：AMF-RIS-008、AMF-RIS-009、AMF-OPT-004、AMF-UI-007、AMF-UI-008
-- 状态：Implemented
+- 状态：Verified
 - 父项：Foundation 0.1.1
 - 依赖：A1 Verified、A2 Verified、A3 Verified、FND-FIX-WALL Verified
 
@@ -61,4 +61,25 @@
 C/Profile、FND-QA-AP、FND-PHY-NB、FND-QA-CC、cache、P1、新场景、多 RIS/MIMO/fading、A/B Interim
 Checkpoint 和任何 A1/A2/A3/FND-FIX-WALL 重开均不在本 Work Item。
 
-Implementation handoff 只将本 Work Item 和五个 requirements 标记为 Implemented；Verified 需独立审查。
+## Verification / status closure
+
+2026-09-03 完成独立 verification/status closure。验收对象为 B implementation 及其补充测试/可视化
+修复 commits `c08c8bd81972119abf88bbee279cc29a7a45d820`、
+`7c4a33bb2a108cfff798045b53016999e13abc1c` 和
+`be52a60f6a06e80620869096700cd21ad453c657`；B1/B2/B3 independent review、真实 GUI 人工验收和
+RIS Gain visualization review 均为 **PASS，blocking issues = 0**。
+
+| 子项 | Verified 证据 |
+|---|---|
+| B1 / `AMF-OPT-004` | `tests/test_optimization.py` 的 search-level/hardware-state、continuous fallback 和 reproducibility 回归；§14.3 hardware/search traceability；外部 independent review PASS |
+| B2 / `AMF-UI-007` | `tests/test_gui_smoke.py` 的 Pending/Apply/Optimize、confirm-discard/cancel-preserve、Customized 回归；真实 GUI 清单 PASS；§14.3 state gate PASS |
+| B3 / `AMF-UI-008` | Pattern metadata、Allowed/Used States、Actual/error labels、zero-centered RIS Gain legend 的 offscreen/visualization 回归；真实 GUI 清单 PASS；§14.3 label/GUI gate PASS |
+| `AMF-RIS-008/009` | A1/A2 semantic evidence 加上 B GUI default/alternate Focus 与 equivalent-patch diagnostics 接线证据；真实 GUI 清单 PASS |
+
+§14.4 A/B Interim Checkpoint 已在隔离目录完成，checkpoint commit `cb97190eb5ae1a4b9f875ff7bf0131d16de28c5c`
+记录完整 pytest、三代 fast headless、Phase Resolution isolation 和外部人工证据；该 checkpoint 仍是
+non-formal provenance，不替代 C2 provenance，也不提升 Foundation overall。以上证据满足 Definition of
+Done 的 Deliverable 验收与独立人工 verification 状态规则，本 Work Item 与五个 requirement 由 Implemented
+提升为 Verified。
+
+Implementation handoff 阶段的“Implemented、待独立审查”是历史状态；本节 closure 后不再是当前状态。
