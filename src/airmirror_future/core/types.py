@@ -12,6 +12,9 @@ import numpy as np
 from airmirror_future.core.units import dbm_to_watts
 
 
+WALL_ENDPOINT_Z_ATOL_M = 1.0e-9
+
+
 def _finite(value: float, name: str) -> None:
     if not math.isfinite(value):
         raise ValueError(f"{name} must be finite")
@@ -73,7 +76,7 @@ class Receiver:
 
 @dataclass(slots=True)
 class Wall:
-    """A vertical wall segment with blockage and complex reflection data."""
+    """A Scene v1 floor-anchored vertical wall segment."""
 
     id: str
     start: Vec3
@@ -85,8 +88,15 @@ class Wall:
     blocks_los: bool = True
 
     def __post_init__(self) -> None:
-        if self.start.distance_to(self.end) <= 0.0:
-            raise ValueError("wall endpoints must differ")
+        for field_name, value in (("start.z", self.start.z), ("end.z", self.end.z)):
+            if abs(value) > WALL_ENDPOINT_Z_ATOL_M:
+                raise ValueError(
+                    f"wall {self.id!r} {field_name}={value!r} m violates the Scene v1 "
+                    "floor anchor; set start.z and end.z to 0 explicitly "
+                    f"(absolute tolerance {WALL_ENDPOINT_Z_ATOL_M:g} m)"
+                )
+        if math.hypot(self.end.x - self.start.x, self.end.y - self.start.y) <= 0.0:
+            raise ValueError(f"wall {self.id!r} endpoints must differ in XY")
         if self.height_m <= 0.0 or not math.isfinite(self.height_m):
             raise ValueError("height_m must be finite and positive")
         if self.attenuation_db < 0.0 or not math.isfinite(self.attenuation_db):

@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| API 基线 | 0.1 + Foundation A1-A3 additive API + planned closure boundaries |
+| API 基线 | 0.1 + Foundation A1-A3 + FND-FIX-WALL additive API + planned closure boundaries |
 | Python | 3.11+ |
 
 ## 1. 稳定性政策
@@ -15,7 +15,8 @@ v0.x 期间允许有记录的破坏性变化，但不得静默发生。改变签
 顶层 `airmirror_future` 导出公共数据类型、`SimulationEngine`、Controller/Ground Truth、
 MeasurementOracle、`generate_ris_only_focus_pattern`、`generate_coherent_target_pattern`、
 `EquivalentPatchDiagnostics`、`equivalent_patch_diagnostics`、`validate_commanded_pattern` 和
-`COMMANDED_PHASE_ATOL_RAD`。以下划线开头的成员、GUI 私有槽和 `path_details` 内部字典不是
+`COMMANDED_PHASE_ATOL_RAD`、`WALL_ENDPOINT_Z_ATOL_M`。以下划线开头的成员、GUI 私有槽和
+`path_details` 内部字典不是
 稳定 API。
 
 ## 2. SimulationEngine
@@ -164,6 +165,13 @@ complex `[N]`；它与 `ris_channel` 都先复用同一 commanded validator，�
 efficiency error。调用者通常应使用 SimulationEngine 以获得阻挡、反射和指标。
 
 ## 4. Scene API
+
+`Wall` 是 Scene v1 floor-anchored vertical wall。公共绝对容差
+`WALL_ENDPOINT_Z_ATOL_M=1e-9 m` 仅用于接受数值交换噪声；`start.z/end.z` 任一超差时，构造与
+`Scene.load()` 均抛包含 wall id、具体字段、实际值和显式归零迁移指引的 `ValueError`。两个端点
+必须在 XY 不同。容差内 z 保留原数值，`Scene.save()` 不裁剪。Ground Truth 的
+`position_delta()` 仍返回三维数组，但 engine 对 Wall 只使用一次采样的 `[dx,dy,0]`，保持墙长、
+朝向和 `height_m`。
 
 ```python
 Scene.save(path: str | Path) -> None

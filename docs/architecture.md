@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| 基线版本 | v0.1 + Foundation Profile/coefficient/frequency contract |
+| 基线版本 | v0.1 + FND-FIX-WALL + Foundation Profile/coefficient/frequency contract |
 | 对应需求 | AMF-ENG-002、AMF-SIM-001..006、AMF-RIS-012、AMF-UI-003 |
 
 ## 1. 架构目标
@@ -61,6 +61,11 @@ Scene + TX + RX + patterns + Model
 ```
 
 `ChannelResult` 是数值结果边界；GUI 不重新计算指标。
+
+FND-FIX-WALL 后，Ground Truth 的三维 position realization 对 Wall 只消费 XY 分量：engine 对
+每堵墙取得一次 delta，以同一 `[dx,dy,0]` 平移两个端点，并将生成的同一个 working-scene Wall
+交给 LOS blockage 和 reflection。Wall 数据构造先执行 floor-anchor 容差验证；physics 层无需
+再次猜测 endpoint z 含义。
 
 Foundation C1 将在不改变上述用户级流程的前提下引入 engine-owned
 `IndoorDeterministicProfile`。按

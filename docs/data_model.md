@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| 基线版本 | v0.1 + Foundation A1-A3 + planned closure contracts |
+| 基线版本 | v0.1 + Foundation A1-A3 + FND-FIX-WALL + planned closure contracts |
 | 权威实现 | `src/airmirror_future/core/types.py` |
 
 ## 1. 通用规则
@@ -50,7 +50,7 @@
 | 字段 | 类型 | 默认/单位 | 约束 |
 |---|---|---|---|
 | `id` | str | required | 应在 walls 内唯一 |
-| `start,end` | Vec3 | m | 当前端点不同；计算只使用 XY，z 尚未可靠表示墙底 |
+| `start,end` | Vec3 | m | XY 端点必须不同；`|z|≤1e-9 m`，按 Scene v1 floor anchor 解释 |
 | `height_m` | float | 3.0 m | finite，`>0` |
 | `attenuation_db` | float | 30 dB | finite，`≥0` |
 | `reflection_magnitude` | float | 0.4 | `[0,1]` |
@@ -62,10 +62,11 @@
 Model 消费且每条反射路径只应用一次；见
 [ADR-0012](adr/0012-wall-reflection-coefficient-ownership.md)。
 
-当前实现按绝对高度 `[0,height_m]` 判断阻挡/反射，因此不能把任意 `start.z/end.z` 解释为悬空
-墙底；Ground Truth 当前又会产生三维 wall delta。`AMF-SIM-006` 的目标 v1 契约为
-`start.z=end.z=0`、floor-anchored vertical wall、同一 `[dx,dy,0]` 刚体平移。该校验和迁移尚未
-实现，详见 [FND-FIX-WALL](work_items/foundation_0_1_1_wall_geometry_closure.md)。
+`AMF-SIM-006` 已将 v1 Wall 冻结为 floor-anchored vertical wall：端点 z 在绝对
+`WALL_ENDPOINT_Z_ATOL_M=1e-9 m` 内视为 0，占据绝对高度 `[0,height_m]`，Ground Truth 对两个
+端点只施加同一个 `[dx,dy,0]` 刚体平移。容差仅吸收数值交换噪声，不表示支持悬空墙；容差内
+原值在保存时保持不变，超差值必须显式把 `start.z/end.z` 改为 0。实现与迁移证据见
+[FND-FIX-WALL](work_items/foundation_0_1_1_wall_geometry_closure.md)。
 
 ### `Obstacle`
 
@@ -225,5 +226,7 @@ reflection/world-model identity，并仍须进入总体 coefficient identity。
 ## 6. 模型误差类型
 
 `ControllerModel` 定义无误差行为。`GroundTruthModel` 继承接口并增加六个非负 sigma：RIS
-相位、RIS 效率、墙幅度、墙相位、位置、测量噪声，以及整数 seed。sigma 的统计含义见
+相位、RIS 效率、墙幅度、墙相位、位置、测量噪声，以及整数 seed。`position_delta()` 的公共
+返回仍为三维；engine 对 floor-anchored Wall 只消费 XY，对 TX/RX/RIS/obstacle 保持既有三维
+语义。sigma 的统计含义见
 [physics_model.md](physics_model.md#11-controller-model-与-ground-truth)。

@@ -70,12 +70,12 @@ TX 的四个字段写出时均存在。RX 对应字段为 `id`、`position`、`g
 
 `id/start/end` 必需。其他 reader 默认依次为 3.0、30.0、0.4、π、true。
 
-当前计算按端点 XY 和绝对高度 `[0,height_m]` 工作，尚未可靠支持非零 wall endpoint z。
-Foundation 的 Planned `AMF-SIM-006` 将在保持 schema version 1 的前提下把 v1 输入收紧为
-`start.z=end.z=0`，并对不合规外部文件明确报错；不会静默裁剪或猜测为悬空墙。实现与迁移
-证据见 [FND-FIX-WALL](work_items/foundation_0_1_1_wall_geometry_closure.md)。保持 v1 的理由是非零
-z 从未有已验证的计算语义，本次只拒绝此前被静默忽略的值；若 Ready review 发现已有受支持
-外部文件依赖非零 z，必须暂停并以 schema/ADR 重新决定，不能直接合并破坏性收紧。
+`AMF-SIM-006` 在保持 schema version 1 的前提下把 Wall 冻结为 floor-anchored vertical wall：
+`start.z/end.z` 必须 finite 且各自满足 `|z|≤1e-9 m`，占据高度固定为 `[0,height_m]`。容差内
+原值 round-trip 时不裁剪；超差输入抛包含 wall id、具体字段、实际值和显式归零迁移指引的
+`ValueError`，不会猜测为悬空墙。保持 v1 的依据是仓库唯一受支持的 Scene、内建场景、相关
+测试及其 Git 历史均使用精确 z=0，非零 z 从未有已验证计算语义。实现与兼容证据见
+[FND-FIX-WALL](work_items/foundation_0_1_1_wall_geometry_closure.md)。
 
 Foundation 不向 Scene v1 增加 `profile`、`channel_frequency_model_id` 或 Python 类名字段。
 Profile 与 frequency-model identity 属于运行/实验 provenance；若未来需要场景持久化选择，应

@@ -27,7 +27,7 @@
 | 多 RIS 连跳 | 仅每块单跳 TX-RIS-RX | 可相加多个单跳贡献 | Factory 双跳研究 |
 | 动态控制时延 | update_rate 目前是元数据 | 静态重配置 | XR 时间步和 latency |
 | Profile v1 路径集合 | Foundation Profile 只计划提供 environment modifier，不生成 delay/angle/Doppler 多径集合 | 默认确定性路径编排 | fading/wideband/dynamic multipath 需要独立 PathEnsemble ADR |
-| Wall z/vertical error | 当前求交按 `[0,height]` 且忽略 endpoint z，Ground Truth 却生成 3D delta | 默认 z=0 场景可运行；不声称悬空墙/墙 z 误差 | FND-FIX-WALL 冻结 floor anchor 与 XY rigid delta |
+| Wall z/vertical placement | v1 只支持地面锚定竖直墙，不支持悬空/倾斜墙或墙底高度误差 | endpoint z 在 `1e-9 m` 容差内为 0，占据 `[0,height]`；Ground Truth 只消费刚体 XY delta | 悬空/倾斜/楼层墙需求触发 schema v2 与独立 ADR |
 | Focus/coefficient future migration | 当前 1×1 中中心路径相位等价；未来复杂 Profile/多点求积可能破坏等价 | A1 objective 已验证，不代表未来 policy 自动一致 | FND-QA-CC；需要时先做独立 production migration |
 
 ## 数值边界

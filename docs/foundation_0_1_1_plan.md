@@ -5,10 +5,10 @@
 | 文档状态 | Operational / Normative for sequencing |
 | 当前实现基线 | v0.1 Verified，commit `edfa43c` |
 | 目标版本 | v0.1.1 Foundation |
-| 当前计划状态 | In Progress；A1/A2/A3 Verified；B/C、FND-QA-AP、FND-FIX-WALL、FND-PHY-NB、FND-QA-CC 尚未完成 |
+| 当前计划状态 | In Progress；A1/A2/A3 Verified；FND-FIX-WALL Implemented、待独立验收；B/C、FND-QA-AP、FND-PHY-NB、FND-QA-CC 尚未完成 |
 | 父级路线 | v0.1 Smart Space → Foundation 0.1.1 → P1A |
 | 主要责任 | 项目维护者、物理仿真负责人、GUI/测试负责人 |
-| 最后复核 | 2026-09-03（wall/Profile ownership closure；ADR-0009 superseded by ADR-0012） |
+| 最后复核 | 2026-09-03（FND-FIX-WALL implementation；Profile ownership 仍以 ADR-0012 为准） |
 
 本文是 AirMirror Future 在 v0.1 后的首个模型契约改进计划。它把当前代码事实、已发现的
 物理/算法/交互问题、目标架构、实施顺序、测试证据和退出门禁集中到同一个工作入口，供
@@ -84,9 +84,9 @@ Foundation 前置有八个直接原因：
    一次隔离审计已观察到默认目标链路存在约 `0.430–0.848 dB` 的幅度差，但该结果尚未经过
    版本化 runner、代表性矩阵和正式 provenance。P1A 前必须通过 FND-QA-AP 冻结 `a_n` 的
    production quadrature policy，不能先缓存再验证。
-6. **墙体 z 语义与误差维度冲突**：当前墙面求交按绝对 `[0,height]` 处理而忽略端点 z，
-   Ground Truth 却对墙应用三维 position delta。默认 z=0 场景可运行，但不能继续把这种偶然兼容
-   描述成已定义的三维墙模型。
+6. **墙体 z 语义与误差维度冲突（已由 FND-FIX-WALL 实现闭环）**：实现前墙面求交按绝对
+   `[0,height]` 处理而忽略端点 z，Ground Truth 却对墙应用三维 position delta。默认 z=0 场景
+   可运行，但这种偶然兼容不能描述成已定义的三维墙模型。
 7. **中心频率/带宽语义未形成稳定身份**：当前只计算 `h(fc)`，带宽只进入 noise 和 Shannon
    公式；若不显式冻结 flat-channel 近似，100 MHz 容易被误读为已完成宽带/OFDM 仿真。
 8. **Focus 与待缓存 coefficient 可能在未来分叉**：当前 1×1 实数 modifier 下中心路径 Focus 与
@@ -362,21 +362,22 @@ Applied + invalidate old workers + regenerate pattern/results
 
 ### 5.6 Ground Truth 参数命名
 
-当前 Position Error 会为 TX、RX、RIS、每堵墙和每个 obstacle 生成三维固定 delta，因此 GUI
-总标签仍改名为：
+Position Error 会为 TX、RX、RIS、每堵墙和每个 obstacle 生成三维固定 delta，因此 GUI 总标签
+仍改名为：
 
 - `Geometry Position Error σ / 几何位置误差 σ`。
 
-但当前 wall geometry 求交按 endpoint XY 和绝对 `[0,height_m]` 处理，不能可靠消费墙的 z delta。
-因此最终 tooltip 必须说明：TX/RX/RIS/obstacle 按各自三维模型处理；v1 floor-anchored wall 仅使用
-同一个刚体 XY 偏移。不能再笼统声称每类实体均有三维位置误差。
+FND-FIX-WALL 已冻结消费边界：wall geometry 按 endpoint XY 和绝对 `[0,height_m]` 处理，engine
+只消费该三维 delta 的 XY 分量，并把同一个刚体偏移用于两个端点。因此 B3 最终 tooltip 必须
+说明：TX/RX/RIS/obstacle 按各自三维模型处理；v1 floor-anchored wall 仅使用同一个刚体 XY
+偏移。不能再笼统声称每类实体均有三维位置误差。
 
 当前 Measure Noise 只作用于 Measurement Oracle，因此改名为：
 
 - `Feedback Measurement Noise σ / 反馈测量噪声 σ`。
 
-本阶段不拆多个独立 sigma 字段。`AMF-SIM-006` / FND-FIX-WALL 只修正 wall 的消费语义和验证，
-不新增 Scene 字段；未来悬空墙、楼板或独立位置误差确有需要时再通过 schema/ADR 评审。
+本阶段不拆多个独立 sigma 字段。`AMF-SIM-006` / FND-FIX-WALL 只修正了 wall 的消费语义和验证，
+未新增 Scene 字段；未来悬空墙、楼板或独立位置误差确有需要时再通过 schema/ADR 评审。
 
 ### 5.7 PropagationProfile 契约
 
@@ -633,12 +634,14 @@ coefficient builder。最后由 [FND-QA-CC](work_items/foundation_0_1_1_coeffici
 
 #### FND-FIX-WALL：Wall Geometry Closure
 
-- 状态：**Planned**；Requirement `AMF-SIM-006`；
+- 状态：**Implemented（2026-09-03）**，待独立验收；Requirement `AMF-SIM-006`；
 - 依赖：v0.1 wall/blockage/reflection audit；可在 A3 后、B 前独立实施；
 - 输入：Wall endpoint/height、Ground Truth position delta、Scene v1；
 - 输出：floor-anchored wall、`start.z=end.z=0` 验证、同一刚体 XY perturbation；
 - 验收：FND-T19、z=0 round-trip、阻挡/反射同几何和三代兼容回归；
 - 边界：不实现悬空/倾斜墙、新 schema 字段或空间分辨 aperture blockage；
+- 兼容结果：Scene v1 不升级；仓库唯一受支持 Scene 与历史均为 z=0，默认三代数值不变；外部
+  超过 `1e-9 m` 的 endpoint z 现在以带迁移指引的 `ValueError` 明确拒绝；
 - 详细契约：[FND-FIX-WALL Work Item](work_items/foundation_0_1_1_wall_geometry_closure.md)。
 
 #### FND-PHY-NB：Narrowband Frequency Contract
@@ -676,7 +679,7 @@ coefficient builder。最后由 [FND-QA-CC](work_items/foundation_0_1_1_coeffici
 | 4 | `FND-TEST-02` 定义 commanded pattern 契约测试 | Implemented | bits、modulo、tolerance、Actual error |
 | 5 | `FND-PHY-01` 实现两个具名 Focus | Implemented | RIS-only 保留、Coherent 新增且分层正确；ADR-0006 |
 | 6 | `FND-PHY-02` 实现 commanded validator | Implemented | 所有公共传播入口共用且 Field Map 只验证一次 |
-| 7 | `FND-FIX-WALL` 冻结 floor-anchored Wall/XY perturbation | Planned | FND-T19、schema/error/compatibility evidence |
+| 7 | `FND-FIX-WALL` 冻结 floor-anchored Wall/XY perturbation | Implemented | FND-T19、schema/error/compatibility evidence；待独立验收 |
 | 8 | `FND-OPT-01` 增加 search levels 与结果元数据 | Planned | discrete/continuous 语义分离 |
 | 9 | `FND-UI-01` 建立 pending/apply/Optimize 门禁 | Planned | GUI 状态机 smoke tests |
 | 10 | `FND-UI-02` 增加 Customized、Pattern 信息和准确标签 | Planned | 可人工验收界面 |
@@ -762,10 +765,11 @@ normalized complex error、幅度/功率差和有保护的 phase/RIS Gain。refe
 production adequacy 容差必须在正式结果前预注册；不得在失败后放宽。最小 QA 避开 partial
 blockage boundary；P1C 再扩大 frequency/angle/near-field、field-map 和遮挡边缘适用域。
 
-FND-T19 独立关闭 wall 几何语义，不把 z delta 映射成 wall height。FND-T20 只验证当前
-center-frequency flat-channel 合同，不借机加入频率轴。FND-T21/T22 必须在 FND-QA-AP 签署
-production policy 后执行；若 QAP 要求多点 production，先完成独立 migration，再验证 Focus、
-simulator 和 QA runner 共用 coefficient。四项均为 Planned，不因文档测试设计而提前通过。
+FND-T19 已独立关闭 wall 几何语义，不把 z delta 映射成 wall height；其 Implemented 状态仍待
+独立验收。FND-T20 只验证当前 center-frequency flat-channel 合同，不借机加入频率轴。
+FND-T21/T22 必须在 FND-QA-AP 签署 production policy 后执行；若 QAP 要求多点 production，先
+完成独立 migration，再验证 Focus、simulator 和 QA runner 共用 coefficient。FND-T20..22 仍为
+Planned，不因文档测试设计而提前通过。
 
 ## 11. 实验、兼容和版本策略
 
@@ -893,8 +897,9 @@ Commanded validation、search levels 和 GUI dirty state 如果不改变层依�
 - 物理性质测试与三代 headless 通过；
 - 旧行为差异有 ADR 和版本记录。
 
-Foundation A exit 后、B 开始前执行 FND-FIX-WALL；A1/A2 的 Verified 状态不受该独立 closure
-影响，但 FND-T19 未通过时 Foundation final gate 仍被阻断。
+Foundation A exit 后、B 开始前的 FND-FIX-WALL 已达到 Implemented、待独立验收；A1/A2/A3 的
+Verified 状态不受该独立 closure 影响，FND-T19 未完成独立签署前 Foundation final gate 仍被
+阻断。
 
 ### 14.3 Foundation 0.1.1B Exit Gate
 
@@ -988,7 +993,7 @@ Foundation 之后按以下顺序推进：
   PathEnsemble 是独立能力；
 - [ ] 我知道 `frequency_hz` 是中心频率，`bandwidth_hz` 不会生成频率轴，容量只是 flat-channel
   Shannon 上界；
-- [ ] 我知道 v1 Wall 目标是 floor-anchored/XY-only truth delta，当前非零 endpoint z 尚有歧义；
+- [ ] 我知道 v1 Wall 已实现 floor-anchored/XY-only truth delta，超出 `1e-9 m` 的 endpoint z 会明确失败；
 - [ ] 我知道 A1 objective Verified 不等于未来 quadrature/Profile 下 Focus/coefficient 自动一致；
 - [ ] 我知道 FND-QA-AP 先选 production policy，必要时独立迁移，最后 FND-QA-CC 才签一致性；
 - [ ] 我确认没有在 Foundation 中实现缓存、新场景、MIMO 或 fading；
@@ -1010,6 +1015,9 @@ Foundation 之后按以下顺序推进：
 - ADR-0010 冻结 center-frequency flat-channel 语义和稳定 model ID，不建立自动窄带阈值；
 - ADR-0011 冻结 Controller `a_n^C/Gamma_cmd` 所有权、Ground Truth 隔离和条件 production
   migration 顺序。
+- FND-FIX-WALL Ready review 冻结 endpoint z 为 `1e-9 m` 绝对容差；超差 v1 输入的错误包含
+  wall id、具体字段、实际值和显式归零迁移指引。兼容审计未发现受支持的非零-z Scene，故
+  schema version 保持 1，不触发新 ADR。
 
 以下问题在正式实现前不得由单个开发者静默选择：
 
@@ -1019,7 +1027,6 @@ Foundation 之后按以下顺序推进：
    语义已经关闭，不得重新选择 full transfer，也不得把 `Gamma_wall` 并回 Profile；
 4. FND-QA-AP 的预注册 reference/production tolerance、最终 fixed/adaptive policy 和是否需要
    production migration；这些必须在 Work Item 进入 Ready/查看正式结果前关闭，不能静默选择。
-5. FND-FIX-WALL 对 endpoint z 的数值容差和外部非零-z v1 文件的最终错误文案；
-6. FND-QA-CC coefficient builder 的具体内部模块/类型；公共 phase-array API 和因子所有权已关闭。
+5. FND-QA-CC coefficient builder 的具体内部模块/类型；公共 phase-array API 和因子所有权已关闭。
 
 未决项存在不表示计划阻塞；它们是对应 ADR/Work Item 进入 Ready 前必须关闭的选择。

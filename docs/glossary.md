@@ -38,7 +38,7 @@
 | PropagationProfile | Foundation 中只提供自由空间载波和 `Gamma_wall` 之外的 environment-only complex modifier | 不返回重复的距离/传播相位/墙系数，也不等同未来 PathEnsemble |
 | PathEnsemble | 未来可包含多路径 delay/angle/Doppler/statistics 的独立抽象 | 当前未实现，不用 Profile multiplier 冒充 |
 | Center-frequency Flat-channel Shannon Upper Bound | 以 `h(fc)` 在带宽内平坦为假设的 `B log2(1+SNR)` | 不称 OFDM/频率选择性容量或真实吞吐量 |
-| Floor-anchored Wall | v1 目标墙模型：端点 z=0、占据 `[0,height]`、误差只做刚体 XY 平移 | 不称悬空/倾斜墙 |
+| Floor-anchored Wall | v1 墙模型：端点 z 在 `1e-9 m` 容差内为 0、占据 `[0,height]`、误差只做刚体 XY 平移 | 不称悬空/倾斜墙 |
 | Internal Refined Numerical Reference | 同一系统级标量模型内经 successive refinement 和交叉规则支持的内部参考 | 不称 Ground Truth、EM truth、full-wave 或 measurement |
 | Spatially Resolved Blockage | 对 aperture subpoint/region 分别判定遮挡的模型 | 不等同当前 RIS center scalar attenuation，也不由 quadrature refinement 自动获得 |
 

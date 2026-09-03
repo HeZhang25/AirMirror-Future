@@ -54,7 +54,7 @@
 | AMF-SIM-004 | 固定几何预计算 `a_n`、多点分块矩阵和增量贪心 | Planned | — | 进入 P1 性能里程碑前补基准测试 |
 | AMF-OPT-004 | hardware phase resolution 与 optimizer search levels 分离并进入结果元数据 | Planned | — | `foundation_0_1_1_plan.md` FND-T10 |
 | AMF-SIM-005 | 建立不含 carrier、`Gamma_wall` 或 RIS response 的 environment-only PropagationProfile 和默认 IndoorDeterministicProfile；保持 Profile、Reflection、RIS 与 Ground Truth 所有权分离 | Planned | [ADR-0012](adr/0012-wall-reflection-coefficient-ownership.md) | `foundation_0_1_1_plan.md` FND-T13..14 |
-| AMF-SIM-006 | v1 Wall 冻结为地面锚定竖直墙；端点 z 为 0，Ground Truth 只对墙施加刚体 XY 平移 | Planned | [FND-FIX-WALL](work_items/foundation_0_1_1_wall_geometry_closure.md) | FND-T19、默认 Scene round-trip 与阻挡/反射一致性 |
+| AMF-SIM-006 | v1 Wall 冻结为地面锚定竖直墙；端点 z 为 0，Ground Truth 只对墙施加刚体 XY 平移 | Implemented | `core/types.py`、`simulation/engine.py`、[FND-FIX-WALL](work_items/foundation_0_1_1_wall_geometry_closure.md) | `tests/test_wall_geometry.py` FND-T19、默认 Scene round-trip 与阻挡/反射回归 |
 
 ## 场景与 GUI
 

@@ -8,6 +8,43 @@
 | 规范基线 | [docs/README.md](docs/README.md) |
 | 当前 Capability | Foundation 0.1.1A Physics and Algorithm Contract（In Progress） |
 
+## Foundation / FND-FIX-WALL implementation handoff
+
+FND-FIX-WALL（Wall Geometry Closure）已完成 Ready Review 和 implementation-level DoD，状态为
+**Implemented**、等待独立验收：
+
+- Ready 结论为 blocking ambiguity 0；endpoint z 冻结为公共绝对容差
+  `WALL_ENDPOINT_Z_ATOL_M=1e-9 m`，不使用相对容差；
+- `Wall` 构造和 Scene v1 loader 通过同一数据边界拒绝超容差 z，错误包含 wall id、具体字段、
+  实际值、floor-anchor 原因和显式归零迁移指引；容差内原值 round-trip 不被裁剪；
+- Ground Truth 仍生成三维 position delta，但 engine 对每堵墙只采样一次且只消费 XY，以同一个
+  `[dx,dy,0]` 刚体平移两个端点；墙长、朝向和 `height_m` 不变；
+- LOS blockage 和 single-wall reflection 消费同一个 perturbed working-scene Wall，继续统一采用
+  `[0,height_m]`；TX/RX/RIS/obstacle 的既有三维误差语义不变；
+- Scene schema version 保持 1。兼容审计覆盖仓库唯一受支持 Scene、内建 Smart Space、相关测试
+  与 Scene Git 历史，未发现非零-z 依赖；超容差外部 v1 文件需显式归零，不能静默迁移；
+- 未修改 GUI 代码、场景、results、cache、反射公式、A1/A2/A3 或任何后续能力。
+
+本机 Windows / Python 3.14.3 实现门禁：
+
+| 门禁 | 结果 |
+|---|---|
+| FND-T19 + blockage/reflection/scene 定向回归 | `13 passed` |
+| wall/GT/scene + physics/RIS/A1/A3/optimization 相关回归 | `79 passed` |
+| documentation tests | `9 passed` |
+| 完整 pytest | `103 passed in 3.59s` |
+| Current v0.1 fast headless | `-46.5879 dBm`，RIS Gain `+8.6874 dB`，场图 `3.045 s` |
+| Advanced v0.1 fast headless | `-30.1257 dBm`，RIS Gain `+25.1496 dB`，场图 `3.869 s` |
+| Future v0.1 fast headless | `-19.3118 dBm`，RIS Gain `+35.9636 dB`，场图 `9.370 s` |
+| `git diff --check` | PASS |
+
+三代目标值与 A1/A2/A3 基线显示到四位小数完全一致。兼容性收紧仅影响此前会被接受、但从未
+有已验证计算语义的超容差 Wall endpoint z，以及 XY 重合而仅 z 不同的退化墙段。
+
+状态边界：A1/A2/A3 与 AMF-RIS-010 保持 Verified；FND-FIX-WALL 与 AMF-SIM-006 为
+Implemented，不能自行标 Verified；Foundation 0.1.1A 和 Foundation 0.1.1 保持 In Progress；
+B/C、FND-QA-AP、FND-PHY-NB、FND-QA-CC、cache 和新场景均未改变。
+
 ## Foundation 0.1.1A / A3 final verification closure
 
 Deliverable A3（Commanded Pattern hardware boundary）已完成独立人工验收并达到
@@ -55,8 +92,8 @@ command 没有数值迁移。兼容性变化仅是此前可能被接受的未知
 complex/off-grid phase 和非法 `phase_bits` 类型现在明确失败。
 
 状态边界：A1/A2/A3 与 AMF-RIS-010 为 Verified；Foundation 0.1.1A 和 Foundation 0.1.1
-保持 In Progress。FND-FIX-WALL、B/C、FND-QA-AP、FND-PHY-NB、FND-QA-CC、cache 和其他
-后续能力均未开始或未改变。
+保持 In Progress。FND-FIX-WALL 的后续 Implemented 状态见本页最新快照；B/C、FND-QA-AP、
+FND-PHY-NB、FND-QA-CC、cache 和其他后续能力未改变。
 
 ## Foundation physics/algorithm master-plan integration
 
@@ -219,7 +256,7 @@ Implemented/Verified。
 - Profile/Reflection 的 target ownership 已由 ADR-0012 冻结，但 C1 尚未实现；
 - `frequency_hz/bandwidth_hz` 的 flat-channel 语义已由 ADR-0010 冻结，但 model ID、标签和
   provenance closure 尚未实现；
-- 墙 endpoint z 当前未可靠进入求交，Ground Truth wall delta 却是三维；FND-FIX-WALL 尚未实现；
+- FND-FIX-WALL 已收紧 floor-anchored Wall/XY-only Ground Truth 语义，当前仍不支持悬空/倾斜墙；
 - FND-QA-AP 后仍须 FND-QA-CC 证明最终 Controller coefficient 与两种 Focus 一致；
 - 高质量 `200×160` 场图在 Future 64×48 网格下计算较慢，但运行于后台且可取消；
 - 当前场图采用逐评价点计算，尚未建立跨点 RIS 系数矩阵缓存；
@@ -235,13 +272,12 @@ Implemented/Verified。
 
 ## 下一阶段
 
-1. 按 [Foundation 0.1.1 计划](docs/foundation_0_1_1_plan.md) 完成 FND-FIX-WALL；
-2. 完成 optimizer/GUI 语义和 A/B checkpoint；
-3. 建立 environment-only PropagationProfile 与最小实验 provenance；
-4. 执行 FND-QA-AP，冻结 production quadrature policy；若要求改变 production，先走独立迁移；
-5. 完成 FND-PHY-NB 和 FND-QA-CC，冻结 frequency/coefficient/cache identity；
-6. Foundation final verification 通过后再进入 P1A 几何系数缓存与矩阵求值；
-7. 随后完成相位误差和 P1C 扩展孔径研究，再扩展 XR/Factory/City。
+1. 按 [Foundation 0.1.1 计划](docs/foundation_0_1_1_plan.md) 完成 optimizer/GUI 语义和 A/B checkpoint；
+2. 建立 environment-only PropagationProfile 与最小实验 provenance；
+3. 执行 FND-QA-AP，冻结 production quadrature policy；若要求改变 production，先走独立迁移；
+4. 完成 FND-PHY-NB 和 FND-QA-CC，冻结 frequency/coefficient/cache identity；
+5. Foundation final verification 通过后再进入 P1A 几何系数缓存与矩阵求值；
+6. 随后完成相位误差和 P1C 扩展孔径研究，再扩展 XR/Factory/City。
 
 阶段顺序、entry/exit gate 和工作颗粒度以 [docs/roadmap.md](docs/roadmap.md) 为准。本页只
 记录状态，不新增需求或改变优先级。

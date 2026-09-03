@@ -148,6 +148,6 @@ python -m airmirror_future.experiments.phase_bits --output results/phase_bits
 语义，但独立 quadrature accuracy 尚未验证；三代精确 dBm 应理解为 current scalar
 center-point model 的输出，而不是 full-wave/测量真值。
 
-当前默认墙端点 z=0 可运行，但 wall endpoint z 与 Ground Truth 三维偏移尚有契约歧义；
-FND-FIX-WALL 将其收紧为 floor-anchored/XY-only wall。A1 已验证现有 Focus objective，但在最终
-quadrature/Profile 下的 coefficient 一致性仍须 FND-QA-CC 证明；两项均不是当前已实现功能。
+Scene v1 Wall 已收紧为 floor-anchored/XY-only：endpoint z 仅接受 `1e-9 m` 绝对容差，Ground
+Truth 只施加刚体 XY 平移；悬空/倾斜墙仍不支持。A1 已验证现有 Focus objective，但在最终
+quadrature/Profile 下的 coefficient 一致性仍须 FND-QA-CC 证明。

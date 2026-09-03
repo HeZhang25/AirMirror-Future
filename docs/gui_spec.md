@@ -86,9 +86,9 @@ Work Item 明确授权。
 GUI v0.1 暴露 phase error、measurement noise 和 position error sigma；点击 Apply 才创建新
 GroundTruthModel。未暴露的效率/墙误差通过 headless API 配置。
 
-当前 Position Error 会为各实体生成三维 delta，但 wall 求交不可靠使用端点 z。FND-FIX-WALL
-完成后的准确 tooltip 必须写明：TX/RX/RIS/obstacle 按各自三维模型处理，floor-anchored wall
-只使用同一个刚体 XY 偏移。完成前不得声称墙体存在已验证的 vertical position error。
+Position Error 为各实体生成三维 delta；FND-FIX-WALL 已冻结 engine 消费语义：TX/RX/RIS/
+obstacle 按各自三维模型处理，floor-anchored wall 只使用同一个刚体 XY 偏移。B3 接线后的准确
+tooltip 必须使用该措辞，不得声称墙体存在 vertical position error。
 
 Apply 使用 dataclass replace 重建并校验对象。任何错误用对话框明确显示，旧 scene 保持
 有效。Apply 后自动生成 Physics Focus，即使算法下拉框仍显示 Feedback；用户若需要反馈

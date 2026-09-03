@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| 基线版本 | v0.1 + Foundation 0.1.1 A1-A3 physics/algorithm contract integration |
+| 基线版本 | v0.1 + Foundation 0.1.1 A1-A3 + FND-FIX-WALL contract integration |
 | 模型标签 | System-level electromagnetic approximation |
 | 对应 ADR | ADR-0001、ADR-0003、ADR-0006..0012 |
 
@@ -54,18 +54,19 @@ Pr_dBm = 10*log10(max(Pr_W, MIN_POWER_W)) + 30
 
 ### 墙体
 
-当前墙体是从 `start` 到 `end` 的 XY 有限线段，高度为 `height_m`。TX-RX 的二维线段交点
+v1 墙体是从 `start` 到 `end` 的 XY 有限线段、地面锚定的竖直墙，高度为 `height_m`。
+`start.z/end.z` 各自在绝对 `1e-9 m` 容差内为 0，墙体占据 `[0,height_m]`。TX-RX 的二维线段交点
 参数为 `t`，交点高度：
 
 ```text
 z_hit = z_start + t*(z_end-z_start)
 ```
 
-只有 `0<t<1` 且 `0≤z_hit≤height` 时命中。当前计算实际忽略 `start.z/end.z` 作为墙底，
-而 Ground Truth 又会生成三维 wall position delta；这是已登记的模型歧义，不得描述成已支持
-悬空墙或墙体 z 误差。`AMF-SIM-006` / [FND-FIX-WALL](work_items/foundation_0_1_1_wall_geometry_closure.md)
-计划将 v1 契约收紧为 `start.z=end.z=0`、占据 `[0,height_m]`、墙误差只做刚体 XY 平移；完成前
-状态仍为 Planned。
+只有 `0<t<1` 且 `0≤z_hit≤height` 时命中。Ground Truth 的公共 position delta 仍生成三维值，
+但 engine 对 Wall 只使用同一次采样的 XY 分量，并把同一 `[dx,dy,0]` 加到两个端点；z 分量不
+映射为墙底或墙高。阻挡和一次反射消费同一个 perturbed Wall。该闭环由 `AMF-SIM-006` /
+[FND-FIX-WALL](work_items/foundation_0_1_1_wall_geometry_closure.md) 实现；不能据此声称支持悬空、
+倾斜或墙体 vertical position error。
 
 命中后：
 
@@ -336,7 +337,7 @@ Controller Model 返回零位置/相位误差、单位效率缩放和名义墙�
 | RIS efficiency | 以 `N(1,sigma_eff²)` 缩放并裁剪到有效效率范围 |
 | Wall amplitude | 名义幅值乘 `N(1,sigma_wall_amp²)` 后裁剪 `[0,1]` |
 | Wall phase | 名义相位加 `N(0,sigma_wall_phase²)` |
-| Position | 当前同一实体使用固定三维 `N(0,sigma_pos²)` 平移；墙体目标契约将只使用刚体 XY 分量，见 FND-FIX-WALL |
+| Position | 同一实体使用固定三维 `N(0,sigma_pos²)` delta；TX/RX/RIS/obstacle 按既有三维模型消费，Wall 只消费同一次采样的刚体 XY 分量 |
 | Measurement | 每次 oracle 调用加入时序 `N(0,sigma_measure²)` dB 噪声 |
 
 相同 seed、场景和调用顺序必须产生相同结果。baseline/with-RIS 比较使用相同 realization。

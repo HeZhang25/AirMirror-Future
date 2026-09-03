@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative / Operational |
-| 基线版本 | v0.1 + Foundation A1-A3 + final physics/algorithm gates plan |
+| 基线版本 | v0.1 + Foundation A1-A3 + FND-FIX-WALL + final physics/algorithm gates plan |
 | 测试框架 | pytest 9+，pytest-qt |
 
 ## 1. 目标
@@ -64,7 +64,7 @@ python -m airmirror_future.experiments.phase_bits --output results/phase_bits
 | FND-T16 | quadrature ownership boundary | 固定 aperture/control/pattern/Profile，只改变 rule/order | Planned：FND-QA-AP |
 | FND-T17 | refined reference construction | successive refinement + independent rule；未收敛明确失败 | Planned：FND-QA-AP |
 | FND-T18 | quadrature report/provenance guards | 深相消不输出 Inf/误导 phase/gain；policy identity 完整 | Planned：FND-QA-AP |
-| FND-T19 | floor-anchored wall geometry | 非零 endpoint z 拒绝；Ground Truth wall 仅刚体 XY 平移；blockage/reflection 同几何 | Planned：FND-FIX-WALL |
+| FND-T19 | floor-anchored wall geometry | 超出 `1e-9 m` 的 endpoint z 拒绝；Ground Truth wall 仅刚体 XY 平移；blockage/reflection 同几何 | `tests/test_wall_geometry.py` |
 | FND-T20 | center-frequency flat-channel contract | `fc` 改变 h；`B` 不改变 h(fc) 但改变 noise/SNR/capacity；model ID 稳定 | Planned：FND-PHY-NB |
 | FND-T21 | RIS-only coefficient consistency | Focus 与最终 Controller `a_n^C` 相位共轭；1×1 时与历史中心路径等价 | Planned：FND-QA-CC |
 | FND-T22 | Coherent coefficient consistency | Focus objective 与 Controller simulation 共用 `a_n^C/h_baseline^C`，保留 A1 量化/退化规则 | Planned：FND-QA-CC |
@@ -122,7 +122,7 @@ Item 和必要 ADR 接入 policy，再重跑完整回归。
 
 FND-T19..22 是相互独立但都位于 Foundation final exit 前的门禁：
 
-1. **FND-T19 / wall**：构造与 Scene loader 都不能接受随后被 geometry 忽略的非零 wall z；
+1. **FND-T19 / wall**：构造与 Scene loader 都不能接受随后被 geometry 忽略的超容差 wall z；
    同一 seed 的 wall XY delta 必须刚体、可重放，并同时进入 blockage/reflection；
 2. **FND-T20 / narrowband**：比较时固定除一个变量外的所有输入。改变 `fc` 必须重算
    `lambda/k/h`；只改变 `B` 时 LOS/wall/RIS/total complex channel 必须不变，noise/SNR/capacity

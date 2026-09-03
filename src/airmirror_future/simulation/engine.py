@@ -83,14 +83,24 @@ class SimulationEngine:
             return scene, tx, rx
         working_tx = replace(tx, position=model.perturb(f"tx:{tx.id}", tx.position))
         working_rx = replace(rx, position=model.perturb(f"rx:{rx.id}", rx.position))
-        walls = [
-            replace(
-                wall,
-                start=model.perturb(f"wall:{wall.id}", wall.start),
-                end=model.perturb(f"wall:{wall.id}", wall.end),
+        walls = []
+        for wall in scene.walls:
+            delta = model.position_delta(f"wall:{wall.id}")
+            walls.append(
+                replace(
+                    wall,
+                    start=Vec3(
+                        wall.start.x + float(delta[0]),
+                        wall.start.y + float(delta[1]),
+                        wall.start.z,
+                    ),
+                    end=Vec3(
+                        wall.end.x + float(delta[0]),
+                        wall.end.y + float(delta[1]),
+                        wall.end.z,
+                    ),
+                )
             )
-            for wall in scene.walls
-        ]
         obstacles = []
         for obstacle in scene.obstacles:
             delta = model.position_delta(f"obstacle:{obstacle.id}")

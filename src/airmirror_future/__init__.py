@@ -13,6 +13,7 @@ from airmirror_future.core.types import (
     Transmitter,
     Vec3,
     Wall,
+    WALL_ENDPOINT_Z_ATOL_M,
 )
 from airmirror_future.core.pattern_contract import (
     COMMANDED_PHASE_ATOL_RAD,
@@ -50,6 +51,7 @@ __all__ = [
     "Transmitter",
     "Vec3",
     "Wall",
+    "WALL_ENDPOINT_Z_ATOL_M",
     "validate_commanded_pattern",
 ]
 
