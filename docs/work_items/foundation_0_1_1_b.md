@@ -44,12 +44,15 @@
 - Ground Truth 标签明确区分 Geometry Position Error 与 Feedback Measurement Noise，并说明
   floor-anchored wall 只使用刚体 XY 偏移；
 - A2 effective pitch、运行波长和 pitch/λ 作为只读透明度诊断显示，不提供 pass/fail。
+- RIS Gain 热图使用以 `0 dB` 为中心的 robust symmetric diverging scale 和 numeric legend；
+  Power/SNR 保持既有 percentile display normalization。
 
 ## 验收证据
 
 - `tests/test_optimization.py`：continuous search levels 可配置、finite-bit 候选保持硬件合法、
   Physics-Guided 未改善时保留 continuous initial、固定 seed/options 可重放；
 - `tests/test_gui_smoke.py`：窗口构造/关闭、取消和 stale version 回归；
+  RIS Gain zero-centered normalization、负/零/正颜色语义和 numeric legend；
 - `tests/test_documentation.py`：文档集合、需求追踪、链接和 schema 回归；
 - 完整 pytest、三代 fast headless、GUI offscreen smoke、`git diff --check`。
 

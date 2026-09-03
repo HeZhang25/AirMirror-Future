@@ -148,6 +148,12 @@ Idle
 
 quantity 在 Power/SNR/RIS Gain 间切换只重绘已有 `FieldMapResult`，不触发物理重算。
 
+Power 和 SNR 保持当前每张图 `3/97 percentile` sequential auto-scale。RIS Gain 是例外：显示层
+使用 blue-neutral-red diverging scale，取当前图有限 `abs(RIS Gain)` 的 97 percentile 为
+`Gmax`，并固定对称范围 `[-Gmax, +Gmax]`；负值为蓝色、`0 dB` 为中性色、正值为红色，超出
+范围的值只在显示时裁到端点。全零退化图使用 `[-1, +1] dB` 显示范围。画布 numeric colorbar
+必须同时标出 `-Gmax`、`0 dB` 和 `+Gmax`。该规则只改变 renderer，不改变 FieldMap 数值。
+
 当前 Field Map 将同一组 fixed RIS commanded pattern 用于所有评价点；它表示“固定配置下的空间
 分布”，不是每个像素分别重新聚焦后的最优包络。Coverage/Dead Zone 必须沿用这一解释。
 

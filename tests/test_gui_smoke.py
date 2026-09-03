@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QMessageBox
 
 from airmirror_future.gui.main_window import MainWindow
 from airmirror_future.gui.pattern_view import PhasePatternView
+from airmirror_future.gui.scene_view import SceneView
 from airmirror_future.core.types import FieldMapResult
 from airmirror_future.scenarios.smart_space import create_smart_space_scene
 
@@ -184,6 +185,61 @@ def test_continuous_pattern_does_not_infer_hardware_states_from_search_levels() 
     assert "Allowed States: continuous (no discrete Allowed States)" in metadata
     assert "Allowed States: 8" not in metadata
     window.close()
+    app.processEvents()
+
+
+def test_ris_gain_heatmap_uses_zero_centered_diverging_normalization() -> None:
+    values = np.array([[-8.0, -4.0, 0.0, 4.0, 8.0]])
+    rgba, gmax = SceneView._ris_gain_rgba(values)
+
+    assert gmax == pytest.approx(8.0)
+    assert -gmax < 0.0 < gmax
+    assert rgba[0, 0, 2] > rgba[0, 0, 0]
+    assert rgba[0, 2, 0] == rgba[0, 2, 1] == rgba[0, 2, 2]
+    assert rgba[0, 4, 0] > rgba[0, 4, 2]
+
+    robust_values = np.append(np.linspace(-10.0, 10.0, 101), 1000.0)[None, :]
+    _, robust_gmax = SceneView._ris_gain_rgba(robust_values)
+    assert robust_gmax == pytest.approx(np.percentile(np.abs(robust_values), 97))
+    assert robust_gmax < 1000.0
+
+
+def test_ris_gain_heatmap_shows_symmetric_numeric_legend() -> None:
+    app = QApplication.instance() or QApplication([])
+    view = SceneView()
+    view.load_scene(create_smart_space_scene())
+    gain = np.array([[-8.0, 0.0, 8.0], [-4.0, 0.0, 4.0]])
+    zeros = np.zeros_like(gain)
+    result = FieldMapResult(
+        np.array([0.0, 1.0, 2.0]),
+        np.array([0.0, 1.0]),
+        zeros,
+        zeros,
+        zeros,
+        gain,
+        0.0,
+        100.0,
+        0.0,
+    )
+
+    view.set_field_map(result, "RIS 增益")
+    assert view._field_legend_item is not None
+    assert "blue < 0 · neutral = 0 · red > 0" in view._field_legend_text
+    assert "-8.00 dB | 0.00 dB | +8.00 dB" in view._field_legend_text
+    assert [label.text() for label in view._field_legend_labels] == [
+        "RIS Gain: blue < 0 · neutral = 0 · red > 0",
+        "-8.00 dB",
+        "0.00 dB",
+        "+8.00 dB",
+    ]
+    view.set_field_visible(False)
+    assert view._field_legend_item.isVisible() is False
+    assert all(label.isVisible() is False for label in view._field_legend_labels)
+
+    view.set_field_map(result, "接收功率")
+    assert view._field_legend_item is None
+    assert view._field_legend_text is None
+    view.close()
     app.processEvents()
 
 

@@ -183,6 +183,10 @@ tooltip 区分 Geometry Position Error 与 Feedback Measurement Noise，并说�
 wall 的刚体 XY 作用范围。continuous `search_levels` 与 finite-bit `2**phase_bits` 候选分别由
 optimizer 定向测试锁定。
 
+RIS Gain 场图 smoke 还必须锁定 robust `Gmax` 的对称 `[-Gmax, +Gmax]` normalization、负/零/正
+diverging colors 和 numeric legend；切回 Power/SNR 时不得残留 RIS Gain legend，且两者原有
+percentile normalization 保持不变。
+
 ## 7. 性能测试
 
 绝对秒数只记录为参考，不作为跨机器硬门禁。每个 release 记录：CPU/OS/Python/NumPy、

@@ -92,6 +92,10 @@ class SceneView(QGraphicsView):
         self._suppress_moves = False
         self._heatmap_item: QGraphicsPixmapItem | None = None
         self._coverage_item: QGraphicsPixmapItem | None = None
+        self._field_legend_item: QGraphicsPixmapItem | None = None
+        self._field_legend_labels: list[QGraphicsSimpleTextItem] = []
+        self._field_legend_text: str | None = None
+        self._gain_legend_gmax_db: float | None = None
         self._show_labels = True
         self._show_rays = True
 
@@ -139,11 +143,18 @@ class SceneView(QGraphicsView):
             if preserve_heatmap and self._coverage_item
             else None
         )
+        old_gain_gmax = (
+            self._gain_legend_gmax_db if preserve_heatmap and old_pixmap is not None else None
+        )
         self.model_scene = scene
         self._suppress_moves = True
         self.graphics_scene.clear()
         self._heatmap_item = None
         self._coverage_item = None
+        self._field_legend_item = None
+        self._field_legend_labels = []
+        self._field_legend_text = None
+        self._gain_legend_gmax_db = old_gain_gmax
         room_width = scene.room_size.x * self.scale_px_m
         room_height = scene.room_size.y * self.scale_px_m
         self.graphics_scene.setSceneRect(0, 0, room_width, room_height)
@@ -209,6 +220,8 @@ class SceneView(QGraphicsView):
             self.graphics_scene.addLine(
                 tx_point.x(), tx_point.y(), rx_point.x(), rx_point.y(), direct_pen
             ).setZValue(9)
+        if old_gain_gmax is not None:
+            self._render_gain_legend(old_gain_gmax)
         self._suppress_moves = False
         self.fitInView(self.graphics_scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
 
@@ -228,6 +241,74 @@ class SceneView(QGraphicsView):
         alpha = np.full_like(normalized, 0.72)
         return (np.stack((red, green, blue, alpha), axis=2) * 255.0).astype(np.uint8)
 
+    @staticmethod
+    def _ris_gain_rgba(
+        values: np.ndarray, *, gmax: float | None = None
+    ) -> tuple[np.ndarray, float]:
+        """Render gain with a robust symmetric range and a fixed neutral zero."""
+        values = np.asarray(values, dtype=float)
+        if gmax is None:
+            finite = np.abs(values[np.isfinite(values)])
+            gmax = float(np.percentile(finite, 97)) if finite.size else 0.0
+        if gmax <= np.finfo(float).eps:
+            gmax = 1.0
+
+        signed = np.zeros_like(values, dtype=float)
+        np.divide(values, gmax, out=signed, where=np.isfinite(values))
+        signed = np.clip(signed, -1.0, 1.0)
+        negative = np.clip(-signed, 0.0, 1.0)[..., None]
+        positive = np.clip(signed, 0.0, 1.0)[..., None]
+        neutral = np.array((0.95, 0.95, 0.95))
+        blue = np.array((0.12, 0.47, 0.84))
+        red = np.array((0.88, 0.18, 0.18))
+        rgb = neutral + negative * (blue - neutral) + positive * (red - neutral)
+        alpha = np.full((*values.shape, 1), 0.72)
+        rgba = (np.concatenate((rgb, alpha), axis=2) * 255.0).astype(np.uint8)
+        return rgba, gmax
+
+    def _remove_field_legend_items(self) -> None:
+        if self._field_legend_item is not None:
+            self.graphics_scene.removeItem(self._field_legend_item)
+        for label in self._field_legend_labels:
+            self.graphics_scene.removeItem(label)
+        self._field_legend_item = None
+        self._field_legend_labels = []
+        self._field_legend_text = None
+
+    def _render_gain_legend(self, gmax: float) -> None:
+        self._remove_field_legend_items()
+        bar_width = 300
+        bar_height = 12
+        samples = np.linspace(-gmax, gmax, bar_width, dtype=float)[None, :]
+        bar_rgba, _ = self._ris_gain_rgba(samples, gmax=gmax)
+        bar_rgba[:, :, 3] = 255
+        bar_rgba = np.ascontiguousarray(np.repeat(bar_rgba, bar_height, axis=0))
+        image = QImage(
+            bar_rgba.data,
+            bar_width,
+            bar_height,
+            bar_width * 4,
+            QImage.Format.Format_RGBA8888,
+        ).copy()
+        self._field_legend_item = self.graphics_scene.addPixmap(QPixmap.fromImage(image))
+        self._field_legend_item.setPos(10, 26)
+        self._field_legend_item.setZValue(30)
+
+        title = "RIS Gain: blue < 0 · neutral = 0 · red > 0"
+        numeric_labels = (f"{-gmax:+.2f} dB", "0.00 dB", f"{gmax:+.2f} dB")
+        for text in (title, *numeric_labels):
+            label = self.graphics_scene.addSimpleText(text)
+            label.setBrush(QColor("#f8fafc"))
+            label.setZValue(31)
+            self._field_legend_labels.append(label)
+        self._field_legend_labels[0].setPos(10, 6)
+        low, zero, high = self._field_legend_labels[1:]
+        low.setPos(10, 40)
+        zero.setPos(10 + bar_width / 2 - zero.boundingRect().width() / 2, 40)
+        high.setPos(10 + bar_width - high.boundingRect().width(), 40)
+        self._field_legend_text = f"{title}; {' | '.join(numeric_labels)}"
+        self._field_legend_item.setToolTip(self._field_legend_text)
+
     def set_field_map(self, result: FieldMapResult, quantity: str) -> None:
         if self.model_scene is None:
             return
@@ -236,7 +317,14 @@ class SceneView(QGraphicsView):
             "SNR": result.snr_db,
             "RIS 增益": result.ris_gain_db,
         }[quantity]
-        rgba = np.ascontiguousarray(np.flipud(self._rgba(values)))
+        if quantity == "RIS 增益":
+            rgba, gmax = self._ris_gain_rgba(values)
+            self._gain_legend_gmax_db = gmax
+        else:
+            rgba = self._rgba(values)
+            self._gain_legend_gmax_db = None
+            self._remove_field_legend_items()
+        rgba = np.ascontiguousarray(np.flipud(rgba))
         height, width, _ = rgba.shape
         image = QImage(rgba.data, width, height, width * 4, QImage.Format.Format_RGBA8888).copy()
         pixmap = QPixmap.fromImage(image).scaled(
@@ -250,10 +338,16 @@ class SceneView(QGraphicsView):
             self._heatmap_item.setZValue(-10)
         else:
             self._heatmap_item.setPixmap(pixmap)
+        if self._gain_legend_gmax_db is not None:
+            self._render_gain_legend(self._gain_legend_gmax_db)
 
     def set_field_visible(self, visible: bool) -> None:
         if self._heatmap_item is not None:
             self._heatmap_item.setVisible(visible)
+        if self._field_legend_item is not None:
+            self._field_legend_item.setVisible(visible)
+        for label in self._field_legend_labels:
+            label.setVisible(visible)
 
     def set_coverage_map(
         self, result: FieldMapResult, threshold_db: float, visible: bool
