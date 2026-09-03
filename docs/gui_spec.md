@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| 基线版本 | v0.1 + Foundation planned semantics/labels |
+| 基线版本 | v0.1 + Foundation B implementation semantics/labels |
 | 对应需求 | AMF-UI-001..008、AMF-PHY-007、AMF-SIM-006 |
 
 ## 1. 页面组成
@@ -25,7 +25,7 @@
 - x 向右、y 向上；Qt 屏幕 y 在显示边界翻转，模型坐标不变；
 - TX 红色圆点、RX 绿色圆点、RIS 紫色线段、墙灰白、障碍物橙色；
 - TX/RX/RIS 可拖动并限制在 room 平面范围内，z 保持原值；
-- 拖动任一实体立即使旧 task version 失效，重新计算目标 Physics Focus、目标指标并
+- 拖动任一实体立即使旧 task version 失效，重新计算默认 Coherent Target Focus、目标指标并
   debounce 新场图；
 - 直接射线和 RIS 两段射线只表示模型显式计算的主要路径，不生成装饰射线；
 - 场图 y 轴只在图像显示时翻转；数组和保存数据维持数值升序。
@@ -86,24 +86,31 @@ Work Item 明确授权。
 GUI v0.1 暴露 phase error、measurement noise 和 position error sigma；点击 Apply 才创建新
 GroundTruthModel。未暴露的效率/墙误差通过 headless API 配置。
 
+Foundation B 标签为 `Feedback Measurement Noise σ / 反馈测量噪声 σ` 和
+`Geometry Position Error σ / 几何位置误差 σ`。Actual Pattern 是 commanded 加入 Ground Truth
+phase error 后的传播态，不再量化；position tooltip 必须说明 TX/RX/RIS/obstacle 按各自三维模型
+处理，v1 floor-anchored wall 仅使用同一个刚体 XY 偏移。
+
 Position Error 为各实体生成三维 delta；FND-FIX-WALL 已冻结 engine 消费语义：TX/RX/RIS/
 obstacle 按各自三维模型处理，floor-anchored wall 只使用同一个刚体 XY 偏移。B3 接线后的准确
 tooltip 必须使用该措辞，不得声称墙体存在 vertical position error。
 
 Apply 使用 dataclass replace 重建并校验对象。任何错误用对话框明确显示，旧 scene 保持
-有效。Apply 后自动生成 Physics Focus，即使算法下拉框仍显示 Feedback；用户若需要反馈
+有效。Apply 后自动生成默认 Coherent Target Focus，即使算法下拉框仍显示 Feedback；用户若需要反馈
 结果必须再次点击 Optimize。
 
 ## 4. 技术代际
 
 切换 Current/Advanced/Future 时：
 
-1. 保留 RIS id、position、yaw 和整个 room scene；
-2. 用 `generation_preset` 替换孔径、网格、相位、效率、更新率、自感知；
-3. 同步控件；
-4. 生成 Physics Focus；
-5. 更新目标指标并后台重算场图；
-6. Future 显示 `Future Scenario Assumption`。
+1. 无 pending 时立即加载；有 pending 时先采用 confirm-discard / cancel-preserve：Confirm 丢弃待
+   应用控件修改，Cancel 恢复原 applied generation 并完整保留 pending 值；
+2. 保留 RIS id、position、yaw 和整个 room scene；
+3. 用 `generation_preset` 替换孔径、网格、相位、效率、更新率、自感知和 generation；
+4. 同步控件、清除 dirty state、失效旧 worker；
+5. 生成默认 Coherent Target Focus；
+6. 更新目标指标并后台重算场图；
+7. Future 显示 `Future Scenario Assumption`。
 
 代际不是主题颜色，不允许额外乘增益。
 
@@ -111,7 +118,8 @@ Apply 使用 dataclass replace 重建并校验对象。任何错误用对话框�
 
 | 选择 | 点击 Optimize 后 |
 |---|---|
-| Physics Focus | 主线程快速生成 pattern，随后后台重算场图 |
+| Coherent Target Focus | GUI 默认；主线程按 Controller nominal total received power 生成 pattern，随后后台重算场图 |
+| RIS-only Physics Focus | 保留的公开对照；只使 RIS patch 贡献相互相干 |
 | Feedback Greedy | worker 从全零 pattern 开始，仅用 oracle 测量 |
 | Physics-Guided Feedback | worker 从 Physics Focus 开始反馈细化 |
 
@@ -148,7 +156,7 @@ quantity 在 Power/SNR/RIS Gain 间切换只重绘已有 `FieldMapResult`，不�
 - Save 只保存 Scene v1，不保存 current pattern、algorithm、Ground Truth sigma、窗口状态或
   heatmap；
 - Load 校验 v1，要求 GUI 至少有一个 TX、RX 和 RIS；
-- Load 后同步 RF/RIS 控件、重建 Physics Focus 并重算；
+- Load 后同步 RF/RIS 控件、重建默认 Coherent Target Focus 并重算；
 - 若未来需要保存控制状态，必须升级 schema，不能偷偷加入 GUI 私有字段。
 
 ## 8. 人工验收清单

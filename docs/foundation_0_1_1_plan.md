@@ -5,10 +5,10 @@
 | 文档状态 | Operational / Normative for sequencing |
 | 当前实现基线 | v0.1 Verified，commit `edfa43c` |
 | 目标版本 | v0.1.1 Foundation |
-| 当前计划状态 | In Progress；A1/A2/A3、FND-FIX-WALL Verified；B/C、FND-QA-AP、FND-PHY-NB、FND-QA-CC 尚未完成 |
+| 当前计划状态 | In Progress；A1/A2/A3、FND-FIX-WALL Verified；B1/B2/B3 Implemented（待独立审查）；C、FND-QA-AP、FND-PHY-NB、FND-QA-CC 尚未完成 |
 | 父级路线 | v0.1 Smart Space → Foundation 0.1.1 → P1A |
 | 主要责任 | 项目维护者、物理仿真负责人、GUI/测试负责人 |
-| 最后复核 | 2026-09-03（FND-FIX-WALL independent verification；Profile ownership 仍以 ADR-0012 为准） |
+| 最后复核 | 2026-09-03（B-stage implementation handoff；Profile ownership 仍以 ADR-0012 为准） |
 
 本文是 AirMirror Future 在 v0.1 后的首个模型契约改进计划。它把当前代码事实、已发现的
 物理/算法/交互问题、目标架构、实施顺序、测试证据和退出门禁集中到同一个工作入口，供
@@ -681,9 +681,9 @@ coefficient builder。最后由 [FND-QA-CC](work_items/foundation_0_1_1_coeffici
 | 5 | `FND-PHY-01` 实现两个具名 Focus | Implemented | RIS-only 保留、Coherent 新增且分层正确；ADR-0006 |
 | 6 | `FND-PHY-02` 实现 commanded validator | Implemented | 所有公共传播入口共用且 Field Map 只验证一次 |
 | 7 | `FND-FIX-WALL` 冻结 floor-anchored Wall/XY perturbation | Verified | FND-T19、schema/error/compatibility evidence；独立验收 G0–G8 PASS |
-| 8 | `FND-OPT-01` 增加 search levels 与结果元数据 | Planned | discrete/continuous 语义分离 |
-| 9 | `FND-UI-01` 建立 pending/apply/Optimize 门禁 | Planned | GUI 状态机 smoke tests |
-| 10 | `FND-UI-02` 增加 Customized、Pattern 信息和准确标签 | Planned | 可人工验收界面 |
+| 8 | `FND-OPT-01` 增加 search levels 与结果元数据 | Implemented | `docs/work_items/foundation_0_1_1_b.md`；discrete/continuous 语义分离与 optimizer tests |
+| 9 | `FND-UI-01` 建立 pending/apply/Optimize 门禁 | Implemented | `docs/work_items/foundation_0_1_1_b.md`；GUI smoke tests |
+| 10 | `FND-UI-02` 增加 Customized、Pattern 信息和准确标签 | Implemented | `docs/work_items/foundation_0_1_1_b.md`；Pattern metadata/GUI smoke 与人工清单 |
 | 11 | `FND-QA-AB` A/B 中期验收与人工复核 | Planned | 三代 headless、GUI、临时隔离实验和审查记录 |
 | 12 | `FND-ARCH-01` 接入 environment-only PropagationProfile | Planned | 全路径角色调用、当前分量等价复现、稳定 identity |
 | 13 | `FND-EXP-01` 加入最小实验 provenance | Planned | versioned CSV/PNG、legacy 和 no-overwrite |
@@ -978,7 +978,8 @@ Foundation 之后按以下顺序推进：
 ## 16. 新开发者开始工作前的检查单
 
 - [ ] 我能解释 AirMirror Future 为什么是系统级近似而不是全波求解器；
-- [ ] 我知道 v0.1 GUI/CLI 默认仍是 RIS-only；Coherent Target Focus API 已实现，B 阶段接入未完成；
+- [ ] 我知道 Foundation B 后 GUI 默认是 Coherent Target Focus；RIS-only 仍可选，CLI、
+  Physics-Guided 和 legacy experiment 为兼容性继续使用 RIS-only；
 - [ ] 我知道 `nx/ny` 当前同时承担控制和求积离散，不能直接称真实 meta-atoms；
 - [ ] 我知道现有 8/16/32 测试保护面积归一化/不发散，不证明粗 patch 已物理收敛；
 - [ ] 我知道 A2 semantic contract 已 Verified，但 aperture discretization accuracy 尚未 Verified；

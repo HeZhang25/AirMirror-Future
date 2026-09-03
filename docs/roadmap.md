@@ -62,7 +62,7 @@ id 错误异常待统一。这些进入 P1 tasks。
 
 ## 4. Foundation 0.1.1：物理模型契约
 
-状态：In Progress；A1/A2/A3、FND-FIX-WALL Verified；B/C、
+状态：In Progress；A1/A2/A3、FND-FIX-WALL Verified；B1/B2/B3 Implemented（待独立审查）；C、
 FND-QA-AP、FND-PHY-NB 与 FND-QA-CC 尚未完成。详细背景、范围、
 Requirement IDs、L3/L4 工作项、测试、兼容策略和 Exit Gate 见
 [foundation_0_1_1_plan.md](foundation_0_1_1_plan.md)。
@@ -82,6 +82,10 @@ Requirement IDs、L3/L4 工作项、测试、兼容策略和 Exit Gate 见
 9. 关闭 floor-anchored Wall/XY-only Ground Truth 几何歧义；
 10. 冻结 `h(fc)` 在 B 内平坦的 narrowband/capacity/provenance 语义；
 11. 验证 RIS-only/Coherent Focus 与最终 Controller `a_n^C` 一致，Ground Truth 不泄漏。
+
+B-stage implementation handoff 见 [combined B Work Item](work_items/foundation_0_1_1_b.md)。
+本次只同步到 implementation-level，不执行 A/B Interim Checkpoint，不提升 Foundation 或 B
+deliverables 为 Verified。
 
 Exit gate：三个子 Capability 全部达到各自门禁，默认 Profile 可解释地复现 v0.1 reference，
 FND-T13c/T13d 证明墙系数与反射两段 modifier 各只应用一次并排除反射墙自身；

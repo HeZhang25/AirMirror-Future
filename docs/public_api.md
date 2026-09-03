@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| API 基线 | 0.1 + Foundation A1-A3 + FND-FIX-WALL additive API + planned closure boundaries |
+| API 基线 | 0.1 + Foundation A1-A3 + FND-FIX-WALL + B1 additive API + planned closure boundaries |
 | Python | 3.11+ |
 
 ## 1. 稳定性政策
@@ -93,8 +93,9 @@ generate_ris_only_focus_pattern(
 ```
 
 返回 `[ris.cell_count]` 弧度数组，已按 surface `phase_bits` 量化；只使 RIS patch 相互同相，
-不读取 baseline。`generate_focus_pattern()` 在 A1 中是行为完全相同的兼容别名，现有 GUI、CLI、
-feedback 初始化和 legacy experiment 尚未迁移。
+不读取 baseline。`generate_focus_pattern()` 在 A1 中是行为完全相同的兼容别名。Foundation B 后
+GUI 默认使用 Coherent Target Focus 并保留 RIS-only 选项；CLI、feedback 初始化和 legacy
+experiment 继续使用该 RIS-only 兼容入口。
 
 ```python
 apply_common_phase_offset(
@@ -231,8 +232,10 @@ Optimizer.optimize(
 ```
 
 v0.1 只支持单 RIS 和 `received_power_dbm`。Feedback Greedy 额外接受
-`initial_patterns`、`cancel_check`、`progress(done,total,value)`；Physics-Guided 自动以
-Physics Focus 初始化。
+`initial_patterns`、`search_levels`、`cancel_check`、`progress(done,total,value)`；Physics-Guided
+自动以 RIS-only Physics Focus 初始化。continuous hardware 使用 finite search-level refinement，
+finite-bit 候选固定为 `2**phase_bits` 合法状态。`OptimizationResult` 记录 algorithm、
+hardware_phase_bits、search_levels、pattern_source 和 metadata。
 
 ## 6. CLI
 

@@ -26,7 +26,8 @@ control-level coefficient 的 quadrature policy；随后依次关闭
 [Wall 几何](docs/work_items/foundation_0_1_1_wall_geometry_closure.md)、
 [中心频率窄带语义](docs/work_items/foundation_0_1_1_narrowband_contract.md) 和
 [Controller coefficient/Focus 一致性](docs/work_items/foundation_0_1_1_coefficient_consistency.md)。
-Foundation 当前为 In Progress：A1、A2 与 A3 已 Verified；B/C 和上述 cross-cutting gates 尚未
+Foundation 当前为 In Progress：A1、A2 与 A3 已 Verified；B1/B2/B3 已达到 implementation-level
+（待独立审查），C 和上述 cross-cutting gates 尚未
 完成。未达到
 Implemented 的计划项不得描述为当前功能。
 

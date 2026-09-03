@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| 基线版本 | v0.1 + Foundation A1-A3 + FND-FIX-WALL + planned closure contracts |
+| 基线版本 | v0.1 + Foundation A1-A3 + FND-FIX-WALL + B1 result metadata + planned closure contracts |
 | 权威实现 | `src/airmirror_future/core/types.py` |
 
 ## 1. 通用规则
@@ -221,7 +221,12 @@ reflection/world-model identity，并仍须进入总体 coefficient identity。
 ### `OptimizationResult`
 
 `patterns: dict[ris_id,array]`、最终 `objective_db`、`iterations`（measurement 次数）、
-`runtime_s`、每个已接受 tile 后的 `history_db` 和 `cancelled`。
+`runtime_s`、每个已接受 tile 后的 `history_db` 和 `cancelled`。Foundation B 追加实现级元数据：
+`algorithm`、`hardware_phase_bits`、`search_levels`、`pattern_source` 和可扩展的 `metadata`。
+其中 `hardware_phase_bits` 描述 RIS 硬件；`search_levels` 仅在 continuous hardware 上记录有限反馈
+候选级数，不是硬件 Allowed States。Finite-bit 结果将 `search_levels` 记为 None，并在 metadata
+以 `candidate_levels=2**phase_bits` 记录硬件合法候选数；
+Physics-Guided continuous 初始 pattern 保持连续值，未严格改善的 tile 保留原值，不做额外全局量化。
 
 ## 6. 模型误差类型
 

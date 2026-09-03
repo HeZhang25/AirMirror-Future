@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| 基线版本 | v0.1 + Foundation A1 + planned coefficient consistency gate |
+| 基线版本 | v0.1 + Foundation A1/B1 + planned coefficient consistency gate |
 | 当前目标 | 单 RX 接收功率最大化 |
 
 ## 1. 隔离原则
@@ -104,6 +104,13 @@ ADR-0006 的公共 offset/量化/tie-break 契约。Focus 不能读取 Ground Tr
 
 Foundation B1 必须记录 continuous hardware 的 `search_levels`；FND-QA-CC 只约束 model-based
 initial Focus 与 Controller coefficient 一致，不把反馈候选或 measurement noise 并入 `a_n`。
+
+Foundation B 冻结：continuous Physics Focus initial pattern 保持连续相位；每个 tile 使用
+`search_levels` 个均匀候选，默认 8。候选不能严格改善时保留原连续值，有改善时替换为最佳
+search-grid 值，因此最终 commanded pattern 可以混合连续值与 search-grid 值，这是 continuous
+hardware 的合法结果。不得把 `search_levels=N` 描述为 N-state hardware，也不得对 initial/final
+pattern 额外全局量化。Finite-bit hardware 始终使用 `2**phase_bits` 个合法状态，search 参数不得
+覆盖硬件分辨率。
 
 ## 6. Measurement Oracle
 

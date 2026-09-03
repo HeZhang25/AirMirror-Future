@@ -176,6 +176,13 @@ JSON golden file 只用于结构兼容；物理数值不写入 golden JSON，以
 和 coverage overlay。涉及 Qt 线程的测试必须等待明确 signal，禁止依赖固定 sleep 作为唯一
 同步条件。
 
+Foundation B 增加的自动 smoke 覆盖：Pending 编辑会禁用 Optimize 并要求 Apply；Generation
+切换在 pending 时验证 confirm-discard / cancel-preserve；Pattern 元数据显示 Grid、Hardware
+Phase、Allowed/Used States、Pattern Source、Actual phase-error 说明和循环图例；Ground Truth
+tooltip 区分 Geometry Position Error 与 Feedback Measurement Noise，并说明 floor-anchored
+wall 的刚体 XY 作用范围。continuous `search_levels` 与 finite-bit `2**phase_bits` 候选分别由
+optimizer 定向测试锁定。
+
 ## 7. 性能测试
 
 绝对秒数只记录为参考，不作为跨机器硬门禁。每个 release 记录：CPU/OS/Python/NumPy、

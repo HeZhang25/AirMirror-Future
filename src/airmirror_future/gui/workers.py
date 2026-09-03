@@ -75,12 +75,14 @@ class OptimizationWorker(QRunnable):
         algorithm: str,
         scene: Scene,
         ground_truth: GroundTruthModel,
+        search_levels: int = 8,
     ) -> None:
         super().__init__()
         self.version = version
         self.algorithm = algorithm
         self.scene = scene
         self.ground_truth = ground_truth
+        self.search_levels = search_levels
         self.signals = WorkerSignals()
         self._cancelled = threading.Event()
 
@@ -93,9 +95,9 @@ class OptimizationWorker(QRunnable):
             engine = SimulationEngine()
             oracle = MeasurementOracle(self.scene, engine, self.ground_truth)
             if self.algorithm == "Feedback Greedy":
-                optimizer = FeedbackGreedyOptimizer(4, 4, 1)
+                optimizer = FeedbackGreedyOptimizer(4, 4, 1, self.search_levels)
             else:
-                optimizer = PhysicsGuidedFeedbackOptimizer(4, 4, 1)
+                optimizer = PhysicsGuidedFeedbackOptimizer(4, 4, 1, self.search_levels)
 
             def progress(done: int, total: int, value: float) -> None:
                 try:
@@ -106,6 +108,7 @@ class OptimizationWorker(QRunnable):
             result = optimizer.optimize(
                 ControllerModel(),
                 oracle,
+                search_levels=self.search_levels,
                 cancel_check=self._cancelled.is_set,
                 progress=progress,
             )

@@ -4,7 +4,7 @@
 |---|---|
 | 文档状态 | Normative / 规范性 |
 | 基线版本 | v0.1 |
-| 最后复核 | 2026-09-03（FND-FIX-WALL verification/status closure） |
+| 最后复核 | 2026-09-03（Foundation B-stage implementation handoff） |
 | 维护责任 | 修改相关代码的开发者 |
 
 本目录是 AirMirror Future 的工程事实源。根目录的 `项目说明提示词.md` 保存原始愿景和
@@ -20,6 +20,8 @@
 3. [foundation_0_1_1_plan.md](foundation_0_1_1_plan.md)：当前基线之后的模型契约改进计划；
    A3 commanded hardware boundary 的 Ready/implementation/verification 证据见
    [A3 Work Item](work_items/foundation_0_1_1_a3.md)；
+   Foundation B1/B2/B3 的 Ready/implementation 证据见
+   [combined B Work Item](work_items/foundation_0_1_1_b.md)；
    其中最小孔径求积门禁详见
    [FND-QA-AP](work_items/foundation_0_1_1_qa_ap.md) 与
    [ADR-0008](adr/0008-minimum-aperture-quadrature-validity-gate.md)，墙体、窄带与系数一致性收尾

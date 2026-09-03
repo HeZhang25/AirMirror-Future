@@ -342,6 +342,14 @@ class OptimizationResult:
     runtime_s: float
     history_db: list[float]
     cancelled: bool = False
+    # Foundation B metadata keeps hardware resolution distinct from the
+    # optimizer's candidate search resolution.  Defaults preserve the v0.1
+    # construction contract for callers that build results directly.
+    algorithm: str = ""
+    hardware_phase_bits: int | None = None
+    search_levels: int | None = None
+    pattern_source: str = ""
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 CancelCheck = Callable[[], bool]

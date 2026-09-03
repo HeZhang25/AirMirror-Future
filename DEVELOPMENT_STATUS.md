@@ -6,7 +6,26 @@
 | 当前 release | v0.1 |
 | release 状态 | Verified |
 | 规范基线 | [docs/README.md](docs/README.md) |
-| 当前 Capability | Foundation 0.1.1A Physics and Algorithm Contract（In Progress） |
+| 当前 Capability | Foundation 0.1.1B Optimizer and GUI Semantics（Implemented，待独立审查；Foundation overall In Progress） |
+
+## Foundation 0.1.1B implementation handoff
+
+Foundation 0.1.1B 的 Ready Review 已于 2026-09-03 重新完成，blocking ambiguity 为 0。两项冻结
+决策为：continuous Physics Focus initial + finite `search_levels` feedback refinement；以及
+Generation pending 状态的 confirm-discard / cancel-preserve。
+
+B1/B2/B3 已达到 implementation-level：
+
+- `AMF-OPT-004`：hardware phase bits 与 optimizer search levels 分离；finite-bit 候选固定为合法
+  `2**phase_bits`，continuous search levels 可配置并进入 `OptimizationResult` metadata；
+- `AMF-RIS-008`：GUI 默认接入 Coherent Target Focus，同时保留 RIS-only Physics Focus 入口；
+- `AMF-RIS-009`：GUI 只读显示 equivalent patch pitch、运行波长与 pitch/λ，不提供无来源阈值；
+- `AMF-UI-007`：Pending/Apply/Optimize 门禁、Customized 派生显示和 Generation 覆盖提示；
+- `AMF-UI-008`：Pattern Grid/Hardware Phase/Allowed-Used States/Source/Actual error/legend，以及
+  准确的 Geometry Position Error 与 Feedback Measurement Noise 标签。
+
+对应 combined Work Item：[Foundation 0.1.1B](docs/work_items/foundation_0_1_1_b.md)。本次仅同步到
+Implemented，不声明 Verified；未执行 A/B Interim Checkpoint，不涉及 C、QA、cache、P1 或新场景。
 
 ## Foundation / FND-FIX-WALL verification/status closure
 
@@ -250,15 +269,13 @@ Implemented/Verified。
 
 ## 已知问题
 
-- GUI、CLI、Physics-Guided 和 legacy experiment 当前仍使用 RIS-only Physics Focus；A1 的
-  Coherent Target Focus 已有 headless Python API，但默认接入属于后续 B 阶段；
-- `nx/ny` 的 equivalent patch 语义已冻结，但仍同时承担控制与中心点求积；GUI 尚未接入
+- GUI 默认使用 Coherent Target Focus，RIS-only Physics Focus 仍可选；CLI、Physics-Guided 和
+  legacy experiment 为兼容性继续使用 RIS-only objective；
+- `nx/ny` 的 equivalent patch 语义已冻结，但仍同时承担控制与中心点求积；GUI 已接入
   A2 只读 pitch/波长诊断；最小独立求积有效性进入 Foundation final exit 前的 FND-QA-AP，
   P1C 保留完整 aperture/field-map/适用域研究；
-- A3 commanded hardware-state validation 已 Verified；B 阶段的 hardware/search resolution 和
-  GUI transparency 仍未实现；
-- continuous hardware 与反馈优化的 8-state search 尚未在接口/UI 中拆分；
-- GUI Generation 立即应用、普通参数等待 Apply，但没有 pending/customized 状态提示；
+- A3 commanded hardware-state validation 已 Verified；B1/B2/B3 已达到 implementation-level，
+  待独立审查；
 - 所有场景仍共用固定传播编排，尚无 PropagationProfile identity；
 - Profile/Reflection 的 target ownership 已由 ADR-0012 冻结，但 C1 尚未实现；
 - `frequency_hz/bandwidth_hz` 的 flat-channel 语义已由 ADR-0010 冻结，但 model ID、标签和

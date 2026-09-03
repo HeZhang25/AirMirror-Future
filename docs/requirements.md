@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| 基线版本 | v0.1 + Foundation A1-A3 + physics/algorithm master-plan integration |
+| 基线版本 | v0.1 + Foundation A1-A3/FND-FIX-WALL + B-stage implementation |
 | 编号规则 | `AMF-<DOMAIN>-<NNN>`；删除后不复用 |
 
 状态含义见 [glossary.md](glossary.md)。证据列必须是测试、命令或人工验收步骤；仅有源码
@@ -34,8 +34,8 @@
 | AMF-RIS-005 | 固定孔径在面积归一化下细分 control grid 不产生无界 patch-count 增益，并表现稳定趋势；增大实体孔径通常提升理想聚焦 | Implemented | area-normalized scattering | PHY-T11 no-unbounded-gain test、larger-aperture test；不作为独立 quadrature convergence 证据 |
 | AMF-RIS-006 | RIS 背面方向贡献为零，默认余弦方向图 `q=1` | Implemented | `physics/ris_scattering.py` | `test_back_side_receiver_gets_no_ris_field` |
 | AMF-RIS-007 | 三代 preset 是可编辑假设；Future 显式标记 | Implemented | `ris/generations.py`, GUI | headless generation runs、GUI smoke |
-| AMF-RIS-008 | 区分 RIS-only 与 Coherent Target Focus；GUI 默认算法与 nominal target objective 一致 | In Progress | A1: `ris/phase.py`, `optimization/coherent_focus.py`；GUI 接入待 B 阶段 | `tests/test_coherent_focus.py` FND-T01..05；ADR-0006 |
-| AMF-RIS-009 | `nx/ny` 定义为 equivalent controllable aperture patches，并显示有效 pitch/波长比例和限制 | In Progress | A2: `ris/aperture.py`、ADR-0007；GUI 只读接入待 B 阶段 | `tests/test_aperture_diagnostics.py` FND-T09；[A2 Work Item](work_items/foundation_0_1_1_a2.md) |
+| AMF-RIS-008 | 区分 RIS-only 与 Coherent Target Focus；GUI 默认算法与 nominal target objective 一致 | Implemented | `ris/phase.py`, `optimization/coherent_focus.py`, `gui/main_window.py` | `tests/test_coherent_focus.py` FND-T01..05；`test_gui_defaults_to_coherent_target_and_keeps_ris_only_accessible`；ADR-0006 |
+| AMF-RIS-009 | `nx/ny` 定义为 equivalent controllable aperture patches，并显示有效 pitch/波长比例和限制 | Implemented | `ris/aperture.py`, `gui/main_window.py`, ADR-0007 | `tests/test_aperture_diagnostics.py` FND-T09；`test_pattern_metadata_and_ground_truth_labels_are_explicit`；[A2 Work Item](work_items/foundation_0_1_1_a2.md) |
 | AMF-RIS-010 | 传播前验证 commanded pattern 符合 phase bits；Actual Ground Truth error 不再量化 | Verified | `core/pattern_contract.py`、`simulation/engine.py`、`physics/ris_scattering.py` | `tests/test_pattern_contract.py` FND-T06..08；[A3 Work Item](work_items/foundation_0_1_1_a3.md)；implementation commit `fb5ec093e78e588a65a661abf3b32d744d04ae04` 独立验收 G0–G8 PASS、blocking issues 0 |
 | AMF-RIS-011 | 在 Foundation final exit/P1A 前固定 aperture/control/pattern、仅细化独立 quadrature，冻结可重放的 coefficient policy 和声明适用域 | Planned | [ADR-0008](adr/0008-minimum-aperture-quadrature-validity-gate.md)、[FND-QA-AP](work_items/foundation_0_1_1_qa_ap.md) | FND-T16..18、versioned QA matrix、人工 policy 签署；不等同 EM/full-wave truth |
 | AMF-RIS-012 | 最终 production policy 下，RIS-only/Coherent Focus 与 Controller simulator 使用同一 control-level 复系数定义；Ground Truth 系数不得泄漏给 Focus | Planned | [ADR-0011](adr/0011-controller-coefficient-focus-consistency.md)、[FND-QA-CC](work_items/foundation_0_1_1_coefficient_consistency.md) | FND-T21..22、Controller/GT boundary 与 identity review |
@@ -52,7 +52,7 @@
 | AMF-OPT-002 | Physics-Guided 使用 Focus 初始化再反馈修正 | Implemented | `optimization/physics_guided.py` | `test_physics_guided_feedback_returns_valid_pattern` |
 | AMF-OPT-003 | 大 RIS 优化使用 tile grouping，支持取消与进度 | Implemented | `greedy.py`, `gui/workers.py` | GUI smoke；人工 Optimize/Cancel 步骤 |
 | AMF-SIM-004 | 固定几何预计算 `a_n`、多点分块矩阵和增量贪心 | Planned | — | 进入 P1 性能里程碑前补基准测试 |
-| AMF-OPT-004 | hardware phase resolution 与 optimizer search levels 分离并进入结果元数据 | Planned | — | `foundation_0_1_1_plan.md` FND-T10 |
+| AMF-OPT-004 | hardware phase resolution 与 optimizer search levels 分离并进入结果元数据 | Implemented | `optimization/greedy.py`, `optimization/physics_guided.py`, `core/types.py` | `tests/test_optimization.py::test_search_levels_are_distinct_from_hardware_bits`, `test_finite_bit_candidates_are_hardware_states_even_with_search_override` |
 | AMF-SIM-005 | 建立不含 carrier、`Gamma_wall` 或 RIS response 的 environment-only PropagationProfile 和默认 IndoorDeterministicProfile；保持 Profile、Reflection、RIS 与 Ground Truth 所有权分离 | Planned | [ADR-0012](adr/0012-wall-reflection-coefficient-ownership.md) | `foundation_0_1_1_plan.md` FND-T13..14 |
 | AMF-SIM-006 | v1 Wall 冻结为地面锚定竖直墙；端点 z 为 0，Ground Truth 只对墙施加刚体 XY 平移 | Verified | `core/types.py`、`simulation/engine.py`、[FND-FIX-WALL](work_items/foundation_0_1_1_wall_geometry_closure.md) | `tests/test_wall_geometry.py` FND-T19、默认 Scene round-trip 与阻挡/反射回归；implementation commit `8841ef2` 独立验收 G0–G8 PASS、blocking issues 0 |
 
@@ -68,8 +68,8 @@
 | AMF-UI-004 | 所有可编辑参数有单位、范围校验和错误反馈 | Implemented | `gui/main_window.py`, dataclasses | GUI smoke + 参数异常测试 |
 | AMF-UI-005 | 未实现场景不提供可运行假入口 | Verified | GUI roadmap label | GUI smoke、人工检查 |
 | AMF-UI-006 | Model Info 显示传播/RIS/噪声假设和限制 | Implemented | `MainWindow._show_model_info` | 人工 Model Info 验收 |
-| AMF-UI-007 | 参数编辑具有 pending/apply/Optimize 门禁；preset 覆盖和 Customized 状态可辨认 | Planned | — | `foundation_0_1_1_plan.md` FND-T11..12 |
-| AMF-UI-008 | Pattern 显示 grid/bits/states/source/error/legend；Ground Truth 标签与真实作用范围一致 | Planned | — | Foundation GUI smoke + 人工清单 |
+| AMF-UI-007 | 参数编辑具有 pending/apply/Optimize 门禁；preset 覆盖和 Customized 状态可辨认 | Implemented | `gui/main_window.py` | `tests/test_gui_smoke.py`, GUI offscreen smoke；Generation confirm-discard/cancel-preserve pending人工验收 |
+| AMF-UI-008 | Pattern 显示 grid/bits/states/source/error/legend；Ground Truth 标签与真实作用范围一致 | Implemented | `gui/pattern_view.py`, `gui/main_window.py` | GUI offscreen smoke；Pattern metadata、Ground Truth tooltip 和 Model Info 人工清单 |
 
 ## 工程、实验与文档
 

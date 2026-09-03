@@ -40,7 +40,9 @@ from airmirror_future.gui.pattern_view import PhasePatternView
 from airmirror_future.gui.scene_view import SceneView
 from airmirror_future.gui.workers import MapWorker, OptimizationWorker
 from airmirror_future.ris.generations import generation_preset
+from airmirror_future.ris.aperture import equivalent_patch_diagnostics
 from airmirror_future.ris.phase import generate_focus_pattern
+from airmirror_future.optimization.coherent_focus import generate_coherent_target_pattern
 from airmirror_future.simulation.engine import SimulationEngine
 from airmirror_future.simulation.ground_truth import ControllerModel, GroundTruthModel
 
@@ -62,6 +64,9 @@ class MainWindow(QMainWindow):
         self._workers: list[object] = []
         self._version = 0
         self._active_worker: object | None = None
+        self._updating_controls = False
+        self._pending = False
+        self._pattern_source = "Coherent Target Focus"
         self._debounce = QTimer(self)
         self._debounce.setSingleShot(True)
         self._debounce.setInterval(450)
@@ -71,6 +76,7 @@ class MainWindow(QMainWindow):
         self.scene_view.on_entity_moved = self._entity_moved
         self.pattern_view = PhasePatternView()
         self._build_ui()
+        self._set_pending(False)
         self._set_focus_pattern()
         self._refresh_all(recompute_map=False)
         QTimer.singleShot(100, self.start_field_map)
@@ -182,6 +188,9 @@ class MainWindow(QMainWindow):
         self.generation_combo.setCurrentText(current_generation)
         self.generation_combo.currentTextChanged.connect(self._generation_changed)
         generation_layout.addWidget(self.generation_combo)
+        self.generation_status = QLabel("Current")
+        self.generation_status.setStyleSheet("color:#64748b")
+        generation_layout.addWidget(self.generation_status)
         generation_layout.addWidget(QLabel("代际参数是代表性仿真假设，可继续编辑。"))
         layout.addWidget(generation_group)
 
@@ -236,19 +245,42 @@ class MainWindow(QMainWindow):
         self.phase_error = self._double_spin(0, 180, 0, 1, "°")
         self.measurement_noise = self._double_spin(0, 20, 0, 0.1, " dB")
         self.position_error = self._double_spin(0, 2, 0, 0.01, " m")
-        error_form.addRow("Phase Error σ", self.phase_error)
-        error_form.addRow("Measure Noise σ", self.measurement_noise)
-        error_form.addRow("Position Error σ", self.position_error)
+        self.phase_error.setToolTip("Ground Truth phase error is added after commanded-state validation; Actual is not requantized.")
+        self.measurement_noise.setToolTip("Only MeasurementOracle feedback readings include this noise; direct simulation metrics do not.")
+        self.position_error.setToolTip(
+            "TX/RX/RIS/obstacle use their 3D model. v1 floor-anchored walls use one rigid XY delta for both endpoints; no vertical wall error."
+        )
+        error_form.addRow("Phase Error σ / 相位误差 σ", self.phase_error)
+        error_form.addRow("Feedback Measurement Noise σ / 反馈测量噪声 σ", self.measurement_noise)
+        error_form.addRow("Geometry Position Error σ / 几何位置误差 σ", self.position_error)
         layout.addWidget(error_group)
 
-        apply_button = QPushButton("应用参数 / Apply")
-        apply_button.clicked.connect(self._apply_parameters)
-        layout.addWidget(apply_button)
+        self.apply_button = QPushButton("应用参数 / Apply")
+        self.apply_button.clicked.connect(self._apply_parameters)
+        layout.addWidget(self.apply_button)
+        self.pending_label = QLabel("状态：已应用 / Applied")
+        self.pending_label.setStyleSheet("color:#64748b")
+        layout.addWidget(self.pending_label)
 
         optimization = QGroupBox("优化 / Optimize")
         optimization_layout = QVBoxLayout(optimization)
         self.algorithm = QComboBox()
-        self.algorithm.addItems(("Physics Focus", "Feedback Greedy", "Physics-Guided Feedback"))
+        self.algorithm.addItems(
+            (
+                "Coherent Target Focus",
+                "RIS-only Physics Focus",
+                "Feedback Greedy",
+                "Physics-Guided Feedback",
+            )
+        )
+        self.search_levels = QSpinBox()
+        self.search_levels.setRange(1, 256)
+        self.search_levels.setValue(8)
+        self.search_levels.setToolTip(
+            "Continuous hardware 的有限候选搜索级数；不改变硬件 Allowed States。"
+        )
+        optimization_layout.addWidget(QLabel("Search Levels / 搜索级数"))
+        optimization_layout.addWidget(self.search_levels)
         self.optimize_button = QPushButton("Optimize")
         self.cancel_button = QPushButton("Cancel")
         self.cancel_button.setEnabled(False)
@@ -286,7 +318,64 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.pattern_view)
         layout.addStretch()
         container.setWidget(panel)
+        self._connect_edit_signals()
+        self._update_search_levels_state()
         return container
+
+    def _connect_edit_signals(self) -> None:
+        """Mark ordinary parameter edits pending without mutating the applied scene."""
+        for widget in (
+            self.frequency,
+            self.tx_power,
+            self.bandwidth,
+            self.noise_figure,
+            self.coverage_threshold,
+            self.ris_width,
+            self.ris_height,
+            self.ris_nx,
+            self.ris_ny,
+            self.phase_bits,
+            self.efficiency,
+            self.update_rate,
+            self.self_sensing,
+            self.phase_error,
+            self.measurement_noise,
+            self.position_error,
+        ):
+            if isinstance(widget, QComboBox):
+                widget.currentIndexChanged.connect(self._mark_pending)
+            elif isinstance(widget, QCheckBox):
+                widget.stateChanged.connect(self._mark_pending)
+            else:
+                widget.valueChanged.connect(self._mark_pending)
+        self.phase_bits.currentIndexChanged.connect(self._update_search_levels_state)
+
+    def _mark_pending(self, *_args: object) -> None:
+        if self._updating_controls:
+            return
+        self._set_pending(True)
+
+    def _set_pending(self, pending: bool) -> None:
+        self._pending = bool(pending)
+        self.apply_button.setEnabled(self._pending)
+        self.optimize_button.setEnabled(not self._pending)
+        if self._pending:
+            self.pending_label.setText(
+                "状态：待应用 / Pending · 请先 Apply；指标与 Pattern 仍来自已应用模型"
+            )
+            self.pending_label.setStyleSheet("color:#b45309;font-weight:600")
+        else:
+            self.pending_label.setText("状态：已应用 / Applied")
+            self.pending_label.setStyleSheet("color:#64748b")
+
+    def _update_search_levels_state(self, *_args: object) -> None:
+        continuous = self.phase_bits.currentData() is None
+        self.search_levels.setEnabled(continuous)
+        self.search_levels.setToolTip(
+            "Continuous hardware：有限候选搜索级数，不是硬件状态数。"
+            if continuous
+            else "Finite-bit hardware：候选固定为 2^phase_bits 个合法硬件状态。"
+        )
 
     def _build_metrics_bar(self) -> QWidget:
         panel = QGroupBox("实时指标")
@@ -311,6 +400,18 @@ class MainWindow(QMainWindow):
     def _set_focus_pattern(self) -> None:
         ris = self.scene_model.ris_surfaces[0]
         self.patterns = {
+            ris.id: generate_coherent_target_pattern(
+                self.scene_model,
+                self.controller_model,
+                engine=self.engine,
+                ris=ris,
+            )
+        }
+        self._pattern_source = "Coherent Target Focus"
+
+    def _set_ris_only_pattern(self) -> None:
+        ris = self.scene_model.ris_surfaces[0]
+        self.patterns = {
             ris.id: generate_focus_pattern(
                 ris,
                 self.scene_model.transmitter(),
@@ -318,13 +419,17 @@ class MainWindow(QMainWindow):
                 self.scene_model.frequency_hz,
             )
         }
+        self._pattern_source = "RIS-only Physics Focus"
 
     def _refresh_all(self, *, recompute_map: bool = True) -> None:
         self.scene_view.load_scene(self.scene_model, preserve_heatmap=True)
         self._refresh_metrics()
         self._refresh_pattern()
         generation = self.scene_model.ris_surfaces[0].generation
-        self.future_badge.setText("Future Scenario Assumption" if generation == "Future" else "")
+        self.future_badge.setText(
+            "Future Scenario Assumption" if generation == "Future" else ""
+        )
+        self._refresh_generation_status()
         if recompute_map:
             self._schedule_field_map()
 
@@ -345,7 +450,54 @@ class MainWindow(QMainWindow):
         ris = self.scene_model.ris_surfaces[0]
         commanded = self.patterns.get(ris.id, np.zeros(ris.cell_count))
         actual = commanded + self.ground_truth.ris_phase_offsets(ris)
-        self.pattern_view.set_patterns(commanded, actual, ris.ny, ris.nx)
+        self.pattern_view.set_patterns(
+            commanded,
+            actual,
+            ris.ny,
+            ris.nx,
+            phase_bits=ris.phase_bits,
+            pattern_source=self._pattern_source,
+            phase_error_sigma_rad=self.ground_truth.ris_phase_error_sigma_rad,
+            diagnostics=self._pattern_diagnostics(ris),
+        )
+
+    def _pattern_diagnostics(self, ris: object) -> str:
+        diagnostics = equivalent_patch_diagnostics(ris, self.scene_model.frequency_hz)
+        return (
+            f"Equivalent patch pitch: {diagnostics.effective_pitch_x_m:.4g}×"
+            f"{diagnostics.effective_pitch_y_m:.4g} m; "
+            f"λ={diagnostics.operating_wavelength_m:.4g} m; "
+            f"pitch/λ={diagnostics.pitch_x_over_wavelength:.4g},"
+            f"{diagnostics.pitch_y_over_wavelength:.4g}"
+        )
+
+    def _refresh_generation_status(self) -> None:
+        ris = self.scene_model.ris_surfaces[0]
+        preset = generation_preset(
+            ris.generation, identifier=ris.id, position=ris.position, yaw_rad=ris.yaw_rad
+        )
+        owned = (
+            ris.width_m,
+            ris.height_m,
+            ris.nx,
+            ris.ny,
+            ris.phase_bits,
+            ris.reflection_efficiency,
+            ris.update_rate_hz,
+            ris.self_sensing,
+        )
+        preset_owned = (
+            preset.width_m,
+            preset.height_m,
+            preset.nx,
+            preset.ny,
+            preset.phase_bits,
+            preset.reflection_efficiency,
+            preset.update_rate_hz,
+            preset.self_sensing,
+        )
+        suffix = " · Customized" if owned != preset_owned else ""
+        self.generation_status.setText(f"{ris.generation}{suffix}")
 
     def _entity_moved(self, identifier: str, position: Vec3) -> None:
         self.scene_model.transmitters = [
@@ -372,25 +524,59 @@ class MainWindow(QMainWindow):
         self._debounce.start()
 
     def _generation_changed(self, generation: str) -> None:
+        if self._updating_controls:
+            return
+        if self._pending:
+            answer = QMessageBox.question(
+                self,
+                "丢弃待应用修改？",
+                "当前有尚未 Apply 的控件修改。切换 Generation 将丢弃这些修改，是否继续？",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                current = self.scene_model.ris_surfaces[0].generation
+                self._updating_controls = True
+                self.generation_combo.blockSignals(True)
+                self.generation_combo.setCurrentText(current)
+                self.generation_combo.blockSignals(False)
+                self._updating_controls = False
+                return
+            self._set_pending(False)
         old = self.scene_model.ris_surfaces[0]
         new = generation_preset(
             generation, identifier=old.id, position=old.position, yaw_rad=old.yaw_rad
         )
+        # Generation owns only the documented preset fields.  Preserve other
+        # applied RIS state (enablement/active flag/direction model) exactly.
+        new = replace(
+            new,
+            enabled=old.enabled,
+            active=old.active,
+            direction_exponent=old.direction_exponent,
+        )
         self.scene_model.ris_surfaces[0] = new
+        self._sync_scene_controls()
         self._sync_ris_controls()
+        self._sync_ground_truth_controls()
         self._set_focus_pattern()
         self._refresh_all()
 
     def _sync_ris_controls(self) -> None:
         ris = self.scene_model.ris_surfaces[0]
-        self.ris_width.setValue(ris.width_m)
-        self.ris_height.setValue(ris.height_m)
-        self.ris_nx.setValue(ris.nx)
-        self.ris_ny.setValue(ris.ny)
-        self.phase_bits.setCurrentIndex(self.phase_bits.findData(ris.phase_bits))
-        self.efficiency.setValue(ris.reflection_efficiency)
-        self.update_rate.setValue(ris.update_rate_hz)
-        self.self_sensing.setChecked(ris.self_sensing)
+        self._updating_controls = True
+        try:
+            self.ris_width.setValue(ris.width_m)
+            self.ris_height.setValue(ris.height_m)
+            self.ris_nx.setValue(ris.nx)
+            self.ris_ny.setValue(ris.ny)
+            self.phase_bits.setCurrentIndex(self.phase_bits.findData(ris.phase_bits))
+            self.efficiency.setValue(ris.reflection_efficiency)
+            self.update_rate.setValue(ris.update_rate_hz)
+            self.self_sensing.setChecked(ris.self_sensing)
+            self._update_search_levels_state()
+        finally:
+            self._updating_controls = False
 
     def _apply_parameters(self) -> None:
         try:
@@ -424,6 +610,7 @@ class MainWindow(QMainWindow):
                 position_error_sigma_m=self.position_error.value(),
             )
             self._set_focus_pattern()
+            self._set_pending(False)
             self._refresh_all()
         except Exception as exc:
             QMessageBox.critical(self, "参数错误", str(exc))
@@ -493,11 +680,19 @@ class MainWindow(QMainWindow):
             )
 
     def _optimize(self) -> None:
+        if self._pending:
+            self.statusBar().showMessage("请先 Apply 待应用参数，再开始 Optimize")
+            return
         algorithm = self.algorithm.currentText()
-        if algorithm == "Physics Focus":
+        if algorithm == "Coherent Target Focus":
             self._set_focus_pattern()
             self._refresh_all()
-            self.statusBar().showMessage("Physics Focus 完成")
+            self.statusBar().showMessage("Coherent Target Focus 完成")
+            return
+        if algorithm == "RIS-only Physics Focus":
+            self._set_ris_only_pattern()
+            self._refresh_all()
+            self.statusBar().showMessage("RIS-only Physics Focus 完成")
             return
         self._cancel_active()
         self._version += 1
@@ -506,6 +701,7 @@ class MainWindow(QMainWindow):
             algorithm,
             copy.deepcopy(self.scene_model),
             copy.deepcopy(self.ground_truth),
+            self.search_levels.value(),
         )
         worker.signals.finished.connect(self._optimization_ready)
         worker.signals.failed.connect(self._worker_failed)
@@ -528,6 +724,10 @@ class MainWindow(QMainWindow):
         if version != self._version:
             return
         self.patterns = result.patterns
+        self._pattern_source = getattr(result, "pattern_source", "Feedback Greedy")
+        levels = getattr(result, "search_levels", None)
+        if levels is not None and self.scene_model.ris_surfaces[0].phase_bits is None:
+            self._pattern_source += f" · Search Levels: {levels}"
         self._active_worker = None
         self.cancel_button.setEnabled(False)
         self.progress.setValue(100)
@@ -587,16 +787,30 @@ class MainWindow(QMainWindow):
                 self._sync_scene_controls()
                 self._sync_ris_controls()
                 self._set_focus_pattern()
+                self._set_pending(False)
                 self._refresh_all()
             except Exception as exc:
                 QMessageBox.critical(self, "加载失败", str(exc))
 
     def _sync_scene_controls(self) -> None:
-        self.frequency.setValue(self.scene_model.frequency_hz / 1e9)
-        self.tx_power.setValue(float(watts_to_dbm(self.scene_model.transmitter().power_w)))
-        self.bandwidth.setValue(self.scene_model.bandwidth_hz / 1e6)
-        self.noise_figure.setValue(self.scene_model.receiver().noise_figure_db)
-        self.coverage_threshold.setValue(self.scene_model.coverage_threshold_db)
+        self._updating_controls = True
+        try:
+            self.frequency.setValue(self.scene_model.frequency_hz / 1e9)
+            self.tx_power.setValue(float(watts_to_dbm(self.scene_model.transmitter().power_w)))
+            self.bandwidth.setValue(self.scene_model.bandwidth_hz / 1e6)
+            self.noise_figure.setValue(self.scene_model.receiver().noise_figure_db)
+            self.coverage_threshold.setValue(self.scene_model.coverage_threshold_db)
+        finally:
+            self._updating_controls = False
+
+    def _sync_ground_truth_controls(self) -> None:
+        self._updating_controls = True
+        try:
+            self.phase_error.setValue(math.degrees(self.ground_truth.ris_phase_error_sigma_rad))
+            self.measurement_noise.setValue(self.ground_truth.measurement_noise_sigma_db)
+            self.position_error.setValue(self.ground_truth.position_error_sigma_m)
+        finally:
+            self._updating_controls = False
 
     def _show_model_info(self) -> None:
         QMessageBox.information(
@@ -606,7 +820,12 @@ class MainWindow(QMainWindow):
             "传播：复数 Friis LOS + 一次墙面镜像反射 + 单跳有限孔径 RIS。\n"
             "RIS：孔径面积归一化、有限效率、有限相位精度、前向余弦方向图。\n"
             "噪声：-174 dBm/Hz + 带宽 + Noise Figure。\n"
-            "容量：Shannon 理论上界，不代表真实吞吐量。\n\n"
+            "容量：平坦信道 Shannon 理论上界，不代表真实吞吐量。\n"
+            "当前孔径积分：每个等效可控 patch 使用 1×1 midpoint；结果是 scalar center-point model。\n"
+            "A2 的 pitch/波长仅作透明度信息，不表示 lambda/2 通过或数值收敛；partial-aperture blockage 未实现。\n"
+            "固定 commanded pattern 用于整张场图，不是逐像素重新聚焦的最优包络。\n"
+            "Geometry Position Error：TX/RX/RIS/obstacle 按各自三维模型；v1 floor-anchored wall 仅使用同一个刚体 XY 偏移。\n"
+            "Feedback Measurement Noise 只作用于 MeasurementOracle。\n\n"
             "未包含完整三维全波求解、衍射、高阶反射、互耦、极化、MIMO/OFDM。",
         )
 
