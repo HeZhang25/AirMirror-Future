@@ -330,8 +330,8 @@ Implemented/Verified。
 
 ## 下一阶段
 
-1. 按 [Foundation 0.1.1 计划](docs/foundation_0_1_1_plan.md) 完成 optimizer/GUI 语义和 A/B checkpoint；
-2. 建立 environment-only PropagationProfile 与最小实验 provenance；
+1. 进入 [Foundation 0.1.1C](docs/foundation_0_1_1_plan.md) / environment-only PropagationProfile；
+2. 在 C 阶段建立最小实验 provenance；
 3. 执行 FND-QA-AP，冻结 production quadrature policy；若要求改变 production，先走独立迁移；
 4. 完成 FND-PHY-NB 和 FND-QA-CC，冻结 frequency/coefficient/cache identity；
 5. Foundation final verification 通过后再进入 P1A 几何系数缓存与矩阵求值；

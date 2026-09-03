@@ -694,7 +694,7 @@ coefficient builder。最后由 [FND-QA-CC](work_items/foundation_0_1_1_coeffici
 | 8 | `FND-OPT-01` 增加 search levels 与结果元数据 | Implemented | `docs/work_items/foundation_0_1_1_b.md`；discrete/continuous 语义分离与 optimizer tests |
 | 9 | `FND-UI-01` 建立 pending/apply/Optimize 门禁 | Implemented | `docs/work_items/foundation_0_1_1_b.md`；GUI smoke tests |
 | 10 | `FND-UI-02` 增加 Customized、Pattern 信息和准确标签 | Implemented | `docs/work_items/foundation_0_1_1_b.md`；Pattern metadata/GUI smoke 与人工清单 |
-| 11 | `FND-QA-AB` A/B 中期验收与人工复核 | Planned | 三代 headless、GUI、临时隔离实验和审查记录 |
+| 11 | `FND-QA-AB` A/B 中期验收与人工复核 | Verified | 三代 headless、GUI、临时隔离实验和独立审查记录；§14.4 checkpoint PASS |
 | 12 | `FND-ARCH-01` 接入 environment-only PropagationProfile | Planned | 全路径角色调用、当前分量等价复现、稳定 identity |
 | 13 | `FND-EXP-01` 加入最小实验 provenance | Planned | versioned CSV/PNG、legacy 和 no-overwrite |
 | 14 | `FND-QA-AP` 最小孔径求积有效性门禁 | Planned | FND-T16..18、versioned matrix、signed coefficient policy |
