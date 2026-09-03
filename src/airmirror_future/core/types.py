@@ -178,8 +178,12 @@ class RISSurface:
             for value in (self.nx, self.ny)
         ):
             raise ValueError("RIS patch counts must be positive integers")
-        if self.phase_bits is not None and self.phase_bits <= 0:
-            raise ValueError("phase_bits must be positive or None for continuous")
+        if self.phase_bits is not None and (
+            isinstance(self.phase_bits, (bool, np.bool_))
+            or not isinstance(self.phase_bits, (int, np.integer))
+            or self.phase_bits <= 0
+        ):
+            raise ValueError("phase_bits must be a positive integer or None for continuous")
         if not 0.0 <= self.reflection_efficiency <= 1.0:
             raise ValueError("passive RIS reflection_efficiency must be in [0, 1]")
         if self.update_rate_hz <= 0.0 or not math.isfinite(self.update_rate_hz):

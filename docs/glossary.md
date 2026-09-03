@@ -32,6 +32,8 @@
 | Quadrature Policy | 求积规则、阶数、坐标/权重约定和版本的稳定身份 | 不只写“high quality”或省略版本 |
 | Control-level RIS Coefficient (`a_n`) | 在指定 Controller/GT、Profile 与 quadrature policy 下，一个 control patch 对单位反射状态的复响应 | 不与 commanded phase、measurement 或缓存对象混用 |
 | Reflection State (`Gamma_n`) | patch 的复反射状态；命令态含 nominal efficiency/phase，真实态可含效率和相位误差 | 不把 Ground Truth 状态反馈给 nominal Focus |
+| Commanded Pattern | 控制器交给明确 RIS 的 phase array；离散硬件必须在模 `2π` 意义下属于合法状态 | 不把容差内接受称为量化或修正 |
+| Actual Pattern | Commanded Pattern 验证后加入 Ground Truth phase error 的传播态 | 不重新量化，不用状态颜色数推断 commanded resolution |
 | Wall Reflection Coefficient (`Gamma_wall`) | Wall/Reflection Model 对一次墙反射施加的复幅相响应；Controller 使用名义值，Ground Truth 可生成有效误差值 | 每条反射路径只应用一次，不属于 PropagationProfile 或 RIS `Gamma_n` |
 | PropagationProfile | Foundation 中只提供自由空间载波和 `Gamma_wall` 之外的 environment-only complex modifier | 不返回重复的距离/传播相位/墙系数，也不等同未来 PathEnsemble |
 | PathEnsemble | 未来可包含多路径 delay/angle/Doppler/statistics 的独立抽象 | 当前未实现，不用 Profile multiplier 冒充 |

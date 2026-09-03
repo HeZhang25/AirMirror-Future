@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import replace
 import math
 import time
-from typing import Mapping
 
 import numpy as np
 
+from airmirror_future.core.pattern_contract import validate_commanded_pattern
 from airmirror_future.core.types import (
     CancelCheck,
     ChannelResult,
@@ -25,7 +26,7 @@ from airmirror_future.physics.blockage import path_attenuation_amplitude
 from airmirror_future.physics.free_space import complex_free_space_channel
 from airmirror_future.physics.noise import noise_power_dbm, shannon_capacity_bps
 from airmirror_future.physics.reflections import single_wall_reflection
-from airmirror_future.physics.ris_scattering import ris_channel
+from airmirror_future.physics.ris_scattering import _ris_channel_from_validated_pattern
 from airmirror_future.simulation.ground_truth import ControllerModel, GroundTruthModel
 
 
@@ -53,6 +54,26 @@ class SimulationEngine:
         if isinstance(rx, Receiver):
             return rx
         return scene.receiver(rx)
+
+    @staticmethod
+    def _validated_patterns(
+        scene: Scene,
+        ris_patterns: Mapping[str, np.ndarray] | None,
+    ) -> dict[str, np.ndarray]:
+        if ris_patterns is None:
+            return {}
+        if not isinstance(ris_patterns, Mapping):
+            raise ValueError("ris_patterns must be a mapping from RIS id to phase array")
+
+        validated: dict[str, np.ndarray] = {}
+        for identifier, pattern in ris_patterns.items():
+            matches = [ris for ris in scene.ris_surfaces if ris.id == identifier]
+            if not matches:
+                raise ValueError(f"RIS pattern id not found in scene: {identifier!r}")
+            if len(matches) > 1:
+                raise ValueError(f"RIS pattern id is not unique in scene: {identifier!r}")
+            validated[identifier] = validate_commanded_pattern(matches[0], pattern)
+        return validated
 
     @staticmethod
     def _working_scene(
@@ -135,7 +156,7 @@ class SimulationEngine:
             after, after_blockers = path_attenuation_amplitude(
                 scene, ris.position, rx.position
             )
-            contribution = ris_channel(
+            contribution = _ris_channel_from_validated_pattern(
                 tx,
                 rx.position,
                 rx.gain_linear,
@@ -167,12 +188,13 @@ class SimulationEngine:
         """Compute one TX-RX link with coherent LOS, wall, and RIS fields."""
         nominal_tx = self._resolve_tx(scene, tx)
         nominal_rx = self._resolve_rx(scene, rx)
+        patterns = self._validated_patterns(scene, ris_patterns)
         active_model = model or ControllerModel()
         working_scene, working_tx, working_rx = self._working_scene(
             scene, nominal_tx, nominal_rx, active_model
         )
         los, wall, ris, details = self._components(
-            working_scene, working_tx, working_rx, ris_patterns or {}, active_model
+            working_scene, working_tx, working_rx, patterns, active_model
         )
         total = los + wall + ris
         power_w = working_tx.power_w * abs(total) ** 2
@@ -206,12 +228,12 @@ class SimulationEngine:
         started = time.perf_counter()
         tx = scene.transmitter()
         rx_template = scene.receiver()
+        patterns = self._validated_patterns(scene, ris_patterns)
         active_model = model or ControllerModel()
         x_values = np.linspace(0.05, scene.room_size.x - 0.05, config.grid_width)
         y_values = np.linspace(0.05, scene.room_size.y - 0.05, config.grid_height)
         power = np.empty((config.grid_height, config.grid_width), dtype=float)
         baseline = np.empty_like(power)
-        patterns = ris_patterns or {}
         for row, y_value in enumerate(y_values):
             if cancel_check is not None and cancel_check():
                 raise SimulationCancelled("field-map calculation cancelled")

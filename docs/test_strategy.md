@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative / Operational |
-| 基线版本 | v0.1 + Foundation A1-A2 + final physics/algorithm gates plan |
+| 基线版本 | v0.1 + Foundation A1-A3 + final physics/algorithm gates plan |
 | 测试框架 | pytest 9+，pytest-qt |
 
 ## 1. 目标
@@ -53,6 +53,9 @@ python -m airmirror_future.experiments.phase_bits --output results/phase_bits
 | FND-T03 | nominal no-RIS lower bound | Coherent target `received_power_w >= baseline` | `test_coherent_focus_does_not_reduce...` |
 | FND-T04 | finite-bit common offset | 候选首项精确 `0.0`；结果不差于 unshifted | `test_quantized_common_offset_beats...` |
 | FND-T05 | degenerate deterministic fallback | 零/相对近零分量返回 `delta=0`，不产生 NaN/Inf | `test_zero_baseline_focus...` |
+| FND-T06 | commanded hardware grid | 1/2/3/4-bit off-grid command 抛 `ValueError`；不得 silent quantize | `test_commanded_pattern_rejects_off_grid_phase` |
+| FND-T07 | modulo/tolerance contract | 正负多周等价状态和 `1e-6 rad` 内输入通过，容差外失败且原值不被修正 | `test_commanded_pattern_accepts_modulo_equivalent_states`、tolerance test |
+| FND-T08 | Actual phase ownership | 确定性非网格 Ground Truth error 完整改变 RIS 复相位，不重新量化 | `test_actual_phase_error_is_not_requantized` |
 | FND-T09 | equivalent patch diagnostics | 改 `nx/ny` 只改变 pitch；改 `fc` 不改变实体孔径 | `test_effective_pitch_changes_without_resizing_aperture` |
 | FND-T13/T13b | default Profile / all environment roles | 分路径复现 v0.1；direct、reflection before/after、RIS 两段均调用 Profile，且 modifier 不含 carrier/`Gamma_wall` | Planned：C1 |
 | FND-T13c | wall/Profile factor ownership | 独立缩放 `Gamma_wall` 或任一 reflection-leg modifier 时，wall amplitude 恰好缩放一次 | Planned：C1 |
@@ -82,6 +85,11 @@ commanded pattern、只细化独立 quadrature，并冻结最小 production coef
 
 FND-T09 验证 A2 的所有权边界，而不是证明真实阵元满足 `lambda/2` 或当前 patch 已数值收敛。
 补充测试覆盖非法频率、非有限孔径、非整数 patch 数以及三代 preset 诊断全为有限正值。
+
+FND-T06..T08 同时覆盖 strict shape、NaN/Inf、unknown/ambiguous RIS key、continuous 未 wrap
+phase、非法 `phase_bits` 类型、低层公开 scattering 入口和 engine-before-Ground-Truth 顺序。
+Field Map 另以 validator 调用次数锁定为像素循环外一次。测试只验证 Commanded/Actual 边界，
+不引入 B 阶段 search levels 或 GUI 状态语义。
 
 FND-T13..T14 验证 ADR-0012 的因子分解，而不只验证最终 wall-channel 数字碰巧相等。测试必须
 分别扰动 `Gamma_wall`、before modifier 和 after modifier，防止重复与遗漏互相抵消；还必须验证

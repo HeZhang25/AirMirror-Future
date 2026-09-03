@@ -5,7 +5,7 @@
 | 文档状态 | Operational / Normative for sequencing |
 | 当前实现基线 | v0.1 Verified，commit `edfa43c` |
 | 目标版本 | v0.1.1 Foundation |
-| 当前计划状态 | In Progress；A1/A2 Verified；A3、B/C、FND-QA-AP、FND-FIX-WALL、FND-PHY-NB、FND-QA-CC 尚未完成 |
+| 当前计划状态 | In Progress；A1/A2 Verified；A3 Implemented、待独立验收；B/C、FND-QA-AP、FND-FIX-WALL、FND-PHY-NB、FND-QA-CC 尚未完成 |
 | 父级路线 | v0.1 Smart Space → Foundation 0.1.1 → P1A |
 | 主要责任 | 项目维护者、物理仿真负责人、GUI/测试负责人 |
 | 最后复核 | 2026-09-03（wall/Profile ownership closure；ADR-0009 superseded by ADR-0012） |
@@ -499,7 +499,8 @@ coefficient builder。最后由 [FND-QA-CC](work_items/foundation_0_1_1_coeffici
 #### Deliverable A1：Focus objective ADR
 
 - 状态：**Verified（2026-09-02）**；验收依据 commit `87495ec`，G0–G8 PASS，
-  blocking issues 0；Foundation 0.1.1A 仍为 In Progress，A2 已 Verified、A3 未开始；
+  blocking issues 0；Foundation 0.1.1A 仍为 In Progress，A2 已 Verified、A3 后续已
+  Implemented 并等待独立验收；
 
 - Requirement：`AMF-RIS-008`；
 - 输入：当前 Focus、nominal baseline、Controller Model、phase bits；
@@ -534,14 +535,20 @@ coefficient builder。最后由 [FND-QA-CC](work_items/foundation_0_1_1_coeffici
 
 #### Deliverable A3：Commanded Pattern hardware boundary
 
+- 状态：**Implemented（2026-09-03）**；自动门禁已完成，等待独立人工验收，不得自行标记
+  Verified；工作范围与 Ready/Done 证据见
+  [A3 Work Item](work_items/foundation_0_1_1_a3.md)；
 - Requirement：`AMF-RIS-010`；
 - 输入：RIS、commanded phase array；
 - 输出：统一验证函数、公共错误契约和所有入口调用；
 - 预计文档：public API、physics、data model、test strategy；
-- 预计代码：优先独立 `ris/pattern_contract.py`，并接入 `compute_channel`、`compute_field_map` 和
-  保留为公共 API 的低层散射入口；
+- 实现代码：公共 ownership/导出保持在 RIS pattern API；共享纯 validator 位于
+  `core/pattern_contract.py`，并接入 `compute_channel`、`compute_field_map` 和保留为公共 API 的
+  低层散射入口，从而遵守 physics 只依赖 core 的分层方向；
 - 验收：离散非法状态失败、模 `2π` 等价状态通过、continuous finite 通过、Actual error 不被
   再量化。
+- 兼容结果：Scene JSON v1、Focus、散射公式和合法既有 pattern 数值不变；新增错误只针对此前
+  会被静默接受的未知/歧义 RIS key、非一维/非有限/off-grid command 和非法 phase-bits 类型。
 
 ### 7.2 Foundation 0.1.1B — Optimizer and GUI Semantics
 
@@ -666,9 +673,9 @@ coefficient builder。最后由 [FND-QA-CC](work_items/foundation_0_1_1_coeffici
 | 1 | `FND-DOC-01` 建立 Foundation objective/geometry/profile/frequency/coefficient ADR | Implemented | ADR-0006..0011 的决定、后果与否决方案 |
 | 2 | `FND-DOC-02` 冻结 equivalent patch、诊断量和 Deferred 边界 | Implemented | ADR-0007、data/physics/limitations/API 同步；FND-T09 |
 | 3 | `FND-TEST-01` 定义 Focus objective 契约测试 | Implemented | FND-T01..T05、错误契约、tie-break 和 1/2/3/4-bit 回归 |
-| 4 | `FND-TEST-02` 定义 commanded pattern 契约测试 | Planned | bits、modulo、tolerance、Actual error |
+| 4 | `FND-TEST-02` 定义 commanded pattern 契约测试 | Implemented | bits、modulo、tolerance、Actual error |
 | 5 | `FND-PHY-01` 实现两个具名 Focus | Implemented | RIS-only 保留、Coherent 新增且分层正确；ADR-0006 |
-| 6 | `FND-PHY-02` 实现 commanded validator | Planned | 所有公共传播入口共用且 Field Map 只验证一次 |
+| 6 | `FND-PHY-02` 实现 commanded validator | Implemented | 所有公共传播入口共用且 Field Map 只验证一次 |
 | 7 | `FND-FIX-WALL` 冻结 floor-anchored Wall/XY perturbation | Planned | FND-T19、schema/error/compatibility evidence |
 | 8 | `FND-OPT-01` 增加 search levels 与结果元数据 | Planned | discrete/continuous 语义分离 |
 | 9 | `FND-UI-01` 建立 pending/apply/Optimize 门禁 | Planned | GUI 状态机 smoke tests |

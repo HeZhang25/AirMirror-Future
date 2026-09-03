@@ -8,6 +8,46 @@
 | 规范基线 | [docs/README.md](docs/README.md) |
 | 当前 Capability | Foundation 0.1.1A Physics and Algorithm Contract（In Progress） |
 
+## Foundation 0.1.1A / A3 implementation handoff
+
+Deliverable A3（Commanded Pattern hardware boundary）已达到 **Implemented**，等待独立验收，
+本轮不自行标记 Verified：
+
+- [A3 Work Item](docs/work_items/foundation_0_1_1_a3.md) 已完成 Definition of Ready，
+  blocking ambiguity 为 0；A3 未触发新 ADR，也不改变 Scene JSON v1；
+- 新增公共 `validate_commanded_pattern()` 与 `COMMANDED_PHASE_ATOL_RAD=1e-6`：严格要求一维、
+  长度匹配、real/finite；离散状态按模 `2π` 的绝对容差验证，continuous 接受 finite 未 wrap
+  表达；接受值不 wrap、snap 或 silent quantize；
+- `compute_channel()`、`compute_field_map()` 和低层公开 RIS scattering 入口共用同一 validator；
+  engine 还拒绝未知/歧义 RIS key，field map 在像素循环外只验证一次；
+- validation 位于 Ground Truth 扰动之前；actual phase/efficiency error 在验证后加入传播且不再
+  量化；
+- `RISSurface.phase_bits` 收紧为正整数或 None，bool、小数和非正值拒绝；合法既有生成器、
+  optimizer、GUI/headless pattern 行为保持不变；
+- 共享纯实现位于 `core/pattern_contract.py`，由 `ris`/顶层 API 导出，physics 和 simulation
+  复用而不产生反向依赖。
+
+本机 Windows / Python 3.14.3 实现门禁：
+
+| 门禁 | 结果 |
+|---|---|
+| A3 定向 pytest | `22 passed` |
+| A3 + RIS/scene/A1/optimization 相关回归 | `63 passed` |
+| documentation tests | `9 passed` |
+| 完整 pytest | `96 passed in 2.81s` |
+| Current v0.1 fast headless | `-46.5879 dBm`，RIS Gain `+8.6874 dB`，场图 `2.130 s` |
+| Advanced v0.1 fast headless | `-30.1257 dBm`，RIS Gain `+25.1496 dB`，场图 `2.406 s` |
+| Future v0.1 fast headless | `-19.3118 dBm`，RIS Gain `+35.9636 dB`，场图 `7.944 s` |
+| `git diff --check` | PASS |
+
+三代目标功率和 RIS Gain 与 A1/A2 基线显示到四位小数完全一致；A3 不改变物理公式，因此合法
+command 没有数值迁移。兼容性变化仅是此前可能被接受的未知/歧义 key、二维 reshape、非有限/
+complex/off-grid phase 和非法 `phase_bits` 类型现在明确失败。
+
+状态边界：A1/A2 保持 Verified；A3、AMF-RIS-010 为 Implemented、待独立验收；Foundation
+0.1.1A 和 Foundation 0.1.1 保持 In Progress。FND-FIX-WALL、B/C、FND-QA-AP、FND-PHY-NB、
+FND-QA-CC、cache 和其他后续能力均未开始或未改变。
+
 ## Foundation physics/algorithm master-plan integration
 
 2026-09-03 完成一次纯 Markdown 的 Foundation 方案整合。本轮只把已评审的物理/架构结论纳入
@@ -134,8 +174,8 @@ Deliverable A1（Focus objective）已完成最终人工验收并达到 **Verifi
 | A1 Coherent 单目标 | Current 123 candidates / `0.083 s`；Advanced 4609 / `3.571 s`；Future continuous / `0.003 s` |
 
 headless 仍故意运行 v0.1 RIS-only 默认算法，因此上述三代值是兼容回归，不是 Coherent
-Target 新默认。A2 已 Verified，A3 commanded pattern hardware boundary 尚未实现，
-因此 Foundation 0.1.1A 仍不能标为 Implemented/Verified。
+Target 新默认。A2 已 Verified；A1 验收当时 A3 尚未实现，当前 A3 已 Implemented、等待独立
+验收，因此 Foundation 0.1.1A 仍不能标为 Implemented/Verified。
 
 ## 已完成（v0.1）
 
@@ -161,7 +201,8 @@ Target 新默认。A2 已 Verified，A3 commanded pattern hardware boundary 尚�
 - `nx/ny` 的 equivalent patch 语义已冻结，但仍同时承担控制与中心点求积；GUI 尚未接入
   A2 只读 pitch/波长诊断；最小独立求积有效性进入 Foundation final exit 前的 FND-QA-AP，
   P1C 保留完整 aperture/field-map/适用域研究；
-- Phase Bits 尚未在传播入口验证 commanded hardware states；
+- A3 已在传播入口执行 commanded hardware-state validation，但尚待独立验收；B 阶段的
+  hardware/search resolution 和 GUI transparency 仍未实现；
 - continuous hardware 与反馈优化的 8-state search 尚未在接口/UI 中拆分；
 - GUI Generation 立即应用、普通参数等待 Apply，但没有 pending/customized 状态提示；
 - 所有场景仍共用固定传播编排，尚无 PropagationProfile identity；
@@ -184,8 +225,8 @@ Target 新默认。A2 已 Verified，A3 commanded pattern hardware boundary 尚�
 
 ## 下一阶段
 
-1. 按 [Foundation 0.1.1 计划](docs/foundation_0_1_1_plan.md) 完成 A3 commanded pattern
-   hardware boundary，再完成 FND-FIX-WALL；
+1. 对 A3 commanded pattern hardware boundary 做独立验收；通过后按
+   [Foundation 0.1.1 计划](docs/foundation_0_1_1_plan.md) 完成 FND-FIX-WALL；
 2. 完成 optimizer/GUI 语义和 A/B checkpoint；
 3. 建立 environment-only PropagationProfile 与最小实验 provenance；
 4. 执行 FND-QA-AP，冻结 production quadrature policy；若要求改变 production，先走独立迁移；

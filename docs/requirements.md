@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| 基线版本 | v0.1 + Foundation A1-A2 + physics/algorithm master-plan integration |
+| 基线版本 | v0.1 + Foundation A1-A3 + physics/algorithm master-plan integration |
 | 编号规则 | `AMF-<DOMAIN>-<NNN>`；删除后不复用 |
 
 状态含义见 [glossary.md](glossary.md)。证据列必须是测试、命令或人工验收步骤；仅有源码
@@ -36,7 +36,7 @@
 | AMF-RIS-007 | 三代 preset 是可编辑假设；Future 显式标记 | Implemented | `ris/generations.py`, GUI | headless generation runs、GUI smoke |
 | AMF-RIS-008 | 区分 RIS-only 与 Coherent Target Focus；GUI 默认算法与 nominal target objective 一致 | In Progress | A1: `ris/phase.py`, `optimization/coherent_focus.py`；GUI 接入待 B 阶段 | `tests/test_coherent_focus.py` FND-T01..05；ADR-0006 |
 | AMF-RIS-009 | `nx/ny` 定义为 equivalent controllable aperture patches，并显示有效 pitch/波长比例和限制 | In Progress | A2: `ris/aperture.py`、ADR-0007；GUI 只读接入待 B 阶段 | `tests/test_aperture_diagnostics.py` FND-T09；[A2 Work Item](work_items/foundation_0_1_1_a2.md) |
-| AMF-RIS-010 | 传播前验证 commanded pattern 符合 phase bits；Actual Ground Truth error 不再量化 | Planned | — | `foundation_0_1_1_plan.md` FND-T06..08 |
+| AMF-RIS-010 | 传播前验证 commanded pattern 符合 phase bits；Actual Ground Truth error 不再量化 | Implemented | `core/pattern_contract.py`、`simulation/engine.py`、`physics/ris_scattering.py` | `tests/test_pattern_contract.py` FND-T06..08；[A3 Work Item](work_items/foundation_0_1_1_a3.md) |
 | AMF-RIS-011 | 在 Foundation final exit/P1A 前固定 aperture/control/pattern、仅细化独立 quadrature，冻结可重放的 coefficient policy 和声明适用域 | Planned | [ADR-0008](adr/0008-minimum-aperture-quadrature-validity-gate.md)、[FND-QA-AP](work_items/foundation_0_1_1_qa_ap.md) | FND-T16..18、versioned QA matrix、人工 policy 签署；不等同 EM/full-wave truth |
 | AMF-RIS-012 | 最终 production policy 下，RIS-only/Coherent Focus 与 Controller simulator 使用同一 control-level 复系数定义；Ground Truth 系数不得泄漏给 Focus | Planned | [ADR-0011](adr/0011-controller-coefficient-focus-consistency.md)、[FND-QA-CC](work_items/foundation_0_1_1_coefficient_consistency.md) | FND-T21..22、Controller/GT boundary 与 identity review |
 

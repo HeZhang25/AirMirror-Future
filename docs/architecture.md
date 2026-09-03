@@ -29,7 +29,7 @@ core
 
 | 包 | 职责 | 可依赖 | 禁止依赖 |
 |---|---|---|---|
-| `core` | SI 数据类型、单位、纯几何 | NumPy、标准库 | Qt、场景、优化 |
+| `core` | SI 数据类型、单位、纯几何与跨层纯数据验证 | NumPy、标准库 | Qt、场景、优化 |
 | `physics` | 单条物理路径和噪声公式 | core | GUI、优化、场景 preset |
 | `ris` | 相位、孔径 preset、pattern | core、physics 基础常数 | GUI、Ground Truth |
 | `scene` | JSON 边界 | core | GUI、SimulationEngine |
@@ -49,6 +49,7 @@ core
 ```text
 Scene + TX + RX + patterns + Model
   -> resolve and validate entities
+  -> validate commanded pattern key/shape/finite/hardware state
   -> optional Ground Truth geometry perturbation
   -> LOS attenuation and complex channel
   -> valid one-bounce wall paths
@@ -100,6 +101,7 @@ oracle 是隔离边界。优化器不得访问 `GroundTruthModel.ris_phase_offse
 |---|---|---|---|
 | `Scene` | 调用者或 MainWindow | 当前会话/JSON | worker 启动时 deep copy |
 | RIS commanded patterns | MainWindow / optimizer | 几何或目标变化前 | key 为 RIS id，数组长度严格匹配 |
+| RIS actual patterns | Ground Truth + simulation | 单次可重放 world realization | 只在 commanded validation 后加入误差，不重新量化 |
 | Ground Truth 参数 | 实验或 MainWindow | 一次可复现实验 | worker deep copy；seed 不变 |
 | 场图结果 | MainWindow | 最新 task version | immutable-by-convention，不回写 engine |
 | worker cancellation | worker | 单次任务 | `threading.Event`，只单向设置 |
@@ -107,6 +109,11 @@ oracle 是隔离边界。优化器不得访问 `GroundTruthModel.ris_phase_offse
 
 核心包不得引入全局可变 scene、pattern 或随机生成器。MeasurementOracle 的 RNG 属于单个
 oracle 实例，以保证同一调用序列可重放。
+
+公共 `validate_commanded_pattern` 由 `ris` API 导出，纯实现位于 `core`，使 engine 和低层
+physics scattering 复用同一契约而不产生 `physics -> ris` 反向依赖。Engine 对整个 map 做
+key/歧义检查并取得已验证快照；field map 在像素循环外只执行一次，内部传播内核不得重复量化或
+验证 Actual error。
 
 ## 5. GUI 并发契约
 

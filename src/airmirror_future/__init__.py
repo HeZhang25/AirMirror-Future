@@ -14,6 +14,10 @@ from airmirror_future.core.types import (
     Vec3,
     Wall,
 )
+from airmirror_future.core.pattern_contract import (
+    COMMANDED_PHASE_ATOL_RAD,
+    validate_commanded_pattern,
+)
 from airmirror_future.simulation.engine import SimulationEngine
 from airmirror_future.simulation.ground_truth import ControllerModel, GroundTruthModel
 from airmirror_future.optimization.measurement import MeasurementOracle
@@ -28,6 +32,7 @@ __all__ = [
     "ChannelResult",
     "FieldMapResult",
     "EquivalentPatchDiagnostics",
+    "COMMANDED_PHASE_ATOL_RAD",
     "equivalent_patch_diagnostics",
     "generate_coherent_target_pattern",
     "generate_ris_only_focus_pattern",
@@ -45,6 +50,7 @@ __all__ = [
     "Transmitter",
     "Vec3",
     "Wall",
+    "validate_commanded_pattern",
 ]
 
 __version__ = "0.1.0"

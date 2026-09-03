@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| 基线版本 | v0.1 + Foundation 0.1.1 physics/algorithm contract integration |
+| 基线版本 | v0.1 + Foundation 0.1.1 A1-A3 physics/algorithm contract integration |
 | 模型标签 | System-level electromagnetic approximation |
 | 对应 ADR | ADR-0001、ADR-0003、ADR-0006..0012 |
 
@@ -238,6 +238,17 @@ phi_q = (round(phi/Delta) mod M)*Delta
 - 3/4-bit：均匀 8/16 状态；
 - `phase_bits=None`：continuous，不量化。
 
+### Commanded hardware boundary
+
+由 Focus、optimizer、GUI、headless 或外部 API 产生的 phase array，在进入 Ground Truth 和传播前
+统一验证：key 唯一对应 RIS、严格一维 `[Nx*Ny]`、real 且 finite。离散命令到最近
+`k*2*pi/(2**phase_bits)` 状态的循环距离必须不超过绝对 `1e-6 rad`（`rtol=0`）；continuous
+接受任意 finite 未 wrap 表达。容差只用于接受/拒绝，validator 不改变 phase；非法输入抛
+`ValueError`，不得 silent quantize。
+
+Ground Truth 随后把 `epsilon_phi_n` 加到已验证的 commanded phase 上形成 Actual Pattern。Actual
+不再经过硬件 validator 或 quantizer；因此非网格 phase error 会完整进入上节的散射公式。
+
 ### RIS-only Phase-Conjugate Focus
 
 `generate_ris_only_focus_pattern()` 将上述 `phi_ideal_n` 直接按 hardware `phase_bits` 量化，
@@ -335,6 +346,8 @@ Controller Model 返回零位置/相位误差、单位效率缩放和名义墙�
 - 频率、带宽、距离、孔径、网格和更新率必须为正；
 - 无源效率和墙幅值必须在 `[0,1]`；
 - pattern 长度必须严格等于 `Nx*Ny`；
+- pattern 必须严格一维、real、finite；离散 commanded state 必须通过模 `2π` hardware grid 与
+  `1e-6 rad` 绝对容差验证；
 - TX/RX 与 cell 距离小于 `MIN_DISTANCE_M` 时拒绝；
 - 任何输出数组必须是有限值；
 - active RIS 在完整功率与噪声模型建立前拒绝；

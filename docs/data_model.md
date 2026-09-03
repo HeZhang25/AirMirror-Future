@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| 基线版本 | v0.1 + Foundation A1-A2 + planned closure contracts |
+| 基线版本 | v0.1 + Foundation A1-A3 + planned closure contracts |
 | 权威实现 | `src/airmirror_future/core/types.py` |
 
 ## 1. 通用规则
@@ -13,7 +13,8 @@
 - dataclass 构造阶段执行范围校验；从 UI 修改时使用 `dataclasses.replace` 重新校验；
 - `Vec3` 和 `RISGeneration` 是冻结值对象，其余场景对象可由会话层替换；
 - 结果 dataclass 由计算层创建，调用者视为只读；
-- NumPy pattern 一律是一维 `[cell_count]`，显示时 reshape `[ny,nx]`。
+- NumPy Commanded Pattern 一律是 finite real radians 一维 `[cell_count]`，显示时 reshape
+  `[ny,nx]`；Actual Pattern 是验证后加入 Ground Truth error 的传播态，不受离散状态约束。
 
 ## 2. 几何和实体类型
 
@@ -91,7 +92,7 @@ Model 消费且每条反射路径只应用一次；见
 | `yaw_rad` | float | rad | 正面法向方位角 |
 | `width_m,height_m` | float | m | finite，`>0`；实体孔径的唯一尺寸事实源 |
 | `nx,ny` | int | — | 正整数；沿 width/height 的等效可控孔径 patch 数 |
-| `phase_bits` | int或None | 1 | 当前构造器要求正值或 None；A3 将统一收紧 hardware-state/类型边界 |
+| `phase_bits` | int或None | 1 | 正整数或 None；bool、小数和非正值拒绝 |
 | `reflection_efficiency` | float | 0.7 | `[0,1]` |
 | `update_rate_hz` | float | 10 Hz | `>0` |
 | `self_sensing` | bool | false | 能力标志，不改变 v0.1 公式 |
@@ -113,6 +114,16 @@ equivalent patch 解释。
 - `cell_centers()->float64[cell_count,3]`。
 
 修改 nx/ny 会使已有 pattern 失效，调用层必须立即重新生成，不能 resize 或截断旧数组。
+
+### Commanded / Actual Pattern
+
+- Commanded Pattern 的 key 必须唯一对应 Scene 中一块 RIS，shape 严格为 `[cell_count]`；
+- continuous 接受任意 finite phase；离散 RIS 的 commanded phase 必须在模 `2π` 意义下距合法
+  均匀状态不超过绝对 `1e-6 rad`，相对容差为 0；
+- validator 返回独立 `float64` 快照并保留原数值，不 wrap、snap、resize 或 silent quantize；
+- Ground Truth phase/efficiency error 只在验证后加入 Actual Pattern；Actual 不重新量化，否则会
+  抹掉待研究的硬件误差；
+- patterns 仍是运行时状态，不写入 Scene JSON v1。
 
 ### `EquivalentPatchDiagnostics`
 

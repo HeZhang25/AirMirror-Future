@@ -7,32 +7,23 @@ import math
 import numpy as np
 
 from airmirror_future.core.constants import MIN_DISTANCE_M
+from airmirror_future.core.pattern_contract import validate_commanded_pattern
 from airmirror_future.core.types import RISSurface, Transmitter, Vec3
 from airmirror_future.physics.free_space import wave_number_rad_m
 
 
-def ris_channel_for_points(
+def _ris_channel_for_points_from_validated_pattern(
     tx: Transmitter,
     receiver_points: np.ndarray,
     receiver_gain_linear: float,
     ris: RISSurface,
-    pattern_rad: np.ndarray,
+    phase: np.ndarray,
     frequency_hz: float,
     *,
     cell_phase_error_rad: np.ndarray | None = None,
     efficiency_scale: np.ndarray | float = 1.0,
 ) -> np.ndarray:
-    """Return RIS complex channel for receiver points.
-
-    Each cell contribution is
-
-    ``sqrt(Gt*Gr*eta_n) * A_cell/(4*pi*d1*d2) * D * exp(-jk(d1+d2)+j*phi_n)``.
-
-    The cell-area-linear amplitude makes a fixed physical aperture converge as
-    it is subdivided, instead of creating energy merely by increasing cell
-    count. ``D`` is the square root of a cosine power pattern because the
-    directional quantity is treated as a power gain.
-    """
+    """Evaluate scattering after the commanded hardware boundary."""
     if ris.active:
         raise NotImplementedError("active RIS requires an explicit power and noise model")
     if not ris.enabled:
@@ -40,9 +31,6 @@ def ris_channel_for_points(
     points = np.asarray(receiver_points, dtype=float)
     if points.ndim != 2 or points.shape[1] != 3:
         raise ValueError("receiver_points must have shape [N, 3]")
-    phase = np.asarray(pattern_rad, dtype=float).reshape(-1)
-    if phase.size != ris.cell_count:
-        raise ValueError(f"pattern has {phase.size} phases, expected {ris.cell_count}")
     cells = ris.cell_centers()
     tx_vector = tx.position.as_array()[None, :] - cells
     d1 = np.linalg.norm(tx_vector, axis=1)
@@ -77,6 +65,41 @@ def ris_channel_for_points(
     return np.sum(amplitude * np.exp(1j * cell_phase), axis=1)
 
 
+def ris_channel_for_points(
+    tx: Transmitter,
+    receiver_points: np.ndarray,
+    receiver_gain_linear: float,
+    ris: RISSurface,
+    pattern_rad: np.ndarray,
+    frequency_hz: float,
+    *,
+    cell_phase_error_rad: np.ndarray | None = None,
+    efficiency_scale: np.ndarray | float = 1.0,
+) -> np.ndarray:
+    """Return RIS complex channel for receiver points.
+
+    Each cell contribution is
+
+    ``sqrt(Gt*Gr*eta_n) * A_cell/(4*pi*d1*d2) * D * exp(-jk(d1+d2)+j*phi_n)``.
+
+    The cell-area-linear amplitude makes a fixed physical aperture converge as
+    it is subdivided, instead of creating energy merely by increasing cell
+    count. ``D`` is the square root of a cosine power pattern because the
+    directional quantity is treated as a power gain.
+    """
+    phase = validate_commanded_pattern(ris, pattern_rad)
+    return _ris_channel_for_points_from_validated_pattern(
+        tx,
+        receiver_points,
+        receiver_gain_linear,
+        ris,
+        phase,
+        frequency_hz,
+        cell_phase_error_rad=cell_phase_error_rad,
+        efficiency_scale=efficiency_scale,
+    )
+
+
 def ris_channel(
     tx: Transmitter,
     rx_position: Vec3,
@@ -86,10 +109,28 @@ def ris_channel(
     frequency_hz: float,
     **kwargs: object,
 ) -> complex:
+    phase = validate_commanded_pattern(ris, pattern_rad)
     points = rx_position.as_array()[None, :]
     return complex(
-        ris_channel_for_points(
-            tx, points, receiver_gain_linear, ris, pattern_rad, frequency_hz, **kwargs
+        _ris_channel_for_points_from_validated_pattern(
+            tx, points, receiver_gain_linear, ris, phase, frequency_hz, **kwargs
         )[0]
     )
 
+
+def _ris_channel_from_validated_pattern(
+    tx: Transmitter,
+    rx_position: Vec3,
+    receiver_gain_linear: float,
+    ris: RISSurface,
+    pattern_rad: np.ndarray,
+    frequency_hz: float,
+    **kwargs: object,
+) -> complex:
+    """Internal scalar entry for an engine-validated commanded snapshot."""
+    points = rx_position.as_array()[None, :]
+    return complex(
+        _ris_channel_for_points_from_validated_pattern(
+            tx, points, receiver_gain_linear, ris, pattern_rad, frequency_hz, **kwargs
+        )[0]
+    )
