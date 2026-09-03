@@ -8,10 +8,20 @@
 | 规范基线 | [docs/README.md](docs/README.md) |
 | 当前 Capability | Foundation 0.1.1A Physics and Algorithm Contract（In Progress） |
 
-## Foundation 0.1.1A / A3 implementation handoff
+## Foundation 0.1.1A / A3 final verification closure
 
-Deliverable A3（Commanded Pattern hardware boundary）已达到 **Implemented**，等待独立验收，
-本轮不自行标记 Verified：
+Deliverable A3（Commanded Pattern hardware boundary）已完成独立人工验收并达到
+**Verified**：
+
+- 验收对象：implementation commit `fb5ec093e78e588a65a661abf3b32d744d04ae04`；
+- Gate 结果：G0–G8 全部 PASS；
+- blocking issues：0；
+- 状态边界：A1/A2 保持 Verified；Foundation 0.1.1A 和 Foundation 0.1.1 仍为 In Progress；
+  其他 Planned/In Progress 能力不变。
+
+本次 verification/status closure 仅修改 Markdown 状态事实源；documentation tests `9 passed`、
+完整 pytest `96 passed`、`git diff --check` 通过。未修改功能代码、测试逻辑、物理模型或后续
+阶段内容。
 
 - [A3 Work Item](docs/work_items/foundation_0_1_1_a3.md) 已完成 Definition of Ready，
   blocking ambiguity 为 0；A3 未触发新 ADR，也不改变 Scene JSON v1；
@@ -44,9 +54,9 @@ Deliverable A3（Commanded Pattern hardware boundary）已达到 **Implemented**
 command 没有数值迁移。兼容性变化仅是此前可能被接受的未知/歧义 key、二维 reshape、非有限/
 complex/off-grid phase 和非法 `phase_bits` 类型现在明确失败。
 
-状态边界：A1/A2 保持 Verified；A3、AMF-RIS-010 为 Implemented、待独立验收；Foundation
-0.1.1A 和 Foundation 0.1.1 保持 In Progress。FND-FIX-WALL、B/C、FND-QA-AP、FND-PHY-NB、
-FND-QA-CC、cache 和其他后续能力均未开始或未改变。
+状态边界：A1/A2/A3 与 AMF-RIS-010 为 Verified；Foundation 0.1.1A 和 Foundation 0.1.1
+保持 In Progress。FND-FIX-WALL、B/C、FND-QA-AP、FND-PHY-NB、FND-QA-CC、cache 和其他
+后续能力均未开始或未改变。
 
 ## Foundation physics/algorithm master-plan integration
 
@@ -174,8 +184,8 @@ Deliverable A1（Focus objective）已完成最终人工验收并达到 **Verifi
 | A1 Coherent 单目标 | Current 123 candidates / `0.083 s`；Advanced 4609 / `3.571 s`；Future continuous / `0.003 s` |
 
 headless 仍故意运行 v0.1 RIS-only 默认算法，因此上述三代值是兼容回归，不是 Coherent
-Target 新默认。A2 已 Verified；A1 验收当时 A3 尚未实现，当前 A3 已 Implemented、等待独立
-验收，因此 Foundation 0.1.1A 仍不能标为 Implemented/Verified。
+Target 新默认。A2/A3 已 Verified；Foundation 0.1.1A 仍有后续状态门禁，因此仍不能标为
+Implemented/Verified。
 
 ## 已完成（v0.1）
 
@@ -201,8 +211,8 @@ Target 新默认。A2 已 Verified；A1 验收当时 A3 尚未实现，当前 A3
 - `nx/ny` 的 equivalent patch 语义已冻结，但仍同时承担控制与中心点求积；GUI 尚未接入
   A2 只读 pitch/波长诊断；最小独立求积有效性进入 Foundation final exit 前的 FND-QA-AP，
   P1C 保留完整 aperture/field-map/适用域研究；
-- A3 已在传播入口执行 commanded hardware-state validation，但尚待独立验收；B 阶段的
-  hardware/search resolution 和 GUI transparency 仍未实现；
+- A3 commanded hardware-state validation 已 Verified；B 阶段的 hardware/search resolution 和
+  GUI transparency 仍未实现；
 - continuous hardware 与反馈优化的 8-state search 尚未在接口/UI 中拆分；
 - GUI Generation 立即应用、普通参数等待 Apply，但没有 pending/customized 状态提示；
 - 所有场景仍共用固定传播编排，尚无 PropagationProfile identity；
@@ -225,8 +235,7 @@ Target 新默认。A2 已 Verified；A1 验收当时 A3 尚未实现，当前 A3
 
 ## 下一阶段
 
-1. 对 A3 commanded pattern hardware boundary 做独立验收；通过后按
-   [Foundation 0.1.1 计划](docs/foundation_0_1_1_plan.md) 完成 FND-FIX-WALL；
+1. 按 [Foundation 0.1.1 计划](docs/foundation_0_1_1_plan.md) 完成 FND-FIX-WALL；
 2. 完成 optimizer/GUI 语义和 A/B checkpoint；
 3. 建立 environment-only PropagationProfile 与最小实验 provenance；
 4. 执行 FND-QA-AP，冻结 production quadrature policy；若要求改变 production，先走独立迁移；

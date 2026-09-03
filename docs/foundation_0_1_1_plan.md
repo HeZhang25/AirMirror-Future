@@ -5,7 +5,7 @@
 | 文档状态 | Operational / Normative for sequencing |
 | 当前实现基线 | v0.1 Verified，commit `edfa43c` |
 | 目标版本 | v0.1.1 Foundation |
-| 当前计划状态 | In Progress；A1/A2 Verified；A3 Implemented、待独立验收；B/C、FND-QA-AP、FND-FIX-WALL、FND-PHY-NB、FND-QA-CC 尚未完成 |
+| 当前计划状态 | In Progress；A1/A2/A3 Verified；B/C、FND-QA-AP、FND-FIX-WALL、FND-PHY-NB、FND-QA-CC 尚未完成 |
 | 父级路线 | v0.1 Smart Space → Foundation 0.1.1 → P1A |
 | 主要责任 | 项目维护者、物理仿真负责人、GUI/测试负责人 |
 | 最后复核 | 2026-09-03（wall/Profile ownership closure；ADR-0009 superseded by ADR-0012） |
@@ -499,8 +499,7 @@ coefficient builder。最后由 [FND-QA-CC](work_items/foundation_0_1_1_coeffici
 #### Deliverable A1：Focus objective ADR
 
 - 状态：**Verified（2026-09-02）**；验收依据 commit `87495ec`，G0–G8 PASS，
-  blocking issues 0；Foundation 0.1.1A 仍为 In Progress，A2 已 Verified、A3 后续已
-  Implemented 并等待独立验收；
+  blocking issues 0；Foundation 0.1.1A 仍为 In Progress，A2/A3 后续均已 Verified；
 
 - Requirement：`AMF-RIS-008`；
 - 输入：当前 Focus、nominal baseline、Controller Model、phase bits；
@@ -535,8 +534,9 @@ coefficient builder。最后由 [FND-QA-CC](work_items/foundation_0_1_1_coeffici
 
 #### Deliverable A3：Commanded Pattern hardware boundary
 
-- 状态：**Implemented（2026-09-03）**；自动门禁已完成，等待独立人工验收，不得自行标记
-  Verified；工作范围与 Ready/Done 证据见
+- 状态：**Verified（2026-09-03）**；implementation commit
+  `fb5ec093e78e588a65a661abf3b32d744d04ae04` 已完成独立人工验收，G0–G8 PASS、blocking
+  issues 0；工作范围与 Ready/Done/verification 证据见
   [A3 Work Item](work_items/foundation_0_1_1_a3.md)；
 - Requirement：`AMF-RIS-010`；
 - 输入：RIS、commanded phase array；

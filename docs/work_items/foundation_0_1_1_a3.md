@@ -2,7 +2,7 @@
 
 - 层级：L3 Deliverable
 - Requirement IDs：AMF-RIS-010
-- 状态：Implemented（等待独立验收，不得自行标记 Verified）
+- 状态：Verified
 - 父项：Foundation 0.1.1A — Physics and Algorithm Contract
 - 依赖：v0.1 Verified、A1 Verified、A2 Verified、ADR-0003、ADR-0006、ADR-0011
 
@@ -89,13 +89,21 @@ validate_commanded_pattern(
 - Current/Advanced/Future fast headless；
 - `git diff --check`。
 
-自动门禁通过后本 Work Item 只提升为 Implemented；不得自行标记 Verified。
+自动门禁通过后的 implementation handoff 只将本 Work Item 提升为 Implemented；Verified 必须由
+独立人工验收决定。
 
 2026-09-03 本机 Windows / Python 3.14.3 实现证据：A3 定向 `22 passed`；A3 + RIS +
 scene/engine + A1 coherent + optimization 相关回归 `63 passed`；documentation tests
 `9 passed`；完整 pytest `96 passed`；`git diff --check` 通过。Current/Advanced/Future fast
 headless 的目标功率依次为 `-46.5879/-30.1257/-19.3118 dBm`，RIS Gain 依次为
 `+8.6874/+25.1496/+35.9636 dB`，与 A2/A1 兼容基线一致。运行时间只作同机参考。
+
+2026-09-03 完成独立人工验收：验收对象为 implementation commit
+`fb5ec093e78e588a65a661abf3b32d744d04ae04`，G0–G8 全部 PASS，blocking issues 为 0。本次
+签署将 A3 Deliverable 与 `AMF-RIS-010` 提升为 Verified；A1/A2 保持 Verified，Foundation
+0.1.1A 和 Foundation 0.1.1 仍保持 In Progress，其他 Planned/In Progress 能力不变。
+本次 verification/status closure 仅修改 Markdown 状态事实源；documentation tests `9 passed`、
+完整 pytest `96 passed`、`git diff --check` 通过。
 
 ## 风险与回退
 

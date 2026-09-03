@@ -18,7 +18,7 @@
 1. [project_baseline.md](project_baseline.md)：产品目标、边界和不可破坏原则；
 2. [glossary.md](glossary.md)：统一术语、坐标、单位和状态词；
 3. [foundation_0_1_1_plan.md](foundation_0_1_1_plan.md)：当前基线之后的模型契约改进计划；
-   A3 commanded hardware boundary 的 Ready/implementation 证据见
+   A3 commanded hardware boundary 的 Ready/implementation/verification 证据见
    [A3 Work Item](work_items/foundation_0_1_1_a3.md)；
    其中最小孔径求积门禁详见
    [FND-QA-AP](work_items/foundation_0_1_1_qa_ap.md) 与
