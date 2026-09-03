@@ -5,10 +5,10 @@
 | 文档状态 | Operational / Normative for sequencing |
 | 当前实现基线 | v0.1 Verified，commit `edfa43c` |
 | 目标版本 | v0.1.1 Foundation |
-| 当前计划状态 | In Progress；A1/A2/A3 Verified；FND-FIX-WALL Implemented、待独立验收；B/C、FND-QA-AP、FND-PHY-NB、FND-QA-CC 尚未完成 |
+| 当前计划状态 | In Progress；A1/A2/A3、FND-FIX-WALL Verified；B/C、FND-QA-AP、FND-PHY-NB、FND-QA-CC 尚未完成 |
 | 父级路线 | v0.1 Smart Space → Foundation 0.1.1 → P1A |
 | 主要责任 | 项目维护者、物理仿真负责人、GUI/测试负责人 |
-| 最后复核 | 2026-09-03（FND-FIX-WALL implementation；Profile ownership 仍以 ADR-0012 为准） |
+| 最后复核 | 2026-09-03（FND-FIX-WALL independent verification；Profile ownership 仍以 ADR-0012 为准） |
 
 本文是 AirMirror Future 在 v0.1 后的首个模型契约改进计划。它把当前代码事实、已发现的
 物理/算法/交互问题、目标架构、实施顺序、测试证据和退出门禁集中到同一个工作入口，供
@@ -634,7 +634,8 @@ coefficient builder。最后由 [FND-QA-CC](work_items/foundation_0_1_1_coeffici
 
 #### FND-FIX-WALL：Wall Geometry Closure
 
-- 状态：**Implemented（2026-09-03）**，待独立验收；Requirement `AMF-SIM-006`；
+- 状态：**Verified（2026-09-03）**；Requirement `AMF-SIM-006`；implementation commit `8841ef2`
+  已完成独立人工验收，G0–G8 PASS、blocking issues 0；
 - 依赖：v0.1 wall/blockage/reflection audit；可在 A3 后、B 前独立实施；
 - 输入：Wall endpoint/height、Ground Truth position delta、Scene v1；
 - 输出：floor-anchored wall、`start.z=end.z=0` 验证、同一刚体 XY perturbation；
@@ -679,7 +680,7 @@ coefficient builder。最后由 [FND-QA-CC](work_items/foundation_0_1_1_coeffici
 | 4 | `FND-TEST-02` 定义 commanded pattern 契约测试 | Implemented | bits、modulo、tolerance、Actual error |
 | 5 | `FND-PHY-01` 实现两个具名 Focus | Implemented | RIS-only 保留、Coherent 新增且分层正确；ADR-0006 |
 | 6 | `FND-PHY-02` 实现 commanded validator | Implemented | 所有公共传播入口共用且 Field Map 只验证一次 |
-| 7 | `FND-FIX-WALL` 冻结 floor-anchored Wall/XY perturbation | Implemented | FND-T19、schema/error/compatibility evidence；待独立验收 |
+| 7 | `FND-FIX-WALL` 冻结 floor-anchored Wall/XY perturbation | Verified | FND-T19、schema/error/compatibility evidence；独立验收 G0–G8 PASS |
 | 8 | `FND-OPT-01` 增加 search levels 与结果元数据 | Planned | discrete/continuous 语义分离 |
 | 9 | `FND-UI-01` 建立 pending/apply/Optimize 门禁 | Planned | GUI 状态机 smoke tests |
 | 10 | `FND-UI-02` 增加 Customized、Pattern 信息和准确标签 | Planned | 可人工验收界面 |
@@ -765,8 +766,8 @@ normalized complex error、幅度/功率差和有保护的 phase/RIS Gain。refe
 production adequacy 容差必须在正式结果前预注册；不得在失败后放宽。最小 QA 避开 partial
 blockage boundary；P1C 再扩大 frequency/angle/near-field、field-map 和遮挡边缘适用域。
 
-FND-T19 已独立关闭 wall 几何语义，不把 z delta 映射成 wall height；其 Implemented 状态仍待
-独立验收。FND-T20 只验证当前 center-frequency flat-channel 合同，不借机加入频率轴。
+FND-T19 已独立关闭并验证 wall 几何语义，不把 z delta 映射成 wall height。FND-T20 只验证当前
+center-frequency flat-channel 合同，不借机加入频率轴。
 FND-T21/T22 必须在 FND-QA-AP 签署 production policy 后执行；若 QAP 要求多点 production，先
 完成独立 migration，再验证 Focus、simulator 和 QA runner 共用 coefficient。FND-T20..22 仍为
 Planned，不因文档测试设计而提前通过。
@@ -897,9 +898,9 @@ Commanded validation、search levels 和 GUI dirty state 如果不改变层依�
 - 物理性质测试与三代 headless 通过；
 - 旧行为差异有 ADR 和版本记录。
 
-Foundation A exit 后、B 开始前的 FND-FIX-WALL 已达到 Implemented、待独立验收；A1/A2/A3 的
-Verified 状态不受该独立 closure 影响，FND-T19 未完成独立签署前 Foundation final gate 仍被
-阻断。
+Foundation A exit 后、B 开始前的 FND-FIX-WALL 已完成独立验收并达到 Verified；A1/A2/A3 的
+Verified 状态不受该独立 closure 影响。Foundation final gate 仍受 FND-PHY-NB、FND-QA-AP、
+FND-QA-CC 及其他既有门禁阻断。
 
 ### 14.3 Foundation 0.1.1B Exit Gate
 
@@ -1017,7 +1018,8 @@ Foundation 之后按以下顺序推进：
   migration 顺序。
 - FND-FIX-WALL Ready review 冻结 endpoint z 为 `1e-9 m` 绝对容差；超差 v1 输入的错误包含
   wall id、具体字段、实际值和显式归零迁移指引。兼容审计未发现受支持的非零-z Scene，故
-  schema version 保持 1，不触发新 ADR。
+  schema version 保持 1，不触发新 ADR；implementation commit `8841ef2` 后的独立审查 G0–G8
+  PASS、blocking issues 0，已提升为 Verified。
 
 以下问题在正式实现前不得由单个开发者静默选择：
 

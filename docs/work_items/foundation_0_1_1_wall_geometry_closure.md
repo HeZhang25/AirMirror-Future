@@ -3,7 +3,7 @@
 - 层级：L4 Task（physics/data contract fix）
 - Task ID：FND-FIX-WALL
 - Requirement IDs：AMF-SIM-006
-- 状态：Implemented（2026-09-03），待独立验收
+- 状态：Verified（2026-09-03）
 - 父项：Foundation 0.1.1 Final Exit Gate
 - 依赖：当前 v0.1 geometry/reflection/blockage 行为审计完成
 - 不属于：新墙体格式、倾斜/悬空墙、多面体建筑、空间分辨 RIS blockage
@@ -117,8 +117,8 @@ Ground Truth wall perturbation = one rigid XY translation (dx,dy,0)
 - 人工核对 data/physics/schema/status 文案没有声称墙体存在 3D vertical position error；GUI
   代码和最终人工文案由后续 B3 验收。
 
-自动门禁通过后的 implementation handoff 只将本 Work Item 与 `AMF-SIM-006` 提升为
-Implemented；Verified 必须由独立人工验收决定。
+自动门禁通过后的 implementation handoff 已将本 Work Item 与 `AMF-SIM-006` 提升为
+Implemented；Verified 由独立人工验收决定。
 
 2026-09-03 本机 Windows / Python 3.14.3 实现证据：FND-T19 + 既有 blockage/reflection/scene
 定向回归 `13 passed`；wall/GT/scene + physics/RIS/A1/A3/optimization 相关回归 `79 passed`；
@@ -132,6 +132,12 @@ Current/Advanced/Future fast headless 的目标功率依次为
 schema version 1、默认数值与 Ground Truth XY 随机序列不变。兼容收紧只影响超容差 endpoint z
 和 XY 重合而仅 z 不同的退化墙段。未修改 Scene、results、cache、GUI、B/C 或其他后续能力。
 
+2026-09-03 独立人工审查已完成：验收对象为 implementation commit
+`8841ef286e8e4c3a6ecea04592f69d9306a80fa1`，G0–G8 全部 PASS，blocking issues 为 0。本次
+verification/status closure 仅更新 Markdown 状态事实源；FND-FIX-WALL 与 `AMF-SIM-006` 提升为
+Verified。A1/A2/A3 保持 Verified；Foundation 0.1.1A / Foundation 0.1.1 保持 In Progress；B/C、
+FND-QA-AP、FND-PHY-NB、FND-QA-CC 及其他 Planned/In Progress 能力不变。
+
 ## 风险与回退
 
 | 风险 | 检测 | 安全回退 |
@@ -143,7 +149,7 @@ schema version 1、默认数值与 Ground Truth XY 随机序列不变。兼容�
 
 ## 文档影响
 
-- [x] requirements、Foundation plan、roadmap、status：同步 Implemented / 待独立验收边界；
+- [x] requirements、Foundation plan、roadmap、status：同步 Verified 独立验收结论与状态边界；
 - [x] physics、data model、public API、schema、architecture、GUI、glossary、limitations、test/DoD：
   同步 floor-anchor、容差、错误、XY-only 和限制；
 - [x] code/tests：完成最小 data/engine 修改与 FND-T19；

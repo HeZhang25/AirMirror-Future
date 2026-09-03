@@ -8,10 +8,17 @@
 | 规范基线 | [docs/README.md](docs/README.md) |
 | 当前 Capability | Foundation 0.1.1A Physics and Algorithm Contract（In Progress） |
 
-## Foundation / FND-FIX-WALL implementation handoff
+## Foundation / FND-FIX-WALL verification/status closure
 
-FND-FIX-WALL（Wall Geometry Closure）已完成 Ready Review 和 implementation-level DoD，状态为
-**Implemented**、等待独立验收：
+FND-FIX-WALL（Wall Geometry Closure）已完成独立人工验收并达到 **Verified**：
+
+- 验收对象为 implementation commit `8841ef286e8e4c3a6ecea04592f69d9306a80fa1`；
+- Gate 结果：G0–G8 全部 PASS；
+- blocking issues：0；
+- 本次 verification/status closure 仅同步 Markdown 状态事实源，未修改功能代码、测试逻辑、
+  物理模型、Scene schema 或后续阶段内容。
+
+实现与 Ready Review 证据：
 
 - Ready 结论为 blocking ambiguity 0；endpoint z 冻结为公共绝对容差
   `WALL_ENDPOINT_Z_ATOL_M=1e-9 m`，不使用相对容差；
@@ -41,9 +48,9 @@ FND-FIX-WALL（Wall Geometry Closure）已完成 Ready Review 和 implementation
 三代目标值与 A1/A2/A3 基线显示到四位小数完全一致。兼容性收紧仅影响此前会被接受、但从未
 有已验证计算语义的超容差 Wall endpoint z，以及 XY 重合而仅 z 不同的退化墙段。
 
-状态边界：A1/A2/A3 与 AMF-RIS-010 保持 Verified；FND-FIX-WALL 与 AMF-SIM-006 为
-Implemented，不能自行标 Verified；Foundation 0.1.1A 和 Foundation 0.1.1 保持 In Progress；
-B/C、FND-QA-AP、FND-PHY-NB、FND-QA-CC、cache 和新场景均未改变。
+状态边界：A1/A2/A3、AMF-RIS-010、FND-FIX-WALL 与 AMF-SIM-006 保持 Verified；Foundation
+0.1.1A 和 Foundation 0.1.1 保持 In Progress；B/C、FND-QA-AP、FND-PHY-NB、FND-QA-CC、
+cache 和新场景均未改变。
 
 ## Foundation 0.1.1A / A3 final verification closure
 
@@ -92,7 +99,7 @@ command 没有数值迁移。兼容性变化仅是此前可能被接受的未知
 complex/off-grid phase 和非法 `phase_bits` 类型现在明确失败。
 
 状态边界：A1/A2/A3 与 AMF-RIS-010 为 Verified；Foundation 0.1.1A 和 Foundation 0.1.1
-保持 In Progress。FND-FIX-WALL 的后续 Implemented 状态见本页最新快照；B/C、FND-QA-AP、
+保持 In Progress。FND-FIX-WALL 的后续 Verified 状态见本页最新快照；B/C、FND-QA-AP、
 FND-PHY-NB、FND-QA-CC、cache 和其他后续能力未改变。
 
 ## Foundation physics/algorithm master-plan integration
@@ -256,7 +263,7 @@ Implemented/Verified。
 - Profile/Reflection 的 target ownership 已由 ADR-0012 冻结，但 C1 尚未实现；
 - `frequency_hz/bandwidth_hz` 的 flat-channel 语义已由 ADR-0010 冻结，但 model ID、标签和
   provenance closure 尚未实现；
-- FND-FIX-WALL 已收紧 floor-anchored Wall/XY-only Ground Truth 语义，当前仍不支持悬空/倾斜墙；
+- FND-FIX-WALL 已 Verified：floor-anchored Wall/XY-only Ground Truth 语义当前仍不支持悬空/倾斜墙；
 - FND-QA-AP 后仍须 FND-QA-CC 证明最终 Controller coefficient 与两种 Focus 一致；
 - 高质量 `200×160` 场图在 Future 64×48 网格下计算较慢，但运行于后台且可取消；
 - 当前场图采用逐评价点计算，尚未建立跨点 RIS 系数矩阵缓存；

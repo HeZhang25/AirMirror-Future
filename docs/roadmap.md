@@ -62,7 +62,7 @@ id 错误异常待统一。这些进入 P1 tasks。
 
 ## 4. Foundation 0.1.1：物理模型契约
 
-状态：In Progress；A1/A2/A3 Verified；FND-FIX-WALL Implemented、待独立验收；B/C、
+状态：In Progress；A1/A2/A3、FND-FIX-WALL Verified；B/C、
 FND-QA-AP、FND-PHY-NB 与 FND-QA-CC 尚未完成。详细背景、范围、
 Requirement IDs、L3/L4 工作项、测试、兼容策略和 Exit Gate 见
 [foundation_0_1_1_plan.md](foundation_0_1_1_plan.md)。
@@ -92,7 +92,7 @@ Foundation 保持 In Progress，不能以“P1A 只改性能”为理由绕过�
 
 A/B 完成后必须先执行维护者与物理审查者共同参与的 interim checkpoint。该检查点允许评审
 Focus、Pattern 和 GUI，但不代表 Foundation Verified；0.1.1C、最小 experiment provenance、
-FND-QA-AP、已实现但待独立验收的 FND-FIX-WALL、FND-PHY-NB 和 FND-QA-CC 均是 P1A 前置
+FND-QA-AP、已 Verified 的 FND-FIX-WALL、FND-PHY-NB 和 FND-QA-CC 均是 P1A 前置
 条件。FND-QA-AP 不重开 A2，也不
 取消 P1C；它只回答 P1A 将缓存的 `a_n` 怎样计算才满足当前声明精度。
 
