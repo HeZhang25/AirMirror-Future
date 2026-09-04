@@ -50,7 +50,7 @@ def _build(**overrides: object) -> dict[str, object]:
         "engine": SimulationEngine(),
         "scene": scene,
         "focus": generate_focus_pattern,
-        "model": ControllerModel(),
+        "world": ControllerModel(),
         "search_levels": None,
         "run_id": "20260904T010203.123456Z-1a2b3c4d",
     }
@@ -128,7 +128,7 @@ def test_ground_truth_records_all_six_sigmas_and_its_actual_seed() -> None:
         position_error_sigma_m=0.5,
         measurement_noise_sigma_db=0.6,
     )
-    fields = _build(model=model)
+    fields = _build(world=model)
 
     assert fields["world_model_id"] == "ground_truth_stochastic"
     assert fields["world_model_version"] == "1"
@@ -154,32 +154,17 @@ def test_candidate_owner_metadata_stays_partial_while_owners_are_pending() -> No
     )
 
 
-def test_complete_requires_empty_pending_and_all_owner_fields() -> None:
-    fields = _build(
-        pending_contracts=(),
-        channel_frequency_model_id="narrowband_center_frequency_flat_v1",
-        quadrature_policy_id="signed_policy",
-        quadrature_policy_version="1",
-        coefficient_model_identity="sha256:" + "a" * 64,
-    )
-
-    assert fields["provenance_status"] == "complete"
-    assert fields["pending_contracts_json"] == "[]"
-
-    with pytest.raises(ValueError, match="provenance"):
-        _build(pending_contracts=())
-
-
-def test_pending_contracts_are_sorted_and_duplicates_are_rejected() -> None:
-    fields = _build(
-        pending_contracts=("FND-QA-CC", "FND-PHY-NB", "FND-QA-AP")
-    )
-    assert fields["pending_contracts_json"] == (
-        '["FND-PHY-NB","FND-QA-AP","FND-QA-CC"]'
-    )
-
-    with pytest.raises(ValueError, match="unique"):
-        _build(pending_contracts=("FND-QA-CC", "FND-QA-CC"))
+def test_world_is_required_at_the_internal_seam() -> None:
+    scene = create_smart_space_scene("Advanced")
+    with pytest.raises(TypeError, match="world"):
+        _build_provenance_fields(
+            engine=SimulationEngine(),
+            scene=scene,
+            focus=generate_focus_pattern,
+            run_id="20260904T010203.123456Z-1a2b3c4d",
+        )
+    with pytest.raises(ValueError, match="world"):
+        _build(world=None)
 
 
 @pytest.mark.parametrize(
@@ -188,7 +173,6 @@ def test_pending_contracts_are_sorted_and_duplicates_are_rejected() -> None:
         ({"run_id": ""}, "run_id"),
         ({"run_id": "parent/child"}, "run_id"),
         ({"focus": lambda: None}, "supported actual Focus"),
-        ({"model": object()}, "world model"),
         ({"search_levels": 0}, "search_levels"),
         ({"search_levels": True}, "search_levels"),
         ({"quadrature_policy_id": "candidate", "quadrature_policy_version": None},
@@ -227,7 +211,7 @@ def test_rejects_non_finite_ground_truth_mutation() -> None:
     model.position_error_sigma_m = float("nan")
 
     with pytest.raises(ValueError, match="world model parameters"):
-        _build(model=model)
+        _build(world=model)
 
 
 def test_profile_parameter_json_and_identity_share_the_same_payload() -> None:

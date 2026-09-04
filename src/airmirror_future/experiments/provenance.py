@@ -8,7 +8,6 @@ identity fields.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 import json
 import math
 import re
@@ -106,48 +105,30 @@ def _focus_mode(focus: object) -> tuple[str, str]:
         ) from exc
 
 
-def _pending_contracts(value: Iterable[str] | None) -> tuple[str, ...]:
-    if value is None:
-        value = DEFAULT_PENDING_CONTRACTS
-    if isinstance(value, (str, bytes)):
-        raise ValueError("pending_contracts must be an iterable of unique strings")
-    try:
-        items = tuple(value)
-    except TypeError as exc:
-        raise ValueError("pending_contracts must be an iterable of unique strings") from exc
-    normalized: list[str] = []
-    for item in items:
-        normalized.append(_non_empty_string(item, "pending contract"))
-    if len(set(normalized)) != len(normalized):
-        raise ValueError("pending_contracts must contain unique owner IDs")
-    return tuple(sorted(normalized))
-
-
 def _world_metadata(
     scene: object,
-    model: ControllerModel | GroundTruthModel | None,
+    world: ControllerModel | GroundTruthModel,
 ) -> tuple[str, str, str, int]:
-    active = ControllerModel() if model is None else model
-    if isinstance(active, GroundTruthModel):
+    if isinstance(world, GroundTruthModel):
         values: dict[str, float] = {}
         for key in _GROUND_TRUTH_KEYS:
-            value = getattr(active, key, None)
+            value = getattr(world, key, None)
             if isinstance(value, bool) or not isinstance(value, (int, float)):
                 raise ValueError(f"world model parameters {key} must be finite numbers")
             if not math.isfinite(float(value)) or float(value) < 0.0:
                 raise ValueError(f"world model parameters {key} must be finite and non-negative")
             values[key] = float(value)
-        seed = getattr(active, "seed", None)
+        seed = getattr(world, "seed", None)
         if isinstance(seed, bool) or not isinstance(seed, int):
             raise ValueError("Ground Truth seed must be an integer")
         parameters = json.dumps(values, sort_keys=True, separators=(",", ":"), allow_nan=False)
         return "ground_truth_stochastic", "1", parameters, seed
-    if isinstance(active, ControllerModel):
+    if isinstance(world, ControllerModel):
         seed = getattr(scene, "random_seed", None)
         if isinstance(seed, bool) or not isinstance(seed, int):
             raise ValueError("scene random_seed must be an integer")
         return "controller_nominal", "1", "{}", seed
-    raise ValueError("world model must be a ControllerModel or GroundTruthModel")
+    raise ValueError("world must be a ControllerModel or GroundTruthModel")
 
 
 def _validate_optional_owner_fields(
@@ -172,13 +153,10 @@ def _build_provenance_fields(
     engine: object,
     scene: object,
     focus: object,
-    world: ControllerModel | GroundTruthModel | None = None,
+    world: ControllerModel | GroundTruthModel,
     search_levels: int | None = None,
     run_id: str | None = None,
     *,
-    model: ControllerModel | GroundTruthModel | None = None,
-    world_model: ControllerModel | GroundTruthModel | None = None,
-    pending_contracts: Iterable[str] | None = None,
     channel_frequency_model_id: str | None = None,
     quadrature_policy_id: str | None = None,
     quadrature_policy_version: str | None = None,
@@ -186,9 +164,9 @@ def _build_provenance_fields(
 ) -> dict[str, object]:
     """Build C2 schema metadata from actual run objects.
 
-    ``world`` is the positional/internal-seam spelling; ``model`` and
-    ``world_model`` are accepted aliases for callers that name the same input.
-    Identity-bearing fields are always recomputed from the supplied objects.
+    ``world`` is the actual model used by the run.  It is intentionally required:
+    provenance must never infer a nominal Controller model when a caller forgets
+    to pass the selected world.
     """
     if run_id is None:
         raise ValueError("run_id is required")
@@ -201,11 +179,7 @@ def _build_provenance_fields(
     ):
         raise ValueError("search_levels must be a positive integer or None")
 
-    candidates = [value for value in (world, model, world_model) if value is not None]
-    if len(candidates) > 1 and any(value is not candidates[0] for value in candidates[1:]):
-        raise ValueError("world/model arguments must identify the same object")
-    active_world = candidates[0] if candidates else None
-    world_id, world_version, world_parameters, random_seed = _world_metadata(scene, active_world)
+    world_id, world_version, world_parameters, random_seed = _world_metadata(scene, world)
 
     try:
         profile = engine.profile
@@ -225,28 +199,15 @@ def _build_provenance_fields(
         quadrature_policy_version=quadrature_policy_version,
         coefficient_model_identity=coefficient_model_identity,
     )
-    pending = _pending_contracts(pending_contracts)
-    pending_set = set(pending)
-    owner_values = {
-        "FND-PHY-NB": bool(channel),
-        "FND-QA-AP": bool(quadrature_id and quadrature_version),
-        "FND-QA-CC": bool(coefficient),
-    }
-    for owner, populated in owner_values.items():
-        if owner not in pending_set and not populated:
-            raise ValueError(
-                f"{owner} is not pending but its provenance identity is empty"
-            )
-    if not pending and not (channel and quadrature_id and quadrature_version and coefficient):
-        raise ValueError(
-            "complete provenance requires channel, quadrature, and coefficient identities"
-        )
-    status = "complete" if not pending else "partial"
+    # C2 is intentionally partial until the three future owner Work Items sign
+    # their contracts.  Candidate IDs may be recorded above, but callers cannot
+    # remove these mandatory pending owners or manufacture a complete result.
+    pending = DEFAULT_PENDING_CONTRACTS
 
     return {
         "provenance_schema_id": PROVENANCE_SCHEMA_ID,
         "provenance_schema_version": PROVENANCE_SCHEMA_VERSION,
-        "provenance_status": status,
+        "provenance_status": "partial",
         "pending_contracts_json": json.dumps(pending, separators=(",", ":")),
         "run_id": validated_run_id,
         "software_version": _non_empty_string(airmirror_future.__version__, "software_version"),
