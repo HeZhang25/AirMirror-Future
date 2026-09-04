@@ -7,7 +7,11 @@ import re
 
 import pytest
 
-from airmirror_future.experiments.run_output import _RunDirectory, _create_run_directory
+from airmirror_future.experiments.run_output import (
+    _REPOSITORY_ROOT,
+    _RunDirectory,
+    _create_run_directory,
+)
 
 
 RUN_ID_PATTERN = re.compile(r"^\d{8}T\d{6}\.\d{6}Z-[0-9a-f]{8}$")
@@ -68,19 +72,14 @@ def test_existing_default_target_fails_exclusively(
         _create_run_directory(None)
 
 
-def test_legacy_output_is_reserved_even_when_missing(tmp_path: Path) -> None:
-    legacy = tmp_path / "results" / "phase_bits"
-    assert not legacy.exists()
+def test_repository_legacy_output_is_reserved() -> None:
+    legacy = _REPOSITORY_ROOT / "results" / "phase_bits"
 
     with pytest.raises(ValueError, match="legacy results path is reserved"):
         _create_run_directory(legacy)
 
-    assert not legacy.exists()
-
-
-def test_legacy_symlink_or_equivalent_path_is_reserved(tmp_path: Path) -> None:
-    legacy = tmp_path / "results" / "phase_bits"
-    legacy.mkdir(parents=True)
+def test_repository_legacy_symlink_alias_is_reserved(tmp_path: Path) -> None:
+    legacy = _REPOSITORY_ROOT / "results" / "phase_bits"
     alias = tmp_path / "legacy-alias"
     try:
         alias.symlink_to(legacy, target_is_directory=True)
@@ -89,6 +88,16 @@ def test_legacy_symlink_or_equivalent_path_is_reserved(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="legacy results path is reserved"):
         _create_run_directory(alias)
+
+
+def test_external_results_phase_bits_path_is_allowed(tmp_path: Path) -> None:
+    output = tmp_path / "results" / "phase_bits"
+
+    run = _create_run_directory(output)
+
+    assert run.path == output
+    assert run.run_id == output.name
+    assert output.is_dir()
 
 
 def test_run_directory_is_immutable(tmp_path: Path) -> None:

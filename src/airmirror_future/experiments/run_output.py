@@ -13,8 +13,9 @@ from pathlib import Path
 from uuid import uuid4
 
 
+_REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 _DEFAULT_RUN_ROOT = Path("results") / "foundation_0_1_1" / "phase_bits"
-_LEGACY_OUTPUT = Path("results") / "phase_bits"
+_LEGACY_OUTPUT = _REPOSITORY_ROOT / "results" / "phase_bits"
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,9 +37,7 @@ def _is_reserved_legacy_path(path: Path) -> bool:
     try:
         resolved = path.resolve()
         legacy = _LEGACY_OUTPUT.resolve()
-        # Keep the retained path reserved even when callers supply an
-        # equivalent absolute path under an isolated test/output root.
-        return resolved == legacy or resolved.parts[-2:] == ("results", "phase_bits")
+        return resolved == legacy
     except OSError:
         return False
 
