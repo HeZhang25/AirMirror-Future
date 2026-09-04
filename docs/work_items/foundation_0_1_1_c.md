@@ -15,6 +15,10 @@
 
 2026-09-03 Ready Review 结论：**Ready / blocking ambiguity 0**。
 
+2026-09-04 对 `950e1466661bc73773cb483e2fec1930bcfb354f` 的独立审查意见完成 focused correction：
+修正历史结果分类、FND-T14 范围、path-specific 距离有效性所有权及 version/seed 类型文字。
+C1/C2 保持 Ready，blocking ambiguity 0；不改变 ADR-0012 ownership 或进入实现。
+
 本 Work Item 只冻结 C1/C2 的实现边界、接口、数据、错误和验收条件；本次评审没有修改 Python、
 tests、results、GUI 或 Scene，也不构成 C1/C2 Implemented/Verified 证据。ADR-0011 已冻结
 `geometry/environment -> a^GT`、`RIS phase/efficiency error -> Gamma_actual`，ADR-0012 已冻结
@@ -134,9 +138,13 @@ working scene；Profile 对显式给定的相同 scene/context 做纯确定性�
 | `ris_incident` | working TX -> working RIS center | `ris_id` | wall ID | 每块 enabled 且有 validated pattern 的 RIS 恰好一次 |
 | `ris_scattered` | working RIS center -> working RX | `ris_id` | wall ID | 与 incident 成对调用一次 |
 
-`PropagationPathContext.__post_init__` 必须拒绝未知 role、非有限或
-`start.distance_to(end) < MIN_DISTANCE_M` 的路径、空 ID 和 role/ID
-组合不一致；engine 在创建 context 前拒绝引用不存在或不唯一的 wall/RIS。无有效反射点、disabled
+`PropagationPathContext.__post_init__` 必须拒绝未知 role、非有限坐标、空 ID 和 role/ID
+组合不一致；engine 在创建 context 前拒绝引用不存在或不唯一的 wall/RIS；RIS ID 校验沿用既有
+commanded-pattern 边界，C1 对既有输入接受域只新增 duplicate wall ID tightening。
+Context 不统一检查 `start.distance_to(end)`：direct 距离和 reflection 总路径长度继续由既有
+`complex_free_space_channel` 校验，RIS 的 TX/RX-to-cell 最小距离继续由 scattering kernel 校验。
+不得新增 reflection 单 leg 或 RIS center environment leg 的 `MIN_DISTANCE_M` 拒绝，包含零长度
+在内的路径有效性仍按既有 physics kernels 决定。无有效反射点、disabled
 RIS 或没有 commanded pattern 的 RIS 不创建对应 context，也不调用 Profile。RIS 两段保持 v0.1
 的面板中心标量 modifier；不得按 patch 或 quadrature sample 调用 Profile。
 
@@ -164,12 +172,12 @@ RIS 或没有 commanded pattern 的 RIS 不创建对应 context，也不调用 P
 全局状态或缓存副作用：
 
 ```text
-profile_id = indoor_deterministic
-profile_version = 1
+profile_id = "indoor_deterministic"
+profile_version = "1"
 canonical_parameters = ()
 ```
 
-硬编码的 v0.1 blocker 算法和 fully-blocking `300 dB` 行为由 `profile_version=1` 版本化，不伪装成
+硬编码的 v0.1 blocker 算法和 fully-blocking `300 dB` 行为由 `profile_version="1"` 版本化，不伪装成
 用户参数；未来改变该算法必须提升 version。scene 中的墙/障碍物几何和衰减值是本次 world 输入，
 不属于 `canonical_parameters` 或 `profile_identity`。
 
@@ -280,8 +288,8 @@ scene 和现有 tests 已审计为无 duplicate wall ID，因此该收紧不要�
 C1 只增加两个稳定常量，不建立 Reflection Protocol、factory 或插件系统：
 
 ```text
-reflection_model_id = finite_wall_single_bounce_image
-reflection_model_version = 1
+reflection_model_id = "finite_wall_single_bounce_image"
+reflection_model_version = "1"
 ```
 
 它标识当前“floor-anchored finite wall + image specular point + total-length Friis carrier + 所选
@@ -319,7 +327,7 @@ provenance_status = partial | complete
 | `reflection_model_id`,`reflection_model_version` | str | C1 的最小反射契约常量 |
 | `world_model_id`,`world_model_version` | str | `controller_nominal/1` 或 `ground_truth_stochastic/1` |
 | `world_model_parameters_json` | JSON object | 实际六个 sigma；Controller 使用空对象；key 排序、compact JSON、禁止 NaN/Inf |
-| `random_seed` | int/empty | Ground Truth/随机实验实际 seed；不适用为空 |
+| `random_seed` | int/empty | 实际使用或显式声明的整数 seed；不适用为 CSV 空单元格；0 仅表示实际 seed 0 |
 | `channel_frequency_model_id` | str/empty | 由 FND-PHY-NB 拥有；未接入时不得从 ADR 目标值回填 |
 | `quadrature_policy_id`,`quadrature_policy_version` | str/empty | 由 FND-QA-AP 拥有；未签署时不得伪造 production default |
 | `coefficient_model_identity` | str/empty | 由 FND-QA-CC 拥有；builder/identity 未完成时保持空 |
@@ -343,13 +351,18 @@ schema；FND-QA-AP 可增加 QA 专用列，但必须复用这些字段和 pendi
 
 ### C2.2 Legacy contract
 
-- 当前 `results/phase_bits/` 及缺少 C2 schema ID/version 的历史 CSV 均分类为
-  `legacy_v0_1_unversioned`；
+- 只有已确认的 `results/phase_bits/` v0.1 历史输出派生为 `legacy_v0_1_unversioned`；缺少 schema
+  本身不能证明 v0.1 来源；
+- `results/checkpoints/foundation_0_1_1_ab_checkpoint_20260903/` 保持
+  `checkpoint / non-formal provenance`，缺少 C2 schema 不把它重分类为 v0.1 legacy；
+- Foundation 新 run（含默认目录及显式 `--output`）缺少或空置 C2 schema ID/version 任一字段时，
+  必须按 malformed provenance 明确失败，不能降级为 legacy；
+- 未知来源的 schema-less 文件保持未分类，拒绝作为 Foundation provenance，不自动猜为 v0.1 legacy；
 - legacy 是 reader/report 和 `results/README.md` 的派生标签，不向旧 CSV/PNG 回写新列，不计算
   guessed Profile/Reflection/channel/quadrature/coefficient identity；
 - 未知的非空 schema ID/version 明确拒绝，不能降级为 legacy；
-- legacy 结果仍可展示其原有字段，但不能与 `partial/complete` Foundation 行拼接成一个无标签
-  aggregate，也不能作为 Foundation formal provenance evidence。
+- legacy/checkpoint 结果仍可展示其原有字段，但不能相互重分类或与 `partial/complete` Foundation
+  行拼接成一个无标签 aggregate，也不能作为 Foundation formal provenance evidence。
 
 ### C2.3 No-overwrite contract
 
@@ -397,8 +410,9 @@ C1 和 C2 分两个 focused implementation reviews；C2 依赖 C1 实际 Profile
 - `FND-T13d`：反射墙只从自身两个 legs 排除，其他 blocker 仍生效；duplicate wall ID 在 Profile
   调用前失败；
 - `FND-T14`：默认 Profile frozen/deterministic；ID/version/typed parameter mutation 改变 identity；
-  两个独立 Python 进程 identity 一致；非法/non-finite output 和 context 明确失败；改变墙系数不
-  改变 profile identity。
+  两个独立 Python 进程 identity 一致；非法/non-finite output 和 context 明确失败；Reflection
+  ID/version 独立于 Profile identity，改变墙系数不改变 `profile_identity`。wall/world state 对总体
+  coefficient/world identity 的 mutation matrix 留给 FND-QA-CC，不是 C1 测试或实现前置项。
 
 ### C2 automatic
 
@@ -406,7 +420,8 @@ C1 和 C2 分两个 focused implementation reviews；C2 依赖 C1 实际 Profile
   canonical parameters 与 identity 一致；
 - `FND-T15b`：FND-PHY-NB/FND-QA-AP/FND-QA-CC 未签署时保持 `partial`、列入 pending，相关
   identity 为空或显式 candidate，绝不伪造 Verified/default；
-- `FND-T15c`：无 schema 的旧 CSV 只派生为 legacy，文件 bytes/mtime 不被修改；未知 schema 拒绝；
+- `FND-T15c`：按 C2.2 区分 v0.1 legacy、A/B checkpoint、malformed Foundation run 与未知来源；
+  legacy/checkpoint bytes/mtime 不变；新 run 缺 schema、未知 schema 明确失败，不降级 legacy；
 - `FND-T15d`：已存在 run directory 在计算前 `FileExistsError`，legacy CSV/PNG hash 不变；新
   run 的 CSV/PNG 在唯一目录中生成且 `run_id` 一致。
 

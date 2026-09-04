@@ -76,7 +76,7 @@ phase resolution，纵轴为 target RIS gain dB，用于观察收益递减。
 | `coverage_threshold_db` | dB | 场景 threshold |
 | `iterations` | int | Focus 固定为 1 |
 | `runtime_s` | s | 该行目标+场图计算时间 |
-| `random_seed` | int | 重放 seed |
+| `random_seed` | int/empty | 实际使用或显式声明的整数 seed；不适用为 CSV 空单元格；0 仅表示实际 seed 0 |
 | `quadrature_policy_id`,`quadrature_policy_version` | str/empty | FND-QA-AP owner；未签署不伪造 production default |
 | `coefficient_model_identity` | str/empty | FND-QA-CC owner；builder/identity 未完成时为空 |
 
@@ -104,10 +104,14 @@ C2 初次实现时，FND-PHY-NB、FND-QA-AP、FND-QA-CC 仍未签署，必须列
 为空且本 run 必需 identity 均由 owner closure 签署并非空时才能写 `complete`。不得用 `default`、
 类名、ADR 目标值、0 或当前行为猜测 future identity/Verified provenance。
 
-当前 `results/phase_bits` 和任何缺少 schema ID/version 的旧 CSV 只由 reader/report 派生为
-`legacy_v0_1_unversioned`；旧文件不回写、不补默认 Profile/Reflection/channel/quadrature/
-coefficient identity。未知的非空 schema ID/version 明确拒绝，不能降级为 legacy。legacy、partial
-和 complete 不能无标签聚合为同一证据等级。
+只有已确认的 `results/phase_bits/` v0.1 历史输出由 reader/report 派生为
+`legacy_v0_1_unversioned`。`results/checkpoints/foundation_0_1_1_ab_checkpoint_20260903/` 保持
+`checkpoint / non-formal provenance`，不能因缺少 schema 而重分类为 v0.1 legacy。
+Foundation 新 run（含默认目录及显式 `--output`）缺少或空置 schema ID/version 任一字段时，
+必须按 malformed provenance 明确失败；未知来源的 schema-less 文件保持未分类，不能猜为
+v0.1 legacy 或作为 Foundation provenance。未知的非空 schema ID/version 明确拒绝，不降级 legacy。
+旧文件不回写、不补默认 Profile/Reflection/channel/quadrature/coefficient identity。
+legacy、checkpoint、partial 和 complete 不能无标签聚合为同一证据等级。
 
 完整 canonical/profile 字段、pending owner 和异常规则见
 [C Work Item](work_items/foundation_0_1_1_c.md)。
@@ -132,7 +136,7 @@ P1B，不是 C2 的前置实现。
 
 ## 4. 统计比较规则
 
-- 无随机误差的参数 sweep 可用单 seed，但仍记录 seed；
+- 无随机误差的参数 sweep 若声明 seed，可用单 seed 并记录实际值；seed 不适用时按 §3 留空；
 - 有随机误差的算法对比至少使用一组预先声明 seeds，报告 median 和分位区间；
 - 三算法必须共享每个 seed 的 Ground Truth realization；
 - performance recovery 必须相对同一 no-error 或 oracle 对照定义；

@@ -626,7 +626,8 @@ Implemented/Verified 证据，也不签署 FND-QA-AP、FND-PHY-NB 或 FND-QA-CC�
 - 预计文档：experiment spec、test strategy、results README；
 - 预计代码：实验字段和 schema test；
 - 验收：旧 `results/phase_bits` 不被覆盖；新旧结果能通过字段判断采用何种 Focus 和 Profile；
-  缺失 provenance 的历史文件被明确标记 legacy，而不是伪造默认值；FND-PHY-NB/FND-QA-AP/
+  `results/phase_bits/` 标记 v0.1 legacy，A/B checkpoint 保持 non-formal；新 run 缺 schema 明确
+  失败，未知来源不猜 legacy（见 C Work Item C2.2）；FND-PHY-NB/FND-QA-AP/
   FND-QA-CC 尚未签署的 identity 必须为空或显式 candidate，并以 `partial`/pending contract 标记。
 
 完整历史迁移工具、结果索引和统计报告治理可在 P1B 完善，但上述最小字段、legacy 标记和
@@ -757,7 +758,7 @@ scene、results、cache、production quadrature 或 Focus。后续每个 Work It
 | FND-T13b | `test_profile_is_used_by_all_environment_path_roles` | direct、reflection before/after 和 RIS 两段均不能绕过 Profile；modifier 不含 carrier/`Gamma_wall` |
 | FND-T13c | `test_wall_coefficient_and_profile_modifiers_are_applied_once` | 独立缩放 `Gamma_wall` 或任一 leg modifier，只产生一次对应幅度缩放 |
 | FND-T13d | `test_reflecting_wall_is_excluded_from_reflection_leg_blockers` | 反射墙不同时成为自身 blocker，其他阻挡仍按对应路径段生效 |
-| FND-T14 | `test_profile_identity_changes_with_version_or_parameters` | Profile identity 只跟随 Profile；墙系数另行失效总体 coefficient/world-model identity |
+| FND-T14 | `test_profile_identity_changes_with_version_or_parameters` | C1 验证 Profile/Reflection ID/version 分层、墙系数不改变 profile identity；总体 coefficient/world identity mutation 留给 FND-QA-CC |
 | FND-T15 | `test_experiment_schema_records_model_provenance` | 结果可判断 focus/profile/search/model version |
 | FND-T16 | `test_quadrature_refinement_keeps_control_pattern_fixed` | series 中 aperture/control/pattern hash 不变，只改变 rule/order |
 | FND-T17 | `test_quadrature_reference_uses_successive_and_cross_rule_evidence` | reference 不固定冒充 16×16 truth；未收敛 case 明确失败 |

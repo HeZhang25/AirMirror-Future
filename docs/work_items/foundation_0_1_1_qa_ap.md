@@ -73,7 +73,7 @@ schema 在进入 Ready 前冻结；在代码尚未实现时不得在 README 宣�
 | `frequency_hz` | Hz | operating frequency |
 | `width_m,height_m,nx,ny` | SI/int | 实体 aperture 与 control grid |
 | `pattern_class`、`pattern_hash` | str | 固定 commanded pattern 身份 |
-| `random_seed` | int/null | random legal pattern 的预登记 seed |
+| `random_seed` | int/empty | random legal pattern 的预登记 seed；空值语义复用 C2 CSV 空单元格，不以 0 代替 |
 | `quadrature_rule` | str | midpoint/Gauss–Legendre |
 | `quadrature_order_x/y` | int | 每个 control patch 内 order |
 | `quadrature_policy_id/version` | str | 候选或最终 policy 身份 |

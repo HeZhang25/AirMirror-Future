@@ -146,7 +146,9 @@ profile_identity = hash(profile_id, profile_version, canonical_profile_parameter
   固定 `Gamma_wall`，单独改变任一 leg modifier 时只产生对应一次缩放；
 - FND-T13d：反射墙从 before/after blocker 集合排除，其他阻挡仍分别作用于对应路径段；
 - FND-T14：Profile identity 只随 Profile ID/version/canonical parameters 改变；墙系数变化不冒充
-  Profile identity 变化，但必须改变总体 coefficient/world-model identity；
+  Profile identity 变化，Reflection ID/version 与 Profile identity 独立；这是 C1 的 identity 验收边界；
+- 后续 FND-QA-CC identity mutation matrix 验证 wall/world state 改变总体 coefficient/world-model
+  identity；该项落实第 5 节的分层决定，不要求 C1 提前实现完整 coefficient identity；
 - Controller/Ground Truth 边界测试确认墙面幅相误差通过有效 `Gamma_wall` 生效，Profile 选择和
   nominal Focus 不读取隐藏 realization；
 - C1 完整 pytest、三代 headless 和人工因子所有权复核通过后才能提升状态。

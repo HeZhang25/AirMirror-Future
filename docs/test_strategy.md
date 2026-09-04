@@ -63,10 +63,10 @@ python -m airmirror_future.experiments.phase_bits --output results/checkpoints/<
 | FND-T13/T13b | default Profile / all environment roles | 分路径复现 v0.1；direct、reflection before/after、RIS 两段均调用 Profile，且 modifier 不含 carrier/`Gamma_wall` | Ready：C1（未实现） |
 | FND-T13c | wall/Profile factor ownership | 独立缩放 `Gamma_wall` 或任一 reflection-leg modifier 时，wall amplitude 恰好缩放一次 | Ready：C1（未实现） |
 | FND-T13d | reflecting-wall exclusion | 反射墙不作为自身路径 blocker；其他阻挡仍只作用于命中的路径段 | Ready：C1（未实现） |
-| FND-T14 | Profile/reflection identity layering | Profile 参数只改变 profile identity；墙系数改变总体 coefficient/world identity 而不冒充 Profile 变化 | Ready：C1（未实现） |
+| FND-T14 | Profile/reflection identity layering | Profile ID/version/parameters 决定 profile identity；Reflection ID/version 独立；墙系数不改变 profile identity；总体 identity mutation 留给 FND-QA-CC | Ready：C1（未实现） |
 | FND-T15 | minimum experiment provenance schema | schema ID/version 与实际 focus/profile/reflection/world/search 一致；canonical Profile identity 可复算 | Ready：C2（未实现） |
 | FND-T15b | unsigned future identity boundary | 未签署 FND-PHY-NB/FND-QA-AP/FND-QA-CC 时保持 partial/pending，不伪造 Verified/default identity | Ready：C2（未实现） |
-| FND-T15c | legacy classification | 缺 schema 的旧文件只派生 legacy 且 bytes/mtime 不变；未知 schema 拒绝 | Ready：C2（未实现） |
+| FND-T15c | provenance source classification | v0.1 legacy 与 A/B checkpoint 分开且 bytes/mtime 不变；新 run 缺 schema 明确失败；未知来源不猜 legacy；未知 schema 拒绝 | Ready：C2（未实现） |
 | FND-T15d | experiment no-overwrite | existing run directory 在计算前失败；legacy hash 不变；新 CSV/PNG 只写唯一 run directory | Ready：C2（未实现） |
 | FND-T16 | quadrature ownership boundary | 固定 aperture/control/pattern/Profile，只改变 rule/order | Planned：FND-QA-AP |
 | FND-T17 | refined reference construction | successive refinement + independent rule；未收敛明确失败 | Planned：FND-QA-AP |
@@ -102,19 +102,25 @@ FND-T13..T14 验证 ADR-0012 的因子分解，而不只验证最终 wall-channe
 分别扰动 `Gamma_wall`、before modifier 和 after modifier，防止重复与遗漏互相抵消；还必须验证
 Controller/Ground Truth 的有效墙系数由 Reflection Model 消费，隐藏 truth realization 不进入
 Profile identity 或 nominal Focus。
+FND-T14 的 C1 验收只到 Profile/Reflection ID/version 分层与墙系数不改变 `profile_identity`；
+wall/world state 改变总体 coefficient/world identity 的验证属于 §3.2 的 FND-QA-CC identity
+mutation matrix，不得为了 C1 测试提前实现完整 coefficient identity。
 
 具体 C1 contract tests 还必须覆盖五个 role 的 direction/ID/call count、Profile 非 finite/non-scalar
 返回和 context 错误、默认 Profile frozen/deterministic、tagged canonical identity 的类型敏感 mutation
 以及两个 subprocess 的稳定性。duplicate wall ID 必须在 Profile 调用前 `ValueError`，不能让 ID
-self-exclusion 排除多堵墙。数值兼容基准固定为 commit
+self-exclusion 排除多堵墙。Context 不新增通用 minimum-distance 拒绝；reflection 总路径与 RIS
+TX/RX-to-cell 等 path-specific 有效性继续由既有 physics kernels 拥有，不收紧 environment leg
+的 v0.1 接受域。数值兼容基准固定为 commit
 `d9ab04a502055af3b519a781629e6e83f0ded9d8`，分量复数容差为 `rtol=1e-12, atol=1e-15`；该测试不
 签署 quadrature 或 coefficient builder。
 
 FND-T15..T15d 是 C2 的完整 traceability，不可只检查“新增了若干列”。测试必须从实际 engine/
 Focus/world inputs 构造 provenance，复算 Profile identity，并验证
 `airmirror_experiment_provenance/1` 的 partial/complete 规则。未签署 future owner 的字段只能为空或
-显式 candidate 且 owner 仍在 `pending_contracts_json`。legacy fixture 在测试前后比较 bytes/mtime；
-existing output directory 必须在任何 simulation call 前失败。精确 schema 和 run directory 见
+显式 candidate 且 owner 仍在 `pending_contracts_json`。FND-T15c 按 C Work Item C2.2 的四类来源
+构造 fixture，legacy/checkpoint 在测试前后比较 bytes/mtime；existing output directory 必须在任何
+simulation call 前失败。精确 schema 和 run directory 见
 [C Work Item](work_items/foundation_0_1_1_c.md)。
 
 ### 3.1 FND-QA-AP 独立求积验证规则
@@ -169,7 +175,8 @@ Foundation 组合契约。
 - pattern shape、active RIS、空 TX/RX 和 id 不存在需要逐步补错误契约测试；
 - Wall v1 floor-anchor 收紧必须有旧 z=0 round-trip 与非零 z migration/error 测试；
 - Foundation provenance 必须区分 Profile、frequency model、quadrature 与 coefficient identities；
-- Foundation C2 provenance 必须区分 complete/partial/legacy，记录 pending owner，并拒绝未知 schema；
+- Foundation C2 provenance 必须区分 complete/partial、v0.1 legacy 与 non-formal checkpoint，记录
+  pending owner；新 run 缺 schema 或未知 schema 明确失败，未知来源不自动归为 legacy；
 - FieldMap 四个数组形状一致，coverage+dead-zone 约 100%；
 - public top-level exports 能导入。
 
