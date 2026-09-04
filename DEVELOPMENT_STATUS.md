@@ -30,6 +30,11 @@ Scene/engine preflight 拒绝空或非字符串 ID。受支持 Scene、内建场
 内部聚合 `single_wall_reflection` 已由 carrier-only helper 取代，
 完整反射贡献由 engine 唯一编排。Scene schema version、公共 channel/map 签名和默认数值不变。
 
+第二轮对 `3081c6a` 的独立审查后，同源 closure 补齐 `RISSurface.id` 的 non-empty string
+构造/loader 与 engine preflight 校验，拒绝旧 truthiness 曾放行的非字符串及事后 mutation。
+外部非法 RIS ID 须显式赋名并更新 pattern key；不新增 TX/RX、RIS/global uniqueness 校验。
+C1 仍 Implemented、C2 Ready、Foundation In Progress，等待此 focused fix 的独立审查。
+
 ## Foundation 0.1.1C Definition of Ready（历史记录）
 
 2026-09-03 已建立 focused

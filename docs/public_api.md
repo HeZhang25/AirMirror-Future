@@ -46,10 +46,13 @@ SimulationEngine.compute_channel(
 
 C1 已实现 Scene wall ID 在每次 channel/map 计算的任何 Profile/reflection 求值前必须唯一；
 duplicate 值抛含 ID 的 `ValueError`。Scene 构造/加载也执行同一校验，不改变 v1 JSON 结构。
-Wall/Obstacle ID 必须为 non-empty string；实体构造/loader 拒绝空或非字符串 ID，Scene 构造和
+Wall/Obstacle/RISSurface ID 必须为 non-empty string；实体构造/loader 拒绝空或非字符串 ID，Scene 构造和
 channel/map preflight 在 world/Profile/physics 求值前复核事后修改。错误包含实体类型、实际 ID
 和显式赋名指引；不 trim、自动赋名或过滤 blocker ID。该经兼容审计的 closure 保持 schema v1，
 外部空 ID 输入须显式赋名，详见 [Scene schema](scene_schema.md#7-标识符和引用)。
+RISSurface 的旧 truthiness 校验现也拒绝 truthy non-string ID（如 `1`）；构造后 mutation 即使
+disabled/uncommanded 也在 preflight 失败。外部非法 RIS ID 须显式赋名并更新 pattern key；
+RIS uniqueness 仍只在既有 pattern 引用边界检查，不扩展 TX/RX 或全局唯一性。
 
 ```python
 SimulationEngine.compute_field_map(

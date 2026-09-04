@@ -100,7 +100,7 @@ C1 compatibility closure 同时冻结 Wall / Obstacle 的 `id` 为 non-empty str
 
 | 字段 | 类型 | 默认/单位 | 约束/语义 |
 |---|---|---|---|
-| `id` | str | required | patterns key |
+| `id` | str | required | non-empty string；patterns key；构造/加载/engine preflight 拒绝非法 ID |
 | `position` | Vec3 | m | 孔径中心 |
 | `yaw_rad` | float | rad | 正面法向方位角 |
 | `width_m,height_m` | float | m | finite，`>0`；实体孔径的唯一尺寸事实源 |
@@ -113,6 +113,12 @@ C1 compatibility closure 同时冻结 Wall / Obstacle 的 `id` 为 non-empty str
 | `enabled` | bool | true | false 时无 RIS 贡献 |
 | `active` | bool | false | true 在 v0.1 拒绝计算 |
 | `direction_exponent` | float | 1.0 | finite，`≥0` |
+
+C1 RIS ID closure 将旧 truthiness 校验收紧为 non-empty string：truthy non-string（如 `1`）在
+构造/Scene v1 loader 抛含实际 ID 和显式赋名指引的 `ValueError`；Scene 构造和 engine channel/map
+在 world/Profile/physics 求值前防御事后 mutation，包括 disabled/uncommanded RIS。与 Wall/Obstacle
+同样不 trim、规范化或自动转换 ID；保持 schema v1。RIS uniqueness 仍只按既有 pattern 引用边界
+校验，不新增 Scene/global uniqueness 或 TX/RX ID 收紧。
 
 `nx/ny` 的规范含义是 **system-level equivalent controllable aperture patches**。每个 patch
 拥有一个 commanded phase，当前又同时承担中心点求积采样；它不是经过器件建模或校准的

@@ -62,7 +62,7 @@ python -m airmirror_future.experiments.phase_bits --output results/checkpoints/<
 | FND-T09 | equivalent patch diagnostics | 改 `nx/ny` 只改变 pitch；改 `fc` 不改变实体孔径 | `test_effective_pitch_changes_without_resizing_aperture` |
 | FND-T13/T13b | default Profile / all environment roles | 分路径复现 v0.1；direct、reflection before/after、RIS 两段均调用 Profile，且 modifier 不含 carrier/`Gamma_wall` | `test_profile_compatibility.py`、`test_profile_is_used_by_all_environment_path_roles`、`test_field_map_routes_each_link_through_all_applicable_roles`；C1 Implemented |
 | FND-T13c | wall/Profile factor ownership | 独立缩放 `Gamma_wall` 或任一 reflection-leg modifier 时，wall amplitude 恰好缩放一次 | `test_wall_coefficient_and_profile_modifiers_are_applied_once`、`test_complex_role_modifier_changes_only_its_component_once`；C1 Implemented |
-| FND-T13d | reflecting-wall exclusion / environment ID boundary | 反射墙不作为自身路径 blocker；其他阻挡仍只作用于命中的路径段；duplicate wall 与空 Wall/Obstacle ID 提前拒绝 | `test_reflecting_wall_is_excluded_from_reflection_leg_blockers`、`test_mutated_duplicate_wall_ids_fail_before_profile_or_world`、`test_environment_ids.py` constructor/loader/engine tests；C1 Implemented |
+| FND-T13d | reflecting-wall exclusion / environment ID boundary | 反射墙不作为自身路径 blocker；其他阻挡仍只作用于命中的路径段；duplicate wall、非法 Wall/Obstacle/RIS ID 提前拒绝 | `test_reflecting_wall_is_excluded_from_reflection_leg_blockers`、`test_mutated_duplicate_wall_ids_fail_before_profile_or_world`、`test_environment_ids.py` constructor/loader/engine tests；C1 Implemented |
 | FND-T14 | Profile/reflection identity layering | Profile ID/version/parameters 决定 profile identity；Reflection ID/version 独立；墙系数不改变 profile identity；总体 identity mutation 留给 FND-QA-CC | `test_profiles.py`、`test_engine_rejects_bad_outputs_with_profile_and_role`、GT ownership tests；C1 Implemented |
 | FND-T15 | minimum experiment provenance schema | schema ID/version 与实际 focus/profile/reflection/world/search 一致；canonical Profile identity 可复算 | Ready：C2（未实现） |
 | FND-T15b | unsigned future identity boundary | 未签署 FND-PHY-NB/FND-QA-AP/FND-QA-CC 时保持 partial/pending，不伪造 Verified/default identity | Ready：C2（未实现） |
@@ -112,6 +112,9 @@ mutation matrix，不得为了 C1 测试提前实现完整 coefficient identity�
 self-exclusion 排除多堵墙。C1 compatibility closure 另以 `test_environment_ids.py` 验证 Wall/Obstacle
 空字符串及非字符串 ID 在实体构造/loader 拒绝；Scene 构造与 channel/map 防御事后修改，必须在
 world/Profile/physics 求值前失败。非空 Unicode/空白 ID 不规范化，schema v1 round-trip 保持。
+同文件的 RIS closure tests 覆盖 truthy non-string 构造/loader 拒绝、Scene mutation、channel/map
+preflight（含 `{1: pattern}`、disabled/uncommanded 和 list append）；RIS 字符串/pattern key 原样
+保留，不新增 Scene-wide RIS uniqueness。TX/RX、Profile context 与公式不在本次收紧范围。
 Context 不新增通用 minimum-distance 拒绝；reflection 总路径与 RIS
 TX/RX-to-cell 等 path-specific 有效性继续由既有 physics kernels 拥有，不收紧 environment leg
 的 v0.1 接受域。数值兼容基准固定为 commit

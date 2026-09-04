@@ -20,7 +20,7 @@
 C1/C2 保持 Ready，blocking ambiguity 0；不改变 ADR-0012 ownership 或进入实现。
 
 后续 C1 implementation 独立审查授权的 environment-ID compatibility closure 补充了下述数据
-边界：除 duplicate wall ID 外，Wall/Obstacle ID 也必须是 non-empty string。审计与实现证据见
+边界：除 duplicate wall ID 外，Wall/Obstacle/RISSurface ID 也必须是 non-empty string。审计与实现证据见
 文末 closure；不改变 Profile 契约、路径距离接受域或 C2 scope。
 
 本节记录的 Ready Review 只冻结 C1/C2 的实现边界、接口、数据、错误和验收条件；当时没有修改 Python、
@@ -47,7 +47,7 @@ identity；历史结果保持原样且不会被覆盖。
 - C1 Protocol/context、五个固定 path roles、默认不可变 Profile 和跨进程稳定 identity；
 - direct、两段 reflection、两段 RIS environment modifier 的统一 engine 编排；
 - `single_wall_reflection` 的几何/carrier 与 coefficient/modifier 拆分；
-- reflecting-wall self-exclusion、duplicate wall ID / Wall-Obstacle non-empty ID 拒绝和因子唯一应用测试；
+- reflecting-wall self-exclusion、duplicate wall ID / Wall-Obstacle-RIS non-empty ID 拒绝和因子唯一应用测试；
 - C2 provenance schema v1、legacy 分类、pending-contract 标记和 no-overwrite 输出目录；
 - `FND-T13..T15` 自动测试、三代 headless 兼容回归和人工 ownership/provenance review。
 
@@ -59,7 +59,7 @@ identity；历史结果保持原样且不会被覆盖。
 - 新传播路径、新场景、高阶/混合反射、逐 patch 遮挡、PathEnsemble、fading、delay、Doppler、
   frequency-selective channel 或 OFDM；
 - GUI、Scene JSON v1 字段/结构、历史结果内容或完整历史迁移工具；duplicate wall ID 和
-  Wall/Obstacle non-empty ID 仅作经过兼容审计、不升 schema version 的 validation tightening。
+  Wall/Obstacle/RISSurface non-empty ID 仅作有记录、不升 schema version 的 validation tightening。
 
 ## C1：PropagationProfile
 
@@ -143,9 +143,10 @@ working scene；Profile 对显式给定的相同 scene/context 做纯确定性�
 | `ris_scattered` | working RIS center -> working RX | `ris_id` | wall ID | 与 incident 成对调用一次 |
 
 `PropagationPathContext.__post_init__` 必须拒绝未知 role、非有限坐标、空 ID 和 role/ID
-组合不一致；engine 在创建 context 前拒绝引用不存在或不唯一的 wall/RIS；RIS ID 校验沿用既有
-commanded-pattern 边界，C1 对既有输入接受域的收紧为 duplicate wall ID 拒绝及经审查授权的
-Wall/Obstacle non-empty string ID 数据边界 closure，不再将前者表述为唯一收紧。
+组合不一致；engine 在创建 context 前拒绝引用不存在或不唯一的 wall/RIS；RIS 引用匹配/歧义
+仍由既有 commanded-pattern 边界校验。C1 对既有输入接受域的收紧为 duplicate wall ID 拒绝及
+经审查授权的 Wall/Obstacle/RISSurface non-empty string ID 数据边界 closure；不扩展 TX/RX
+或新增 RIS/global uniqueness enforcement。
 Context 不统一检查 `start.distance_to(end)`：direct 距离和 reflection 总路径长度继续由既有
 `complex_free_space_channel` 校验，RIS 的 TX/RX-to-cell 最小距离继续由 scattering kernel 校验。
 不得新增 reflection 单 leg 或 RIS center environment leg 的 `MIN_DISTANCE_M` 拒绝，包含零长度
@@ -283,6 +284,11 @@ enforcement。经受支持 Scene/内建场景/tests/Git 历史兼容审计，该
 但不承诺外部旧 reader 曾接受的空 ID 继续可用；外部文件必须显式赋名。Profile context 和
 blocker non-empty contract、self-exclusion 及传播公式保持不变。
 
+同源的 RIS ID closure 将 `RISSurface.id` 从 truthiness 校验收紧为 non-empty string：构造/loader
+拒绝 truthy non-string，Scene 构造与 engine preflight 复核事后 mutation，且不依赖 enabled 或
+是否有 pattern。错误同样含实体类型、实际 ID 和显式赋名指引；不转换为字符串或放宽 context。
+RIS uniqueness 仍仅在既有 pattern 引用边界检查，不新增 Scene-wide enforcement；TX/RX 不变。
+
 ### C1.7 Controller / Ground Truth / Profile ownership
 
 - Controller/Ground Truth 唯一拥有 nominal-vs-truth realization；engine 创建 working geometry；
@@ -404,7 +410,7 @@ PNG。
 | `FND-ARCH-01A` Protocol/context/identity types | C1 | Implemented | `simulation.profiles`、canonical identity tests |
 | `FND-ARCH-01B` default environment modifier | C1 | Implemented | immutable deterministic Profile、五 role contract tests |
 | `FND-ARCH-01C` reflection factor split | C1 | Implemented | carrier-only path helper、Gamma/before/after once-only tests |
-| `FND-ARCH-01D` engine integration and environment-ID guards | C1 | Implemented | constructor injection、all-role routing、duplicate wall / non-empty Wall-Obstacle ID validation |
+| `FND-ARCH-01D` engine integration and environment-ID guards | C1 | Implemented | constructor injection、all-role routing、duplicate wall / non-empty Wall-Obstacle-RIS ID validation |
 | `FND-ARCH-01E` C1 compatibility/ownership closure | C1 | Implemented | component references、three-generation headless、manual call graph review |
 | `FND-EXP-01A` provenance schema/model metadata | C2 | Ready | schema v1 fields、pending/partial validation |
 | `FND-EXP-01B` versioned no-overwrite runner | C2 | Ready | new run directory、CSV/PNG、existing-target failure |
@@ -422,7 +428,8 @@ C1 和 C2 分两个 focused implementation reviews；C2 依赖 C1 实际 Profile
 - `FND-T13c`：分别只缩放 `Gamma_wall`、before、after，wall amplitude 恰好一次缩放；
 - `FND-T13d`：反射墙只从自身两个 legs 排除，其他 blocker 仍生效；duplicate wall ID 在 Profile
   调用前失败；Wall/Obstacle 空 ID 在 constructor/loader 拒绝，Scene 构造及 engine channel/map
-  preflight 防御事后修改，不到 world/Profile 求值才失败；
+  preflight 防御事后修改；RISSurface truthy non-string ID 同样在数据边界拒绝，不到 world/Profile
+  求值才失败；不新增 RIS uniqueness enforcement；
 - `FND-T14`：默认 Profile frozen/deterministic；ID/version/typed parameter mutation 改变 identity；
   两个独立 Python 进程 identity 一致；非法/non-finite output 和 context 明确失败；Reflection
   ID/version 独立于 Profile identity，改变墙系数不改变 `profile_identity`。wall/world state 对总体
@@ -587,3 +594,30 @@ C / Foundation In Progress，不开始其他工作项。
 - focused consistency search 已同步 C Ready 的输入收紧措辞、data model、Scene schema、test strategy、
   limitations、public API、architecture 和状态迁移说明；不再声称 C1 唯一输入收紧是 duplicate wall ID。
   未修改 Profile/physics/GT/Focus、C2、GUI product、版本化 Scene 或 results；停止等待独立审查。
+
+## C1 RIS-ID compatibility closure
+
+2026-09-04，第二轮独立审查确认 Wall/Obstacle blocker 已关闭；以
+`3081c6a3a006db827f402d496e1f1e2c21a7a4ff` 为 parent，仅闭合剩余 RIS ID blocker。
+旧 RIS constructor/loader 的 truthiness 校验会接受 `id=1`，`{1: pattern}` 也可通过引用匹配，
+直到 C1 context 才失败；本次正式记录并提前执行 non-empty string 数据边界，不把它描述为旧行为。
+
+- `RISSurface.__post_init__` 复用现有 ID validator；Scene 构造及 engine 两个入口复用的
+  preflight 增加 RIS ID 检查，无需修改 loader 格式或 engine 传播流程；
+- 受支持 Scene 与三代 preset 使用 `ris-1`，现有直接 RIS 构造 fixtures 使用 `ris`；schema v1
+  字段/类型/必需性/结构不变，正常字符串 ID 无数值迁移。外部非字符串 ID 必须显式赋名并
+  更新 pattern key，不自动转换。未知外部数据不在仓库兼容证据范围；
+- 不放宽 context，不新增 TX/RX、RIS/global uniqueness 校验；既有 pattern 引用歧义校验不变。
+  Profile ownership、公式、C2、QA-AP/PHY-NB/QA-CC、coefficient/cache、GUI、Scene/results 均未改动；
+- `tests/test_environment_ids.py` 新增 26 项 RIS tests：constructor/loader、Scene mutation、
+  channel/map 在 world/Profile/physics 前拒绝 mutation（含整数 pattern key、disabled、uncommanded、
+  append），并保护 Unicode/空白 ID 与既有 uniqueness 范围；该文件共 `50 passed`，归入 FND-T13d；
+- C1 targeted 沿用上一轮 8 个测试文件 → `238 passed`；FND-T13..T14 继续通过；
+- `python -m pytest tests/test_documentation.py` → `9 passed`；
+- `python -m pytest` → `325 passed`；`git diff --check` → PASS；
+- 三代 fast headless（`80×60`）均 exit 0，baseline / focused power / gain / SNR / coverage 与
+  C1 implementation evidence 数值表完全一致；
+- focused consistency search 已将当前 C1 input-tightening 列表补齐为 duplicate wall ID 及
+  Wall/Obstacle/RISSurface non-empty string ID；前轮审计/测试数字仍保留为历史证据。
+
+C1 保持 Implemented、C2 Ready、C / Foundation In Progress；此 fix 等待独立审查，不进入 C2。

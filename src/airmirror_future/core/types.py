@@ -182,8 +182,7 @@ class RISSurface:
     direction_exponent: float = 1.0
 
     def __post_init__(self) -> None:
-        if not self.id:
-            raise ValueError("RIS id cannot be empty")
+        _validate_environment_id(self.id, "RIS")
         if (
             self.width_m <= 0.0
             or self.height_m <= 0.0
@@ -276,6 +275,8 @@ class Scene:
             seen.add(wall.id)
         for obstacle in self.obstacles:
             _validate_environment_id(obstacle.id, "obstacle")
+        for ris in self.ris_surfaces:
+            _validate_environment_id(ris.id, "RIS")
 
     def transmitter(self, identifier: str | None = None) -> Transmitter:
         if not self.transmitters:

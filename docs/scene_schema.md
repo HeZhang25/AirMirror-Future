@@ -15,7 +15,7 @@
 - 不支持的 schema version 必须拒绝，不能自动猜测迁移；
 - 新增可选字段可保持 v1；改变含义、单位、必需性或结构必须升 schema version 并提供迁移。
 
-本文明确列出的 floor-anchor、duplicate wall ID 和 Wall/Obstacle non-empty ID validation
+本文明确列出的 floor-anchor、duplicate wall ID 和 Wall/Obstacle/RISSurface non-empty ID validation
 tightening 保持 v1：它们有仓库兼容审计和显式外部迁移说明，不构成任意收紧 reader 的通用豁免。
 
 ## 2. 顶层对象
@@ -137,11 +137,18 @@ min 每个分量严格小于 max。
 前八个字段（到 `phase_bits`）是 v1 reader 必需字段；continuous 写 JSON `null`。其他字段
 有与 dataclass 一致的默认值。patterns 不保存在 v1 Scene 中；加载后由控制策略重新生成。
 
+`id` 必须是 non-empty string。C1 RIS ID closure 拒绝旧 truthiness 校验曾放行的非字符串（如 `1`）：
+constructor/loader 抛含实际 ID 和显式赋名指引的 `ValueError`，Scene 构造与 engine preflight 防御
+事后 mutation，包括 disabled/uncommanded RIS；不自动转字符串或放宽 `PropagationPathContext`。
+受支持 Scene 和三代 preset 均使用字符串 `ris-1`，相关构造测试使用 `ris`；该有记录的数据边界
+tightening 不改变字段、类型、必需性、结构或有效场景数值，保持 schema v1。外部非字符串 ID
+须显式赋名，并更新对应运行时 pattern key；不新增 RIS uniqueness 或 TX/RX 校验。
+
 ## 7. 标识符和引用
 
 - 同一数组中的 id 必须唯一；推荐全 scene 唯一以便日志定位；
-- C1 已实现 Wall/Obstacle non-empty string 和 wall ID 唯一性的构造/reader/engine enforcement；
-  不新增 obstacle 或全 scene 唯一性 enforcement，其他数组仍按既有显式引用边界校验；
+- C1 已实现 Wall/Obstacle/RISSurface non-empty string 和 wall ID 唯一性的构造/reader/engine enforcement；
+  不新增 obstacle、RIS 或全 scene 唯一性 enforcement，引用仍按既有边界校验；不收紧 TX/RX ID；
 - JSON 不存对象引用，patterns/metrics 只在运行时按 id 关联；
 - 修改 id 是破坏性场景变更，会使外部实验记录无法关联。
 
