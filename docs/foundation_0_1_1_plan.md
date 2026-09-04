@@ -5,7 +5,7 @@
 | 文档状态 | Operational / Normative for sequencing |
 | 当前实现基线 | v0.1 Verified，commit `edfa43c` |
 | 目标版本 | v0.1.1 Foundation |
-| 当前计划状态 | Foundation 0.1.1 In Progress；Foundation 0.1.1A、A1/A2/A3、FND-FIX-WALL、B1/B2/B3 Verified；C1 Implemented（待独立审查）、C2 Ready；FND-QA-AP、FND-PHY-NB、FND-QA-CC 尚未完成 |
+| 当前计划状态 | Foundation 0.1.1 In Progress；Foundation 0.1.1A、A1/A2/A3、FND-FIX-WALL、B1/B2/B3 Verified；C1 Verified、C2 Ready，C overall In Progress；FND-QA-AP、FND-PHY-NB、FND-QA-CC 尚未完成；P1A gate closed |
 | 父级路线 | v0.1 Smart Space → Foundation 0.1.1 → P1A |
 | 主要责任 | 项目维护者、物理仿真负责人、GUI/测试负责人 |
 | 最后复核 | 2026-09-04（C1 implementation handoff；Profile ownership 仍以 ADR-0012 为准） |
@@ -594,15 +594,15 @@ coefficient builder。最后由 [FND-QA-CC](work_items/foundation_0_1_1_coeffici
 
 ### 7.3 Foundation 0.1.1C — PropagationProfile Boundary
 
-状态：**In Progress**；C1 Implemented（待独立审查），C2 Ready；Ready blocking ambiguity 0。精确 Protocol/context、
+状态：**In Progress**；C1 Verified（三轮外部独立审查最终 PASS、blocking issues 0），C2 Ready。精确 Protocol/context、
 canonical identity、reflection split、duplicate wall ID、provenance schema/legacy/no-overwrite 与
 future identity pending 规则以
-[Foundation 0.1.1C Work Item](work_items/foundation_0_1_1_c.md) 为准。C1 实现证据不构成整个 C 的
+[Foundation 0.1.1C Work Item](work_items/foundation_0_1_1_c.md) 为准。C1 Verified 不构成整个 C 的
 Implemented/Verified，也不签署 FND-QA-AP、FND-PHY-NB 或 FND-QA-CC。
 
 #### Deliverable C1：Profile ADR and minimal implementation
 
-- 状态：**Implemented（待独立审查）**；Task `FND-ARCH-01A..01E`；
+- 状态：**Verified**；Task `FND-ARCH-01A..01E`；[独立审查最终 PASS](work_items/foundation_0_1_1_c.md#c1-verification-and-status-closure)；
 - Requirement：`AMF-SIM-005`；
 - 输入：engine 显式选定的 working Scene、只读 path-role context；Profile 不接收 Model、seed、
   hidden-realization callback 或 RIS patterns；
@@ -706,7 +706,7 @@ Implemented/Verified，也不签署 FND-QA-AP、FND-PHY-NB 或 FND-QA-CC。
 | 9 | `FND-UI-01` 建立 pending/apply/Optimize 门禁 | Implemented | `docs/work_items/foundation_0_1_1_b.md`；GUI smoke tests |
 | 10 | `FND-UI-02` 增加 Customized、Pattern 信息和准确标签 | Implemented | `docs/work_items/foundation_0_1_1_b.md`；Pattern metadata/GUI smoke 与人工清单 |
 | 11 | `FND-QA-AB` A/B 中期验收与人工复核 | Verified | 三代 headless、GUI、临时隔离实验和独立审查记录；§14.4 checkpoint PASS |
-| 12 | `FND-ARCH-01` 接入 environment-only PropagationProfile | Implemented | C Work Item C1 implementation evidence；FND-T13..14、三代 headless；待独立审查 |
+| 12 | `FND-ARCH-01` 接入 environment-only PropagationProfile | Verified | C Work Item C1 verification evidence；FND-T13..14、三代 headless；三轮外部独立审查最终 PASS、blocking issues 0 |
 | 13 | `FND-EXP-01` 加入最小实验 provenance | Ready | C Work Item 01A..01C；schema v1、partial/pending、legacy 和 no-overwrite |
 | 14 | `FND-QA-AP` 最小孔径求积有效性门禁 | Planned | FND-T16..18、versioned matrix、signed coefficient policy |
 | 15 | `FND-PHY-NB` 冻结 center-frequency flat-channel contract | Planned | FND-T20、model ID 与准确标签 |

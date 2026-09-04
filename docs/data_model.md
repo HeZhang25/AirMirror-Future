@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| 基线版本 | v0.1 + Foundation A1-A3/FND-FIX-WALL/B + C Ready and planned closure contracts |
+| 基线版本 | v0.1 + Foundation A1-A3/FND-FIX-WALL/B + C1 Verified / C2 Ready and planned closure contracts |
 | 权威实现 | `src/airmirror_future/core/types.py` |
 
 ## 1. 通用规则
@@ -216,7 +216,7 @@ API，也不改变 `RISSurface.nx/ny` 或 pattern shape。
 射线/诊断的 `path_details`。`shannon_capacity_bps` 为兼容字段，其语义严格是 center-frequency
 flat-channel Shannon upper bound。`path_details` 不是稳定持久化 schema。
 
-### Implemented C1 profile types / planned coefficient identities
+### Verified C1 profile types / planned coefficient identities
 
 ADR-0011/0012 要求 Foundation 内部拥有稳定的 `profile_identity`、
 `reflection_model_identity`、`channel_frequency_model_id`、`quadrature_policy_identity` 和

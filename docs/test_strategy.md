@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative / Operational |
-| 基线版本 | v0.1 + Foundation A1-A3/FND-FIX-WALL/B + C1 Implemented / C2 Ready and final gates plan |
+| 基线版本 | v0.1 + Foundation A1-A3/FND-FIX-WALL/B + C1 Verified / C2 Ready and final gates plan |
 | 测试框架 | pytest 9+，pytest-qt |
 
 ## 1. 目标
@@ -60,10 +60,10 @@ python -m airmirror_future.experiments.phase_bits --output results/checkpoints/<
 | FND-T07 | modulo/tolerance contract | 正负多周等价状态和 `1e-6 rad` 内输入通过，容差外失败且原值不被修正 | `test_commanded_pattern_accepts_modulo_equivalent_states`、tolerance test |
 | FND-T08 | Actual phase ownership | 确定性非网格 Ground Truth error 完整改变 RIS 复相位，不重新量化 | `test_actual_phase_error_is_not_requantized` |
 | FND-T09 | equivalent patch diagnostics | 改 `nx/ny` 只改变 pitch；改 `fc` 不改变实体孔径 | `test_effective_pitch_changes_without_resizing_aperture` |
-| FND-T13/T13b | default Profile / all environment roles | 分路径复现 v0.1；direct、reflection before/after、RIS 两段均调用 Profile，且 modifier 不含 carrier/`Gamma_wall` | `test_profile_compatibility.py`、`test_profile_is_used_by_all_environment_path_roles`、`test_field_map_routes_each_link_through_all_applicable_roles`；C1 Implemented |
-| FND-T13c | wall/Profile factor ownership | 独立缩放 `Gamma_wall` 或任一 reflection-leg modifier 时，wall amplitude 恰好缩放一次 | `test_wall_coefficient_and_profile_modifiers_are_applied_once`、`test_complex_role_modifier_changes_only_its_component_once`；C1 Implemented |
-| FND-T13d | reflecting-wall exclusion / environment ID boundary | 反射墙不作为自身路径 blocker；其他阻挡仍只作用于命中的路径段；duplicate wall、非法 Wall/Obstacle/RIS ID 提前拒绝 | `test_reflecting_wall_is_excluded_from_reflection_leg_blockers`、`test_mutated_duplicate_wall_ids_fail_before_profile_or_world`、`test_environment_ids.py` constructor/loader/engine tests；C1 Implemented |
-| FND-T14 | Profile/reflection identity layering | Profile ID/version/parameters 决定 profile identity；Reflection ID/version 独立；墙系数不改变 profile identity；总体 identity mutation 留给 FND-QA-CC | `test_profiles.py`、`test_engine_rejects_bad_outputs_with_profile_and_role`、GT ownership tests；C1 Implemented |
+| FND-T13/T13b | default Profile / all environment roles | 分路径复现 v0.1；direct、reflection before/after、RIS 两段均调用 Profile，且 modifier 不含 carrier/`Gamma_wall` | `test_profile_compatibility.py`、`test_profile_is_used_by_all_environment_path_roles`、`test_field_map_routes_each_link_through_all_applicable_roles`；C1 Verified |
+| FND-T13c | wall/Profile factor ownership | 独立缩放 `Gamma_wall` 或任一 reflection-leg modifier 时，wall amplitude 恰好缩放一次 | `test_wall_coefficient_and_profile_modifiers_are_applied_once`、`test_complex_role_modifier_changes_only_its_component_once`；C1 Verified |
+| FND-T13d | reflecting-wall exclusion / environment ID boundary | 反射墙不作为自身路径 blocker；其他阻挡仍只作用于命中的路径段；duplicate wall、非法 Wall/Obstacle/RIS ID 提前拒绝 | `test_reflecting_wall_is_excluded_from_reflection_leg_blockers`、`test_mutated_duplicate_wall_ids_fail_before_profile_or_world`、`test_environment_ids.py` constructor/loader/engine tests；C1 Verified |
+| FND-T14 | Profile/reflection identity layering | Profile ID/version/parameters 决定 profile identity；Reflection ID/version 独立；墙系数不改变 profile identity；总体 identity mutation 留给 FND-QA-CC | `test_profiles.py`、`test_engine_rejects_bad_outputs_with_profile_and_role`、GT ownership tests；C1 Verified |
 | FND-T15 | minimum experiment provenance schema | schema ID/version 与实际 focus/profile/reflection/world/search 一致；canonical Profile identity 可复算 | Ready：C2（未实现） |
 | FND-T15b | unsigned future identity boundary | 未签署 FND-PHY-NB/FND-QA-AP/FND-QA-CC 时保持 partial/pending，不伪造 Verified/default identity | Ready：C2（未实现） |
 | FND-T15c | provenance source classification | v0.1 legacy 与 A/B checkpoint 分开且 bytes/mtime 不变；新 run 缺 schema 明确失败；未知来源不猜 legacy；未知 schema 拒绝 | Ready：C2（未实现） |

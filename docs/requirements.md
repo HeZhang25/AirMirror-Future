@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| 基线版本 | v0.1 + Foundation A1-A3/FND-FIX-WALL/B Verified + C Ready contracts |
+| 基线版本 | v0.1 + Foundation A1-A3/FND-FIX-WALL/B Verified + C1 Verified / C2 Ready |
 | 编号规则 | `AMF-<DOMAIN>-<NNN>`；删除后不复用 |
 
 状态含义见 [glossary.md](glossary.md)。证据列必须是测试、命令或人工验收步骤；仅有源码
@@ -53,7 +53,7 @@
 | AMF-OPT-003 | 大 RIS 优化使用 tile grouping，支持取消与进度 | Implemented | `greedy.py`, `gui/workers.py` | GUI smoke；人工 Optimize/Cancel 步骤 |
 | AMF-SIM-004 | 固定几何预计算 `a_n`、多点分块矩阵和增量贪心 | Planned | — | 进入 P1 性能里程碑前补基准测试 |
 | AMF-OPT-004 | hardware phase resolution 与 optimizer search levels 分离并进入结果元数据 | Verified | `optimization/greedy.py`, `optimization/physics_guided.py`, `core/types.py` | `tests/test_optimization.py::test_search_levels_are_distinct_from_hardware_bits`, `test_finite_bit_candidates_are_hardware_states_even_with_search_override`, `test_continuous_physics_guided_preserves_initial_when_search_does_not_improve`, `test_feedback_optimizer_is_reproducible_for_fixed_seed_and_options`；§14.3 hardware/search gate；B1 外部独立审查 PASS、blocking issues 0；[B Work Item](work_items/foundation_0_1_1_b.md) |
-| AMF-SIM-005 | 建立不含 carrier、`Gamma_wall` 或 RIS response 的 environment-only PropagationProfile 和默认 IndoorDeterministicProfile；保持 Profile、Reflection、RIS 与 Ground Truth 所有权分离 | Implemented | `simulation/profiles.py`、`simulation/engine.py`、`physics/reflections.py`；[C Work Item](work_items/foundation_0_1_1_c.md) | `tests/test_profiles.py`、`tests/test_profile_integration.py`、`tests/test_profile_compatibility.py`（FND-T13..14）；三代 headless；待独立审查 |
+| AMF-SIM-005 | 建立不含 carrier、`Gamma_wall` 或 RIS response 的 environment-only PropagationProfile 和默认 IndoorDeterministicProfile；保持 Profile、Reflection、RIS 与 Ground Truth 所有权分离 | Verified | `simulation/profiles.py`、`simulation/engine.py`、`physics/reflections.py`；[C Work Item](work_items/foundation_0_1_1_c.md) | `tests/test_profiles.py`、`tests/test_profile_integration.py`、`tests/test_profile_compatibility.py`、`tests/test_environment_ids.py`（FND-T13..14）；三代 headless；三轮外部独立审查最终 PASS、blocking issues 0；[verification evidence](work_items/foundation_0_1_1_c.md#c1-verification-and-status-closure) |
 | AMF-SIM-006 | v1 Wall 冻结为地面锚定竖直墙；端点 z 为 0，Ground Truth 只对墙施加刚体 XY 平移 | Verified | `core/types.py`、`simulation/engine.py`、[FND-FIX-WALL](work_items/foundation_0_1_1_wall_geometry_closure.md) | `tests/test_wall_geometry.py` FND-T19、默认 Scene round-trip 与阻挡/反射回归；implementation commit `8841ef2` 独立验收 G0–G8 PASS、blocking issues 0 |
 
 ## 场景与 GUI

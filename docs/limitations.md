@@ -49,7 +49,7 @@
 - `bandwidth_hz` 不会让引擎计算多个频点；当前 100 MHz 只进入 noise/flat-channel capacity，
   软件没有自动证明该带宽对任意几何都满足窄带条件；
 - Field Map 对所有网格点使用同一 fixed RIS pattern，不是逐像素最优聚焦包络；
-- PropagationProfile 已在 C1 Implemented（待独立审查），最小 provenance 仍为 C2 Ready、未实现；
+- PropagationProfile 已在 C1 Verified（外部独立最终审查 PASS），最小 provenance 仍为 C2 Ready、未实现；
   `channel_frequency_model_id` 与 coefficient consistency 仍是后续 Planned contract，不得在现有
   结果中声称已经实现。Profile 只拥有环境 modifier；当前及
   目标模型中的墙面 `Gamma_wall` 均属于 Wall/Reflection Model，不得在 C1 中重复迁入 Profile。

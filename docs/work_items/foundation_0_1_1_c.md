@@ -3,7 +3,7 @@
 - 层级：L3 Deliverable（含可独立评审的 C1/C2）
 - Task IDs：FND-ARCH-01、FND-EXP-01
 - Requirement IDs：AMF-SIM-005、AMF-EXP-006
-- 状态：In Progress（C1 Implemented，待独立审查；C2 Ready）
+- 状态：In Progress（C1 Verified，外部独立最终审查 PASS、blocking issues 0；C2 Ready）
 - 父项：Foundation 0.1.1
 - 依赖：Foundation 0.1.1A Verified、FND-FIX-WALL Verified、Foundation 0.1.1B Verified、
   A/B Interim Checkpoint PASS、ADR-0011/0012 Accepted
@@ -403,15 +403,15 @@ PNG。
 
 ## Tasks
 
-所有 task 保持 0.5–2 天且可独立 code review；2026-09-04 C1 已实现，C2 尚未开始：
+所有 task 保持 0.5–2 天且可独立 code review；2026-09-04 C1 已 Verified，C2 尚未开始：
 
 | Task | Deliverable | 状态 | 完成输出 |
 |---|---|---|---|
-| `FND-ARCH-01A` Protocol/context/identity types | C1 | Implemented | `simulation.profiles`、canonical identity tests |
-| `FND-ARCH-01B` default environment modifier | C1 | Implemented | immutable deterministic Profile、五 role contract tests |
-| `FND-ARCH-01C` reflection factor split | C1 | Implemented | carrier-only path helper、Gamma/before/after once-only tests |
-| `FND-ARCH-01D` engine integration and environment-ID guards | C1 | Implemented | constructor injection、all-role routing、duplicate wall / non-empty Wall-Obstacle-RIS ID validation |
-| `FND-ARCH-01E` C1 compatibility/ownership closure | C1 | Implemented | component references、three-generation headless、manual call graph review |
+| `FND-ARCH-01A` Protocol/context/identity types | C1 | Verified | `simulation.profiles`、canonical identity tests |
+| `FND-ARCH-01B` default environment modifier | C1 | Verified | immutable deterministic Profile、五 role contract tests |
+| `FND-ARCH-01C` reflection factor split | C1 | Verified | carrier-only path helper、Gamma/before/after once-only tests |
+| `FND-ARCH-01D` engine integration and environment-ID guards | C1 | Verified | constructor injection、all-role routing、duplicate wall / non-empty Wall-Obstacle-RIS ID validation |
+| `FND-ARCH-01E` C1 compatibility/ownership closure | C1 | Verified | component references、three-generation headless、manual call graph review；三轮独立审查最终 PASS |
 | `FND-EXP-01A` provenance schema/model metadata | C2 | Ready | schema v1 fields、pending/partial validation |
 | `FND-EXP-01B` versioned no-overwrite runner | C2 | Ready | new run directory、CSV/PNG、existing-target failure |
 | `FND-EXP-01C` legacy classification and docs | C2 | Ready | read-only legacy marker、results README、FND-T15 tests |
@@ -457,8 +457,9 @@ C1 和 C2 分两个 focused implementation reviews；C2 依赖 C1 实际 Profile
 
 ## C1/C2 Exit 与状态边界
 
-C1/C2 implementation 完成只能把各自状态提升为 Implemented；独立 review 与上述证据完成后才可
-提升 C。C 的 Ready/Implemented/Verified 均不签署 FND-QA-AP、FND-PHY-NB、FND-QA-CC，不解除
+C1/C2 implementation 完成只能把各自状态提升为 Implemented；各自独立 review 与相应证据完成后
+可提升该子项为 Verified。C1 Verified 不提升 C 整体；C2 及 C 的完整验收仍须分别完成。
+C 的 Ready/Implemented/Verified 均不签署 FND-QA-AP、FND-PHY-NB、FND-QA-CC，不解除
 Foundation/P1A gate，也不把 `partial` provenance 宣称为 final Foundation evidence。
 
 ## 风险与回退
@@ -492,6 +493,9 @@ Foundation/P1A gate，也不把 `partial` provenance 宣称为 final Foundation 
 - scope audit：提交只允许 Markdown，且不修改 `results/` 下任何文件。
 
 ## C1 implementation evidence
+
+本节及随后两个 ID closure 节保留当时的 Implemented/待审查状态和测试数字作为历史记录；
+当前状态以文末 [C1 verification closure](#c1-verification-and-status-closure) 为准。
 
 2026-09-04：以独立远端 Ready PASS commit `9fad9b05273fd0d15569d8307e50321d40d05c4a` 为 parent
 完成 `FND-ARCH-01A..01E`，C1 / `AMF-SIM-005` 为 **Implemented，待独立审查**。C 整体和 Foundation
@@ -621,3 +625,26 @@ C / Foundation In Progress，不开始其他工作项。
   Wall/Obstacle/RISSurface non-empty string ID；前轮审计/测试数字仍保留为历史证据。
 
 C1 保持 Implemented、C2 Ready、C / Foundation In Progress；此 fix 等待独立审查，不进入 C2。
+
+## C1 verification and status closure
+
+2026-09-04：根据维护者本轮提供的外部独立最终审查结论，记录 **C1 review PASS，blocking
+issues = 0**。三轮审查链如下；本轮仅登记结论，不重新执行外部审查：
+
+| 审查轮次 / commit | 独立审查结论与闭合 |
+|---|---|
+| 1 / `a641b0d2c1c37e80d2c423d32ddbe239b61a9640` | 主体实现 PASS；Wall/Obstacle ID blocker 由 `3081c6a` 修复 |
+| 2 / `3081c6a3a006db827f402d496e1f1e2c21a7a4ff` | Wall/Obstacle blocker 正确关闭；剩余 RIS ID blocker 由 `9c9499e` 修复 |
+| 3 / `9c9499ea8eff143fc485ca1294ea198ece5d14d9` | C1 外部独立最终审查 PASS；blocking issues 0 |
+
+`AMF-SIM-005`、C1 / `FND-ARCH-01A..01E` 从 Implemented 提升为 **Verified**。依据包括上文
+FND-T13..T14、两轮 ID 数据边界 closure 和最终独立审查；最近实现回归为 targeted `238 passed`、
+full pytest `325 passed`、三代 fast headless 数值不变，本轮仅引用这些已有证据，不宣称重新运行。
+
+保持 C2 / `AMF-EXP-006` Ready、Foundation 0.1.1C overall In Progress、Foundation 0.1.1 overall
+In Progress、P1A gate closed。FND-QA-AP / FND-PHY-NB / FND-QA-CC 状态与门禁不变；C1 Verified
+不签署它们，也不产生 C2 provenance 或授权 C2 implementation。
+
+本轮只修改必要 Markdown/status；`python -m pytest tests/test_documentation.py` → `9 passed`，
+`git diff --check` → PASS。未修改 Python/tests/physics/GUI/results/Scene/实验 runner；本地 focused
+closure commit 不 push，完成后停止。

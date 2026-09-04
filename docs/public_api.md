@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| API 基线 | 0.1 + Foundation A1-A3/FND-FIX-WALL/B + C1 Implemented + planned closure boundaries |
+| API 基线 | 0.1 + Foundation A1-A3/FND-FIX-WALL/B + C1 Verified + planned closure boundaries |
 | Python | 3.11+ |
 
 ## 1. 稳定性政策

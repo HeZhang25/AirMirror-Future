@@ -67,7 +67,7 @@ FND-FIX-WALL 后，Ground Truth 的三维 position realization 对 Wall 只消�
 交给 LOS blockage 和 reflection。Wall 数据构造先执行 floor-anchor 容差验证；physics 层无需
 再次猜测 endpoint z 含义。
 
-Foundation C1 已 Implemented（待独立审查）；它在不改变上述用户级流程的前提下引入
+Foundation C1 已 Verified（外部独立最终审查 PASS）；它在不改变上述用户级流程的前提下引入
 engine-owned `IndoorDeterministicProfile`。按
 [ADR-0012](adr/0012-wall-reflection-coefficient-ownership.md)，它只提供 environment modifier，
 不拥有 Friis carrier、`Gamma_wall`、RIS device、Ground Truth 或 noise；Scene JSON v1 不保存
