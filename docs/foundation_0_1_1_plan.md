@@ -5,7 +5,7 @@
 | 文档状态 | Operational / Normative for sequencing |
 | 当前实现基线 | v0.1 Verified，commit `edfa43c` |
 | 目标版本 | v0.1.1 Foundation |
-| 当前计划状态 | Foundation 0.1.1 In Progress；Foundation 0.1.1A、A1/A2/A3、FND-FIX-WALL、B1/B2/B3 Verified；C1 Verified、C2 Ready，C overall In Progress；FND-QA-AP、FND-PHY-NB、FND-QA-CC 尚未完成；P1A gate closed |
+| 当前计划状态 | Foundation 0.1.1 In Progress；Foundation 0.1.1A、A1/A2/A3、FND-FIX-WALL、B1/B2/B3 Verified；C1 Verified、C2 Implemented，C overall In Progress；FND-QA-AP、FND-PHY-NB、FND-QA-CC 尚未完成；P1A gate closed |
 | 父级路线 | v0.1 Smart Space → Foundation 0.1.1 → P1A |
 | 主要责任 | 项目维护者、物理仿真负责人、GUI/测试负责人 |
 | 最后复核 | 2026-09-04（C1 implementation handoff；Profile ownership 仍以 ADR-0012 为准） |
@@ -594,7 +594,7 @@ coefficient builder。最后由 [FND-QA-CC](work_items/foundation_0_1_1_coeffici
 
 ### 7.3 Foundation 0.1.1C — PropagationProfile Boundary
 
-状态：**In Progress**；C1 Verified（三轮外部独立审查最终 PASS、blocking issues 0），C2 Ready。精确 Protocol/context、
+状态：**In Progress**；C1 Verified（三轮外部独立审查最终 PASS、blocking issues 0），C2 Implemented。精确 Protocol/context、
 canonical identity、reflection split、duplicate wall ID、provenance schema/legacy/no-overwrite 与
 future identity pending 规则以
 [Foundation 0.1.1C Work Item](work_items/foundation_0_1_1_c.md) 为准。C1 Verified 不构成整个 C 的
@@ -618,7 +618,7 @@ Implemented/Verified，也不签署 FND-QA-AP、FND-PHY-NB 或 FND-QA-CC。
 
 #### Deliverable C2：Minimum experiment provenance
 
-- 状态：**Ready**；Task `FND-EXP-01A..01C`；C1 metadata 是实现依赖；
+- 状态：**Implemented**；Task `FND-EXP-01A..01C`；C1 metadata 是实现依赖；
 - Requirement：`AMF-EXP-006`；
 - 输入：focus mode、profile ID/version、reflection model ID/version、channel frequency model ID、
   search levels、model/quadrature/coefficient contract version；

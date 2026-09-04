@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| 基线版本 | v0.1 + Foundation A1-A3/FND-FIX-WALL/B Verified + C1 Verified / C2 Ready |
+| 基线版本 | v0.1 + Foundation A1-A3/FND-FIX-WALL/B Verified + C1 Verified / C2 Implemented |
 | 编号规则 | `AMF-<DOMAIN>-<NNN>`；删除后不复用 |
 
 状态含义见 [glossary.md](glossary.md)。证据列必须是测试、命令或人工验收步骤；仅有源码
@@ -78,7 +78,7 @@
 | AMF-ENG-001 | Python 3.11+ 可 editable install，CPU/离线运行 | Verified | `pyproject.toml` | `pip install -e ".[dev]"`, headless run |
 | AMF-ENG-002 | GUI 与物理分层，GUI 不定义传播公式 | Verified | package architecture | architecture review + imports audit |
 | AMF-EXP-001 | Phase Resolution 固定孔径扫 1/2/3/4/continuous，输出 CSV/PNG | Implemented | `experiments/phase_bits.py` | generated `results/phase_bits/*` |
-| AMF-EXP-006 | 实验分开记录 focus mode、profile/reflection/channel model version、search levels，且不覆盖 legacy 结果 | Ready | [C Work Item](work_items/foundation_0_1_1_c.md)、[experiment_spec.md](experiment_spec.md) | C Ready Review blocking ambiguity 0；implementation 后执行 FND-T15..T15d |
+| AMF-EXP-006 | 实验分开记录 focus mode、profile/reflection/channel model version、search levels，且不覆盖 legacy 结果 | Implemented | [C Work Item](work_items/foundation_0_1_1_c.md)、[experiment_spec.md](experiment_spec.md) | `tests/test_phase_bits_integration.py`、`tests/test_documentation.py`、完整 pytest；Current/Advanced/Future fast headless；真实 C2 run 与 FND-T15..T15d evidence |
 | AMF-DOC-001 | Future 假设、模型限制和术语均有规范文档 | Verified | docs | `tests/test_documentation.py` |
 | AMF-DOC-002 | 需求、测试和状态可追踪，文档链接无断链 | Implemented | requirements、test strategy | `tests/test_documentation.py` |
 

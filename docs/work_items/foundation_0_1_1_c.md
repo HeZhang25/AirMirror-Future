@@ -3,7 +3,7 @@
 - 层级：L3 Deliverable（含可独立评审的 C1/C2）
 - Task IDs：FND-ARCH-01、FND-EXP-01
 - Requirement IDs：AMF-SIM-005、AMF-EXP-006
-- 状态：In Progress（C1 Verified，外部独立最终审查 PASS、blocking issues 0；C2 Ready）
+- 状态：In Progress（C1 Verified，外部独立最终审查 PASS、blocking issues 0；C2 Implemented）
 - 父项：Foundation 0.1.1
 - 依赖：Foundation 0.1.1A Verified、FND-FIX-WALL Verified、Foundation 0.1.1B Verified、
   A/B Interim Checkpoint PASS、ADR-0011/0012 Accepted
@@ -436,9 +436,9 @@ scene/engine 并运行 experiment → A 从本次实际运行对象和 `run_id` 
 | `FND-ARCH-01C` reflection factor split | C1 | Verified | carrier-only path helper、Gamma/before/after once-only tests |
 | `FND-ARCH-01D` engine integration and environment-ID guards | C1 | Verified | constructor injection、all-role routing、duplicate wall / non-empty Wall-Obstacle-RIS ID validation |
 | `FND-ARCH-01E` C1 compatibility/ownership closure | C1 | Verified | component references、three-generation headless、manual call graph review；三轮独立审查最终 PASS |
-| `FND-EXP-01A` provenance schema/model metadata | C2 | Ready | schema v1 fields、pending/partial validation |
-| `FND-EXP-01B` versioned no-overwrite runner | C2 | Ready | new run directory、CSV/PNG、existing-target failure |
-| `FND-EXP-01C` legacy classification and docs | C2 | Ready | read-only legacy marker、results README、FND-T15 tests |
+| `FND-EXP-01A` provenance schema/model metadata | C2 | Implemented | schema v1 fields、pending/partial validation |
+| `FND-EXP-01B` versioned no-overwrite runner | C2 | Implemented | new run directory、CSV/PNG、existing-target failure |
+| `FND-EXP-01C` legacy classification and docs | C2 | Implemented | read-only legacy marker、results README、FND-T15 tests |
 
 C1 和 C2 分两个 focused implementation reviews；C2 依赖 C1 实际 Profile/reflection metadata，不能
 先填默认字符串模拟依赖完成。任一 task 超过两天时必须继续拆分，不扩大本 Work Item scope。
@@ -469,6 +469,19 @@ C1 和 C2 分两个 focused implementation reviews；C2 依赖 C1 实际 Profile
   legacy/checkpoint bytes/mtime 不变；新 run 缺 schema、未知 schema 明确失败，不降级 legacy；
 - `FND-T15d`：已存在 run directory 在计算前 `FileExistsError`，legacy CSV/PNG hash 不变；新
   run 的 CSV/PNG 在唯一目录中生成且 `run_id` 一致。
+
+### C2 implementation evidence
+
+2026-09-04：D-owned integration wiring 已接入 `phase_bits.py`。runner 先调用
+`_create_run_directory`，再创建 Advanced scene、显式 `ControllerModel` 与 `SimulationEngine`，并将同一
+world 传给 baseline/focused `compute_channel`、`compute_field_map` 及 provenance builder；CSV/PNG
+共处新 run directory，随后调用只读 classifier 并要求 `foundation_partial`。C2 schema v1 字段、
+pending owner 标记与 legacy/checkpoint 只读边界由自动测试覆盖。
+
+验证命令：`python -m pytest`（371 passed, 1 skipped）、D-owned integration tests（5 passed）、
+Current/Advanced/Future fast headless，以及一次真实 Advanced Phase Resolution Foundation run；
+结果目录、run_id、provenance 和 classification 均通过人工检查。C2 状态提升至 **Implemented**；
+C2/C overall、Foundation 与 P1A 状态边界保持不变。
 
 ### Integration and manual
 
