@@ -127,7 +127,7 @@ def test_missing_or_empty_foundation_discriminator_is_malformed(
     path = tmp_path / "malformed"
     _write_csv(path, header, row)
 
-    assert _classify_result_directory(path) == "malformed"
+    assert _classify_result_directory(path, expected_foundation=True) == "malformed"
 
 
 def test_unknown_nonempty_schema_is_rejected(tmp_path: Path) -> None:
@@ -157,6 +157,26 @@ def test_unknown_nonempty_schema_version_is_rejected(tmp_path: Path) -> None:
 def test_unknown_schema_less_directory_is_unclassified(tmp_path: Path) -> None:
     path = tmp_path / "unknown-source"
     _write_csv(path, "timestamp,scenario", "2026-09-04T00:00:00Z,example")
+
+    assert _classify_result_directory(path) == "unclassified"
+
+
+def test_explicit_foundation_output_outside_canonical_root_is_malformed(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "explicit-output"
+    _write_csv(path, "timestamp,scenario", "2026-09-04T00:00:00Z,example")
+
+    assert _classify_result_directory(path, expected_foundation=True) == "malformed"
+
+
+def test_empty_discriminator_unknown_source_is_unclassified(tmp_path: Path) -> None:
+    path = tmp_path / "unknown-empty-schema"
+    _write_csv(
+        path,
+        "provenance_schema_id,provenance_schema_version,provenance_status",
+        ",,",
+    )
 
     assert _classify_result_directory(path) == "unclassified"
 

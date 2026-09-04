@@ -95,7 +95,7 @@ def _classify_schema_rows(
         if schema_id and schema_id != FOUNDATION_SCHEMA_ID:
             raise ValueError(f"unknown provenance schema id: {schema_id!r}")
         if not schema_id or not raw_version:
-            return "malformed"
+            return "malformed" if foundation_path else "unclassified"
         try:
             version = int(raw_version)
         except ValueError as exc:
@@ -118,11 +118,15 @@ def _classify_schema_rows(
     )
 
 
-def _classify_result_directory(path: Path) -> ResultClassification:
+def _classify_result_directory(
+    path: Path, *, expected_foundation: bool = False
+) -> ResultClassification:
     """Classify a result directory according to the C2 provenance contract.
 
     The classifier only reads direct CSV artifacts. The repository's confirmed
-    legacy and checkpoint paths are recognized before schema inspection, while
+    legacy and checkpoint paths are recognized before schema inspection. Callers
+    may mark an explicit output as an expected Foundation run so schema-less or
+    empty discriminators are reported as malformed outside the canonical root;
     an unknown non-empty schema ID/version is rejected with ``ValueError``.
     """
     path = Path(path)
@@ -134,6 +138,8 @@ def _classify_result_directory(path: Path) -> ResultClassification:
     if _is_exact_directory(path, _CHECKPOINT_RELATIVE_PATH):
         return "checkpoint_non_formal"
 
-    foundation_path = _is_under_directory(path, _FOUNDATION_RUNS_RELATIVE_PATH)
+    foundation_path = expected_foundation or _is_under_directory(
+        path, _FOUNDATION_RUNS_RELATIVE_PATH
+    )
     rows = _read_result_rows(path)
     return _classify_schema_rows(rows, foundation_path=foundation_path)
