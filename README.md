@@ -93,8 +93,9 @@ Future 参数始终显示 `Future Scenario Assumption`，不表示当前产品�
 
 更准确地说，当前 `frequency_hz` 是中心频率 `fc`，引擎只计算 `h(fc)` 并假定其在
 `bandwidth_hz` 内平坦；带宽用于接收噪声和 flat-channel Shannon upper bound，不表示已实现
-OFDM 或频率选择性信道。当前所有场景仍使用同一固定传播编排，Foundation 的
-environment-only PropagationProfile 尚未接入。
+OFDM 或频率选择性信道。当前所有场景仍使用同一固定传播编排；Foundation C1 已接入
+environment-only PropagationProfile，但 C2 experiment provenance、最终 quadrature/
+coefficient consistency 与其余 Foundation gates 尚未完成。
 
 详细公式与适用边界见 [docs/physics_model.md](docs/physics_model.md)。
 

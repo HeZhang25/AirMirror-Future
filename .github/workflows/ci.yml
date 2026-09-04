@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+      - 'integration/**'
+  push:
+    branches:
+      - main
+      - 'integration/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  QT_QPA_PLATFORM: offscreen
+  MPLBACKEND: Agg
+
+jobs:
+  test:
+    name: test (${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.14']
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install package and development dependencies
+        run: python -m pip install -e ".[dev]"
+      - name: Run full test suite
+        run: python -m pytest
+      - name: Run Current headless smoke
+        run: python -m airmirror_future --headless --scene scenes/smart_room.json --generation Current --quality fast
+      - name: Run Advanced headless smoke
+        run: python -m airmirror_future --headless --scene scenes/smart_room.json --generation Advanced --quality fast
+      - name: Run Future headless smoke
+        run: python -m airmirror_future --headless --scene scenes/smart_room.json --generation Future --quality fast
+
+  diff-check:
+    name: diff-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check PR or push diff for whitespace errors
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+          PUSH_HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            git diff --check "$PR_BASE_SHA...$PR_HEAD_SHA"
+          elif [[ "$BEFORE_SHA" =~ ^0+$ ]]; then
+            git diff --check
+          else
+            git diff --check "$BEFORE_SHA..$PUSH_HEAD_SHA"
+          fi
