@@ -11,6 +11,7 @@ from airmirror_future import WALL_ENDPOINT_Z_ATOL_M
 from airmirror_future.core.types import Receiver, Scene, Transmitter, Vec3, Wall
 from airmirror_future.simulation.engine import SimulationEngine
 from airmirror_future.simulation.ground_truth import GroundTruthModel
+from airmirror_future.simulation.profiles import IndoorDeterministicProfile
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -146,33 +147,28 @@ def test_engine_shares_perturbed_wall_between_blockage_and_reflection(
 
     observed: dict[str, Wall] = {}
 
-    def fake_attenuation(
-        scene: Scene,
-        start: Vec3,
-        end: Vec3,
-        exclude_wall_ids: set[str] | None = None,
-    ) -> tuple[float, list[str]]:
-        del start, end, exclude_wall_ids
-        observed.setdefault("blockage", scene.walls[0])
-        return 1.0, []
+    class RecordingProfile(IndoorDeterministicProfile):
+        def environment_modifier(self, *, scene, context):
+            observed.setdefault("blockage", scene.walls[0])
+            return super().environment_modifier(scene=scene, context=context)
+
+    original_reflection = engine_module.single_wall_reflection_path
 
     def fake_reflection(
         scene: Scene,
         tx: Transmitter,
         rx: Receiver,
         wall: Wall,
-        reflection_coefficient: complex | None = None,
-    ) -> tuple[complex, Vec3 | None]:
-        del tx, rx, reflection_coefficient
-        observed["reflection_scene"] = scene.walls[0]
-        observed["reflection_argument"] = wall
-        return 0.0j, None
+    ):
+        if scene.name == "wall-geometry":
+            observed["reflection_scene"] = scene.walls[0]
+            observed["reflection_argument"] = wall
+        return original_reflection(scene, tx, rx, wall)
 
-    monkeypatch.setattr(engine_module, "path_attenuation_amplitude", fake_attenuation)
-    monkeypatch.setattr(engine_module, "single_wall_reflection", fake_reflection)
+    monkeypatch.setattr(engine_module, "single_wall_reflection_path", fake_reflection)
     model = FixedWallDeltaGroundTruth()
 
-    SimulationEngine().compute_channel(_reflection_scene(), model=model)
+    SimulationEngine(RecordingProfile()).compute_channel(_reflection_scene(), model=model)
 
     shared_wall = observed["blockage"]
     assert shared_wall is observed["reflection_scene"]

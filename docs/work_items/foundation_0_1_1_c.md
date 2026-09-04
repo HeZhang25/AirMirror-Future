@@ -3,7 +3,7 @@
 - 层级：L3 Deliverable（含可独立评审的 C1/C2）
 - Task IDs：FND-ARCH-01、FND-EXP-01
 - Requirement IDs：AMF-SIM-005、AMF-EXP-006
-- 状态：Ready
+- 状态：In Progress（C1 Implemented，待独立审查；C2 Ready）
 - 父项：Foundation 0.1.1
 - 依赖：Foundation 0.1.1A Verified、FND-FIX-WALL Verified、Foundation 0.1.1B Verified、
   A/B Interim Checkpoint PASS、ADR-0011/0012 Accepted
@@ -19,7 +19,7 @@
 修正历史结果分类、FND-T14 范围、path-specific 距离有效性所有权及 version/seed 类型文字。
 C1/C2 保持 Ready，blocking ambiguity 0；不改变 ADR-0012 ownership 或进入实现。
 
-本 Work Item 只冻结 C1/C2 的实现边界、接口、数据、错误和验收条件；本次评审没有修改 Python、
+本节记录的 Ready Review 只冻结 C1/C2 的实现边界、接口、数据、错误和验收条件；当时没有修改 Python、
 tests、results、GUI 或 Scene，也不构成 C1/C2 Implemented/Verified 证据。ADR-0011 已冻结
 `geometry/environment -> a^GT`、`RIS phase/efficiency error -> Gamma_actual`，ADR-0012 已冻结
 Profile/Reflection 的因子所有权；以下决定只把两份 Accepted ADR 明确留给 C Ready Review 的
@@ -61,7 +61,7 @@ identity；历史结果保持原样且不会被覆盖。
 
 ### C1.1 模块与精确 Protocol
 
-实现目标位于 `airmirror_future.simulation.profiles`。以下名称、字段和签名已冻结；除修正明显的
+实现位于 `airmirror_future.simulation.profiles`。以下名称、字段和签名已冻结；除修正明显的
 typing 拼写外不得在实现中另行发明同义接口：
 
 ```python
@@ -73,7 +73,7 @@ PropagationPathRole = Literal[
     "ris_scattered",
 ]
 
-CanonicalParameter = None | bool | int | float | str
+CanonicalParameter = bool | int | float | str | None
 CanonicalParameters = tuple[tuple[str, CanonicalParameter], ...]
 
 @dataclass(frozen=True, slots=True)
@@ -384,15 +384,15 @@ PNG。
 
 ## Tasks
 
-所有 task 保持 0.5–2 天且可独立 code review；状态在本次 Ready Review 后为 Ready，尚未开始：
+所有 task 保持 0.5–2 天且可独立 code review；2026-09-04 C1 已实现，C2 尚未开始：
 
 | Task | Deliverable | 状态 | 完成输出 |
 |---|---|---|---|
-| `FND-ARCH-01A` Protocol/context/identity types | C1 | Ready | `simulation.profiles`、canonical identity tests |
-| `FND-ARCH-01B` default environment modifier | C1 | Ready | immutable deterministic Profile、五 role contract tests |
-| `FND-ARCH-01C` reflection factor split | C1 | Ready | carrier-only path helper、Gamma/before/after once-only tests |
-| `FND-ARCH-01D` engine integration and duplicate-ID guard | C1 | Ready | constructor injection、all-role routing、wall-ID validation |
-| `FND-ARCH-01E` C1 compatibility/ownership closure | C1 | Ready | component references、three-generation headless、manual call graph review |
+| `FND-ARCH-01A` Protocol/context/identity types | C1 | Implemented | `simulation.profiles`、canonical identity tests |
+| `FND-ARCH-01B` default environment modifier | C1 | Implemented | immutable deterministic Profile、五 role contract tests |
+| `FND-ARCH-01C` reflection factor split | C1 | Implemented | carrier-only path helper、Gamma/before/after once-only tests |
+| `FND-ARCH-01D` engine integration and duplicate-ID guard | C1 | Implemented | constructor injection、all-role routing、wall-ID validation |
+| `FND-ARCH-01E` C1 compatibility/ownership closure | C1 | Implemented | component references、three-generation headless、manual call graph review |
 | `FND-EXP-01A` provenance schema/model metadata | C2 | Ready | schema v1 fields、pending/partial validation |
 | `FND-EXP-01B` versioned no-overwrite runner | C2 | Ready | new run directory、CSV/PNG、existing-target failure |
 | `FND-EXP-01C` legacy classification and docs | C2 | Ready | read-only legacy marker、results README、FND-T15 tests |
@@ -469,3 +469,67 @@ Foundation/P1A gate，也不把 `partial` provenance 宣称为 final Foundation 
 - documentation tests：`python -m pytest tests/test_documentation.py -q` → `9 passed`；
 - whitespace：`git diff --check` → PASS；
 - scope audit：提交只允许 Markdown，且不修改 `results/` 下任何文件。
+
+## C1 implementation evidence
+
+2026-09-04：以独立远端 Ready PASS commit `9fad9b05273fd0d15569d8307e50321d40d05c4a` 为 parent
+完成 `FND-ARCH-01A..01E`，C1 / `AMF-SIM-005` 为 **Implemented，待独立审查**。C 整体和 Foundation
+仍为 In Progress；C2 / `AMF-EXP-006` 仍为 Ready，未实现、未产生 C2 provenance 或实验输出。
+
+### 实现与 ownership audit
+
+- `simulation.profiles` 实现冻结类型、默认 immutable Profile 和 canonical identity helper；
+  `CanonicalParameter` 仅修正 Python union 的拼写为 `bool | int | float | str | None`，值域不变；
+- `physics.reflections.single_wall_reflection_path` 只计算有效点、总距离与 carrier，旧聚合函数移除；
+  engine 唯一组合 `carrier * Gamma_wall * before * after`；零名义反射幅值按 v0.1 继续跳过；
+- engine 的 channel/map 共用五类 context 路由，blocker IDs 只进入诊断，RIS modifier 保持 center
+  scalar；context 没有新增最小段长拒绝；
+- Scene 构造/loader 和 engine preflight 共用 duplicate wall-ID guard；schema v1 字段未变；
+- import/call-graph 审计确认 Profile 不导入 optimizer/GUI/Ground Truth 私有实现；仅消费显式
+  working geometry，不接收 Model/seed/sigma/error callback；GT RIS phase/efficiency 仍仅由
+  scattering 消费，没有最终 coefficient builder、cache 或新路径；
+- `tests/test_wall_geometry.py` 的旧探针改为注入 Profile / carrier helper；新增探针限定被测
+  engine/fixture。全量测试曾暴露跨测试 GUI worker/timer 生命周期问题，
+  `tests/test_gui_smoke.py` 仅补取消、等待和销毁的 teardown，不改产品 GUI 或跳过断言。
+
+### 自动测试
+
+```text
+python -m pytest tests/test_profiles.py tests/test_profile_integration.py tests/test_profile_compatibility.py tests/test_wall_geometry.py tests/test_blockage_reflection.py tests/test_scene_engine.py tests/test_pattern_contract.py
+188 passed
+
+python -m pytest tests/test_documentation.py
+9 passed
+
+python -m pytest
+275 passed
+
+git diff --check
+PASS
+```
+
+- FND-T13：`tests/fixtures/c1_v01_components.json` 在修改 production 前采集；已确认 parent 的
+  `src/` 与 `d9ab04a502055af3b519a781629e6e83f0ded9d8` 相同。三代 + 定向 reflection/blockage
+  各含 nominal/GT，共 8 组；LOS、每条 wall、wall sum、RIS、total 满足 `rtol=1e-12, atol=1e-15`，
+  路径集合、几何点和 blocker IDs 不变。fixture 是单元测试 reference，不是 C2/formal provenance；
+- FND-T13b：channel/map role direction/ID/count、disabled/uncommanded RIS 和无效反射遗漏规则通过；
+- FND-T13c：Gamma、before、after 独立零/幅值/相位扰动与五 role 复数缩放通过，无重复乘法；
+- FND-T13d：反射墙 ID self-exclusion、其他 blocker、duplicate 构造/loader/可变 list 防御通过；
+- FND-T14：frozen default、canonical literal payload/type mutation、两个独立进程、非法 context/
+  output、异常透传、Reflection identity 分层与 GT 隔离通过；不含最终 world/coefficient identity。
+
+### 三代 fast headless
+
+对每代执行 `python -m airmirror_future --headless --scene scenes/smart_room.json --generation
+<Current|Advanced|Future> --quality fast`；均 exit 0，grid `80×60`。改动前后下列指标完全一致，
+共同 baseline 为 `-55.275335808122435 dBm`；runtime 只作运行记录，不是物理回归判据。
+
+| Generation | Focused power dBm | Target RIS Gain dB | SNR dB | Coverage % |
+|---|---|---|---|---|
+| Current | -46.5879005740162 | 8.687435234106232 | 40.4120994259838 | 77.10416666666666 |
+| Advanced | -30.125714151404196 | 25.14962165671824 | 56.874285848595804 | 78.52083333333333 |
+| Future | -19.31176972053484 | 35.963566087587594 | 67.68823027946516 | 82.5625 |
+
+未修改 `results/`、版本化 Scene、GUI 产品代码、实验 runner、Focus 或 scattering 公式；未签署
+C / Foundation Verified、FND-QA-AP、FND-PHY-NB、FND-QA-CC 或 P1A gate。独立审查是下一步，
+本交付停止于 C1 Implemented。

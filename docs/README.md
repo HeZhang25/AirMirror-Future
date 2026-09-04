@@ -4,7 +4,7 @@
 |---|---|
 | 文档状态 | Normative / 规范性 |
 | 基线版本 | v0.1 |
-| 最后复核 | 2026-09-03（Foundation 0.1.1C Ready Review） |
+| 最后复核 | 2026-09-04（Foundation C1 implementation；C2 Ready） |
 | 维护责任 | 修改相关代码的开发者 |
 
 本目录是 AirMirror Future 的工程事实源。根目录的 `项目说明提示词.md` 保存原始愿景和
@@ -22,7 +22,7 @@
    [A3 Work Item](work_items/foundation_0_1_1_a3.md)；
    Foundation B1/B2/B3 的 Ready/implementation/verification 证据见
    [combined B Work Item](work_items/foundation_0_1_1_b.md)；
-   Foundation C1/C2 的 Definition of Ready、精确 Protocol/identity/provenance/no-overwrite 契约见
+   Foundation C1 implementation evidence 与 C1/C2 的精确 Protocol/identity/provenance/no-overwrite 契约见
    [combined C Work Item](work_items/foundation_0_1_1_c.md)；
    A/B Interim Checkpoint 的自动、headless、隔离实验和外部人工证据见
    [checkpoint Work Item](work_items/foundation_0_1_1_ab_checkpoint.md)；

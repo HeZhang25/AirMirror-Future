@@ -62,8 +62,8 @@ id 错误异常待统一。这些进入 P1 tasks。
 
 ## 4. Foundation 0.1.1：物理模型契约
 
-状态：In Progress；Foundation 0.1.1A、A1/A2/A3、FND-FIX-WALL、B1/B2/B3 Verified；C1/C2
-Ready（尚未实现）；FND-QA-AP、FND-PHY-NB 与 FND-QA-CC 尚未完成。详细背景、范围、
+状态：In Progress；Foundation 0.1.1A、A1/A2/A3、FND-FIX-WALL、B1/B2/B3 Verified；C1
+Implemented（待独立审查），C2 Ready；FND-QA-AP、FND-PHY-NB 与 FND-QA-CC 尚未完成。详细背景、范围、
 Requirement IDs、L3/L4 工作项、测试、兼容策略和 Exit Gate 见
 [foundation_0_1_1_plan.md](foundation_0_1_1_plan.md)。
 
@@ -89,8 +89,8 @@ checkpoint / non-formal provenance；checkpoint 本身不提升 Foundation overa
 B1/B2/B3 及其五个 requirements 提升为 Verified。
 
 C1/C2 的 blocking ambiguity 已在
-[Foundation 0.1.1C Work Item](work_items/foundation_0_1_1_c.md) 清零；Ready 不表示
-PropagationProfile、provenance schema 或 no-overwrite runner 已实现，也不解除任何 final gate。
+[Foundation 0.1.1C Work Item](work_items/foundation_0_1_1_c.md) 清零；C1 PropagationProfile 已
+Implemented，provenance schema/no-overwrite runner 仍未实现，不解除任何 final gate。
 
 Exit gate：三个子 Capability 全部达到各自门禁，默认 Profile 可解释地复现 v0.1 reference，
 FND-T13c/T13d 证明墙系数与反射两段 modifier 各只应用一次并排除反射墙自身；

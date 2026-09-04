@@ -254,6 +254,15 @@ class Scene:
             raise ValueError("bandwidth_hz must be finite and positive")
         if not 0.0 <= self.z_eval_m <= self.room_size.z:
             raise ValueError("z_eval_m must be inside the room")
+        self._validate_wall_ids()
+
+    def _validate_wall_ids(self) -> None:
+        """Guard ID-based reflection self-exclusion, including after list mutation."""
+        seen: set[str] = set()
+        for wall in self.walls:
+            if wall.id in seen:
+                raise ValueError(f"duplicate wall id in scene: {wall.id!r}")
+            seen.add(wall.id)
 
     def transmitter(self, identifier: str | None = None) -> Transmitter:
         if not self.transmitters:

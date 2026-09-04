@@ -49,7 +49,7 @@
 
 | 字段 | 类型 | 默认/单位 | 约束 |
 |---|---|---|---|
-| `id` | str | required | 当前应在 walls 内唯一；C1 Ready target 收紧为构造/加载/engine preflight 必须唯一 |
+| `id` | str | required | C1 已实现构造/加载/engine preflight 的 walls 内唯一校验 |
 | `start,end` | Vec3 | m | XY 端点必须不同；`|z|≤1e-9 m`，按 Scene v1 floor anchor 解释 |
 | `height_m` | float | 3.0 m | finite，`>0` |
 | `attenuation_db` | float | 30 dB | finite，`≥0` |
@@ -68,9 +68,9 @@ Model 消费且每条反射路径只应用一次；见
 原值在保存时保持不变，超差值必须显式把 `start.z/end.z` 改为 0。实现与迁移证据见
 [FND-FIX-WALL](work_items/foundation_0_1_1_wall_geometry_closure.md)。
 
-C1 Ready contract 因 reflection self-exclusion 依赖稳定 ID，将 duplicate wall ID 冻结为
+C1 因 reflection self-exclusion 依赖稳定 ID，已将 duplicate wall ID 校验实现为
 `ValueError`：`Scene.__post_init__`/loader 校验一次，engine 因 `walls` list 可变再做 defensive
-preflight。该收紧尚未实现，不改变 JSON 结构或 schema version；不得自动改名或按对象 identity
+preflight。该收紧不改变 JSON 结构或 schema version；不得自动改名或按对象 identity
 排除。详见 [C Work Item](work_items/foundation_0_1_1_c.md)。
 
 ### `Obstacle`
@@ -203,12 +203,12 @@ API，也不改变 `RISSurface.nx/ny` 或 pattern shape。
 射线/诊断的 `path_details`。`shannon_capacity_bps` 为兼容字段，其语义严格是 center-frequency
 flat-channel Shannon upper bound。`path_details` 不是稳定持久化 schema。
 
-### Ready C1 profile types / planned coefficient identities（非当前 0.1.0 类型）
+### Implemented C1 profile types / planned coefficient identities
 
 ADR-0011/0012 要求 Foundation 内部拥有稳定的 `profile_identity`、
 `reflection_model_identity`、`channel_frequency_model_id`、`quadrature_policy_identity` 和
 `coefficient_model_identity`。
-它们先进入 experiment/cache contract，不自动加入 Scene v1。C1 Ready Review 已冻结：
+它们不自动加入 Scene v1；完整 coefficient identity 仍是 future contract。C1 已实现：
 
 - `PropagationPathContext` 为 frozen/slots 值对象，含五值 role、finite `start/end` 以及 role-specific
   `reflecting_wall_id/ris_id`；不含 Model、seed、sigma、error callback 或 oracle；
@@ -223,7 +223,8 @@ ADR-0011/0012 要求 Foundation 内部拥有稳定的 `profile_identity`、
   Reflection plugin/factory/hash identity。
 
 完整字段、canonical encoding 和异常见
-[C Work Item](work_items/foundation_0_1_1_c.md)。当前调用者仍不得假设这些 Ready 类型已存在。
+[C Work Item](work_items/foundation_0_1_1_c.md)。上述类型位于 `simulation.profiles`；最小 Reflection
+ID/version 常量位于 `physics.reflections`，两者 version 都是字符串 `"1"`。
 `profile_identity` 只标识环境 modifier 规则；墙系数、scene/world realization 和 frequency 属于
 独立 reflection/world/coefficient identity。quadrature/coefficient 的具体类型仍由
 FND-QA-AP/FND-QA-CC 冻结，C1 不实现最终 coefficient builder。

@@ -2,12 +2,24 @@
 
 from __future__ import annotations
 
-import numpy as np
+from dataclasses import dataclass
 
 from airmirror_future.core.geometry import reflect_point_across_wall, segment_intersection_2d
 from airmirror_future.core.types import Receiver, Scene, Transmitter, Vec3, Wall
-from airmirror_future.physics.blockage import path_attenuation_amplitude
 from airmirror_future.physics.free_space import complex_free_space_channel
+
+
+reflection_model_id = "finite_wall_single_bounce_image"
+reflection_model_version = "1"
+
+
+@dataclass(frozen=True, slots=True)
+class WallReflectionPath:
+    """Geometry and a single total-length Friis carrier, without wall/environment factors."""
+
+    point: Vec3
+    total_distance_m: float
+    carrier: complex
 
 
 def reflection_point(tx: Vec3, rx: Vec3, wall: Wall) -> Vec3 | None:
@@ -25,23 +37,18 @@ def reflection_point(tx: Vec3, rx: Vec3, wall: Wall) -> Vec3 | None:
     return Vec3(float(point[0]), float(point[1]), float(point[2]))
 
 
-def single_wall_reflection(
+def single_wall_reflection_path(
     scene: Scene,
     tx: Transmitter,
     rx: Receiver,
     wall: Wall,
-    reflection_coefficient: complex | None = None,
-) -> tuple[complex, Vec3 | None]:
-    """Compute one image-method path using total reflected path length."""
+) -> WallReflectionPath | None:
+    """Find one finite-wall path and carrier; coefficient/blockage belong to callers."""
     point = reflection_point(tx.position, rx.position, wall)
-    if point is None or wall.reflection_magnitude == 0.0:
-        return 0.0j, None
+    if point is None:
+        return None
     distance = tx.position.distance_to(point) + point.distance_to(rx.position)
-    before, _ = path_attenuation_amplitude(scene, tx.position, point, {wall.id})
-    after, _ = path_attenuation_amplitude(scene, point, rx.position, {wall.id})
-    coefficient = wall.reflection_coefficient if reflection_coefficient is None else reflection_coefficient
-    channel = complex_free_space_channel(
+    carrier = complex_free_space_channel(
         distance, scene.frequency_hz, tx.gain_linear, rx.gain_linear
     )
-    return channel * coefficient * before * after, point
-
+    return WallReflectionPath(point, distance, carrier)

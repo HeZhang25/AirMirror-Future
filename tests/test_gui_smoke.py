@@ -6,6 +6,7 @@ import pytest
 import numpy as np
 
 PySide6 = pytest.importorskip("PySide6")
+from PySide6.QtCore import QCoreApplication, QEvent, QThreadPool
 from PySide6.QtWidgets import QApplication
 from PySide6.QtWidgets import QMessageBox
 
@@ -14,6 +15,31 @@ from airmirror_future.gui.pattern_view import PhasePatternView
 from airmirror_future.gui.scene_view import SceneView
 from airmirror_future.core.types import FieldMapResult
 from airmirror_future.scenarios.smart_space import create_smart_space_scene
+
+
+@pytest.fixture(autouse=True)
+def _finish_window_workers(qapp, monkeypatch):
+    """Do not leak delayed map starts or live QRunnables into later engine tests."""
+    windows = []
+    original_init = MainWindow.__init__
+
+    def tracked_init(window, *args, **kwargs):
+        windows.append(window)  # retain Python/Qt ownership until workers have stopped
+        original_init(window, *args, **kwargs)
+
+    monkeypatch.setattr(MainWindow, "__init__", tracked_init)
+    yield
+    for window in windows:
+        window._debounce.stop()
+        window.close()
+        for worker in window._workers:
+            worker.cancel()
+    assert QThreadPool.globalInstance().waitForDone(5000), "GUI workers did not cancel in time"
+    for window in windows:
+        window.deleteLater()
+    # Destroy the singleShot receivers before processing more timer events.
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    qapp.processEvents()
 
 
 def test_main_window_constructs_and_can_cancel() -> None:

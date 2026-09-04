@@ -49,10 +49,13 @@
 - `bandwidth_hz` 不会让引擎计算多个频点；当前 100 MHz 只进入 noise/flat-channel capacity，
   软件没有自动证明该带宽对任意几何都满足窄带条件；
 - Field Map 对所有网格点使用同一 fixed RIS pattern，不是逐像素最优聚焦包络；
-- PropagationProfile 与最小 provenance 已达到 Foundation C Ready、但尚未实现；
+- PropagationProfile 已在 C1 Implemented（待独立审查），最小 provenance 仍为 C2 Ready、未实现；
   `channel_frequency_model_id` 与 coefficient consistency 仍是后续 Planned contract，不得在现有
-  结果中声称已经实现。未来 Profile 只拥有环境 modifier；当前及
+  结果中声称已经实现。Profile 只拥有环境 modifier；当前及
   目标模型中的墙面 `Gamma_wall` 均属于 Wall/Reflection Model，不得在 C1 中重复迁入 Profile。
+- C1 支持 environment-only complex modifier，但只签入默认 Profile 的 v0.1 数值兼容；自定义
+  复相位规则与最终 Focus/coefficient consistency 仍须 FND-QA-CC/必要 migration，不能凭注入
+  Protocol 就声称已通过最终算法/物理门禁。
 - C2 schema Ready 不使现有 `results/phase_bits` 获得 Profile/Reflection/channel/quadrature/
   coefficient identity；这些文件仍是只读 `legacy_v0_1_unversioned`，不得回填。C2 初始新结果也
   必须对未签署的 FND-PHY-NB/FND-QA-AP/FND-QA-CC 保持 partial/pending。

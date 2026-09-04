@@ -22,12 +22,18 @@ from airmirror_future.core.types import (
     Vec3,
 )
 from airmirror_future.core.units import watts_to_dbm
-from airmirror_future.physics.blockage import path_attenuation_amplitude
 from airmirror_future.physics.free_space import complex_free_space_channel
 from airmirror_future.physics.noise import noise_power_dbm, shannon_capacity_bps
-from airmirror_future.physics.reflections import single_wall_reflection
+from airmirror_future.physics.reflections import single_wall_reflection_path
 from airmirror_future.physics.ris_scattering import _ris_channel_from_validated_pattern
 from airmirror_future.simulation.ground_truth import ControllerModel, GroundTruthModel
+from airmirror_future.simulation.profiles import (
+    IndoorDeterministicProfile,
+    PropagationModifier,
+    PropagationPathContext,
+    PropagationProfile,
+    profile_identity,
+)
 
 
 Model = ControllerModel | GroundTruthModel
@@ -40,8 +46,42 @@ class SimulationCancelled(RuntimeError):
 class SimulationEngine:
     """CPU system-level complex-field propagation engine."""
 
-    def __init__(self) -> None:
+    def __init__(self, profile: PropagationProfile | None = None) -> None:
+        self._profile = IndoorDeterministicProfile() if profile is None else profile
+        self._profile_identity = profile_identity(self._profile)
+        if not callable(getattr(self._profile, "environment_modifier", None)):
+            raise ValueError("Profile must implement environment_modifier for all five path roles")
         self._cell_cache: dict[tuple[object, ...], np.ndarray] = {}
+
+    @property
+    def profile(self) -> PropagationProfile:
+        return self._profile
+
+    @property
+    def profile_identity(self) -> str:
+        return self._profile_identity
+
+    def _environment_modifier(
+        self, scene: Scene, context: PropagationPathContext
+    ) -> PropagationModifier:
+        # Profile exceptions are deliberately outside the output-validation handler.
+        result = self._profile.environment_modifier(scene=scene, context=context)
+        message = f"invalid modifier from Profile {self._profile.profile_id!r}, role {context.role!r}"
+        if not isinstance(result, PropagationModifier):
+            raise ValueError(message + ": expected PropagationModifier")
+        try:
+            if np.ndim(result.value) != 0:
+                raise ValueError("value must be scalar")
+            value = complex(result.value)
+            if not math.isfinite(value.real) or not math.isfinite(value.imag):
+                raise ValueError("value must be finite")
+            if not isinstance(result.blocker_ids, tuple) or any(
+                not isinstance(identifier, str) or not identifier for identifier in result.blocker_ids
+            ):
+                raise ValueError("blocker_ids must be a tuple of non-empty strings")
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError(f"{message}: {exc}") from exc
+        return PropagationModifier(value, result.blocker_ids)
 
     @staticmethod
     def _resolve_tx(scene: Scene, tx: Transmitter | str | None) -> Transmitter:
@@ -136,23 +176,39 @@ class SimulationEngine:
         model: Model,
     ) -> tuple[complex, complex, complex, list[dict[str, object]]]:
         distance = tx.position.distance_to(rx.position)
-        attenuation, blockers = path_attenuation_amplitude(scene, tx.position, rx.position)
+        direct = self._environment_modifier(
+            scene, PropagationPathContext("direct", tx.position, rx.position)
+        )
         los = complex_free_space_channel(
             distance, scene.frequency_hz, tx.gain_linear, rx.gain_linear
-        ) * attenuation
+        ) * direct.value
         details: list[dict[str, object]] = [
-            {"kind": "LOS", "distance_m": distance, "blockers": blockers}
+            {"kind": "LOS", "distance_m": distance, "blockers": list(direct.blocker_ids)}
         ]
 
         wall_total = 0.0j
         for wall in scene.walls:
-            channel, point = single_wall_reflection(
-                scene, tx, rx, wall, model.wall_coefficient(wall)
+            # Preserve v0.1's zero-reflectivity path omission without giving the
+            # carrier-only helper ownership of Gamma_wall.
+            if wall.reflection_magnitude == 0.0:
+                continue
+            path = single_wall_reflection_path(scene, tx, rx, wall)
+            if path is None:
+                continue
+            coefficient = model.wall_coefficient(wall)
+            before = self._environment_modifier(
+                scene, PropagationPathContext("reflection_before", tx.position, path.point,
+                                              reflecting_wall_id=wall.id)
             )
+            after = self._environment_modifier(
+                scene, PropagationPathContext("reflection_after", path.point, rx.position,
+                                              reflecting_wall_id=wall.id)
+            )
+            channel = path.carrier * coefficient * before.value * after.value
             wall_total += channel
-            if point is not None and abs(channel) > 0.0:
+            if abs(channel) > 0.0:
                 details.append(
-                    {"kind": "wall", "wall_id": wall.id, "point": point, "channel": channel}
+                    {"kind": "wall", "wall_id": wall.id, "point": path.point, "channel": channel}
                 )
 
         ris_total = 0.0j
@@ -160,11 +216,11 @@ class SimulationEngine:
             pattern = ris_patterns.get(ris.id)
             if pattern is None or not ris.enabled:
                 continue
-            before, before_blockers = path_attenuation_amplitude(
-                scene, tx.position, ris.position
+            before = self._environment_modifier(
+                scene, PropagationPathContext("ris_incident", tx.position, ris.position, ris_id=ris.id)
             )
-            after, after_blockers = path_attenuation_amplitude(
-                scene, ris.position, rx.position
+            after = self._environment_modifier(
+                scene, PropagationPathContext("ris_scattered", ris.position, rx.position, ris_id=ris.id)
             )
             contribution = _ris_channel_from_validated_pattern(
                 tx,
@@ -175,13 +231,13 @@ class SimulationEngine:
                 scene.frequency_hz,
                 cell_phase_error_rad=model.ris_phase_offsets(ris),
                 efficiency_scale=model.ris_efficiency_scale(ris),
-            ) * before * after
+            ) * before.value * after.value
             ris_total += contribution
             details.append(
                 {
                     "kind": "RIS",
                     "ris_id": ris.id,
-                    "blockers": before_blockers + after_blockers,
+                    "blockers": list(before.blocker_ids + after.blocker_ids),
                     "channel": contribution,
                 }
             )
@@ -196,6 +252,7 @@ class SimulationEngine:
         model: Model | None = None,
     ) -> ChannelResult:
         """Compute one TX-RX link with coherent LOS, wall, and RIS fields."""
+        scene._validate_wall_ids()
         nominal_tx = self._resolve_tx(scene, tx)
         nominal_rx = self._resolve_rx(scene, rx)
         patterns = self._validated_patterns(scene, ris_patterns)
@@ -236,6 +293,7 @@ class SimulationEngine:
     ) -> FieldMapResult:
         """Compute a regular fixed-height power/SNR map on the CPU."""
         started = time.perf_counter()
+        scene._validate_wall_ids()
         tx = scene.transmitter()
         rx_template = scene.receiver()
         patterns = self._validated_patterns(scene, ris_patterns)

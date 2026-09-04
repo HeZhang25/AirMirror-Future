@@ -113,7 +113,7 @@ h_wall = h_FS(L) * Gamma_wall * m_before_env * m_after_env
 `profile_identity`。完整所有权决定见
 [ADR-0012](adr/0012-wall-reflection-coefficient-ownership.md)。
 
-C1 Ready contract 要求 wall ID 在 Scene 内唯一；duplicate ID 在任何 Profile/reflection 求值前
+C1 已实现 wall ID 在 Scene 内唯一校验；duplicate ID 在任何 Profile/reflection 求值前
 明确失败，不能因 ID-based exclusion 而排除多堵墙。reflection helper 只返回有效点、总距离和
 一次 Friis carrier；engine 在唯一编排点分别乘一次有效 `Gamma_wall`、`reflection_before` 和
 `reflection_after` modifier。精确接口与兼容容差见

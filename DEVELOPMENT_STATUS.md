@@ -2,13 +2,31 @@
 
 | 属性 | 值 |
 |---|---|
-| 状态快照 | 2026-09-03 |
+| 状态快照 | 2026-09-04 |
 | 当前 release | v0.1 |
 | release 状态 | Verified |
 | 规范基线 | [docs/README.md](docs/README.md) |
-| 当前 Capability | Foundation 0.1.1C Ready Review（C1/C2 Ready，blocking ambiguity 0；尚未实现；Foundation overall In Progress） |
+| 当前 Capability | Foundation 0.1.1C：C1 Implemented（待独立审查），C2 Ready；Foundation overall In Progress |
 
-## Foundation 0.1.1C Definition of Ready
+## Foundation 0.1.1C / C1 implementation handoff
+
+以独立远端 Ready PASS 基线 `9fad9b05273fd0d15569d8307e50321d40d05c4a` 实现
+`FND-ARCH-01A..01E`：`simulation.profiles`、不可变默认 Profile、tagged canonical identity、
+carrier-only reflection helper、engine 五类 role 接入与 duplicate wall-ID preflight。
+`AMF-SIM-005` / C1 仅提升为 **Implemented**，等待独立审查；C 整体与 Foundation 保持
+**In Progress**，`AMF-EXP-006` / C2 保持 **Ready**，P1A gate 不解除。
+
+默认分量与路径集合通过 `d9ab04a` 的 8 组 nominal/GT 固定 reference；三代 fast headless 的
+功率、RIS Gain、SNR 和 coverage 与改动前一致。完整命令、FND-T13..T14 与数值见
+[C Work Item 的 C1 implementation evidence](docs/work_items/foundation_0_1_1_c.md#c1-implementation-evidence)。
+没有修改 GUI、版本化 Scene、results、Focus/scattering 公式或实验 runner；未实现 C2、最终
+coefficient builder、QA-AP/PHY-NB/QA-CC、cache 或新路径。
+
+迁移说明：Scene 构造/加载及 engine preflight 现在拒绝重复 wall ID，错误包含该 ID；
+外部歧义输入须显式改名。内部聚合 `single_wall_reflection` 已由 carrier-only helper 取代，
+完整反射贡献由 engine 唯一编排。Scene schema version、公共 channel/map 签名和默认数值不变。
+
+## Foundation 0.1.1C Definition of Ready（历史记录）
 
 2026-09-03 已建立 focused
 [Foundation 0.1.1C Work Item](docs/work_items/foundation_0_1_1_c.md)，并完成 C1 PropagationProfile
@@ -335,9 +353,9 @@ Implemented/Verified。
   A2 只读 pitch/波长诊断；最小独立求积有效性进入 Foundation final exit 前的 FND-QA-AP，
   P1C 保留完整 aperture/field-map/适用域研究；
 - A3 commanded hardware-state validation、B1/B2/B3 及其五个 B requirements 已 Verified；
-- 所有场景仍共用固定传播编排，尚无 PropagationProfile identity；C1 Protocol/identity 已 Ready，
-  但尚未实现；
-- Profile/Reflection 的 target ownership 已由 ADR-0012 与 C Ready Review 冻结，但 C1 尚未实现；
+- C1 Profile/Reflection 接入与稳定 Profile identity 已 Implemented，独立审查尚未完成；
+- C2 provenance/no-overwrite 尚未实现；自定义复数 Profile 不构成最终 Focus/coefficient consistency
+  签署，仍须 FND-QA-CC 与必要的独立 production migration；
 - `frequency_hz/bandwidth_hz` 的 flat-channel 语义已由 ADR-0010 冻结，但 model ID、标签和
   provenance closure 尚未实现；
 - FND-FIX-WALL 已 Verified：floor-anchored Wall/XY-only Ground Truth 语义当前仍不支持悬空/倾斜墙；
@@ -356,8 +374,8 @@ Implemented/Verified。
 
 ## 下一阶段
 
-1. 按 [Foundation 0.1.1C Work Item](docs/work_items/foundation_0_1_1_c.md) 独立实现/评审 C1
-   environment-only PropagationProfile；
+1. 按 [Foundation 0.1.1C Work Item](docs/work_items/foundation_0_1_1_c.md) 独立审查 C1
+   environment-only PropagationProfile implementation；
 2. 在 C1 后独立实现/评审 C2 minimum experiment provenance；
 3. 执行 FND-QA-AP，冻结 production quadrature policy；若要求改变 production，先走独立迁移；
 4. 完成 FND-PHY-NB 和 FND-QA-CC，冻结 frequency/coefficient/cache identity；
