@@ -6,7 +6,22 @@
 | 当前 release | v0.1 |
 | release 状态 | Verified |
 | 规范基线 | [docs/README.md](docs/README.md) |
-| 当前 Capability | Foundation 0.1.1C overall In Progress：C1 Verified，C2 Ready；Foundation overall In Progress；P1A gate closed |
+| 当前 Capability | Foundation 0.1.1C overall In Progress：C1 Verified，C2 Implemented；Foundation overall In Progress；P1A gate closed |
+
+## Foundation 0.1.1C / C2 implementation
+
+2026-09-04：D-owned C2 integration wiring 已完成，`AMF-EXP-006` 与 C2 子任务
+`FND-EXP-01A..01C` 状态为 **Implemented**。Phase Resolution runner 现在先独占创建
+`results/foundation_0_1_1/phase_bits/<run_id>/`（或显式完整 output directory），再使用实际
+Advanced scene、显式 `ControllerModel` 和同一 world 完成 baseline/focused channel 与 field map
+计算，调用 A-owned provenance builder 写入 schema v1 CSV，并生成同目录 PNG；最后由 C-owned
+只读 classifier 验证 `foundation_partial`。pending owners 保留 `FND-PHY-NB`、`FND-QA-AP`、
+`FND-QA-CC`，未签署 identity 保持空，legacy/checkpoint 结果未修改。
+
+证据：D-owned integration tests 5 passed；完整 `python -m pytest` 371 passed, 1 skipped；
+Current/Advanced/Future fast headless 通过；真实 C2 Foundation run 的 CSV/PNG、run_id、
+provenance schema/status/pending 与最终 classification 已人工检查。C2 仍未 Verified；Foundation
+overall 保持 In Progress，P1A gate 保持关闭。
 
 ## Foundation 0.1.1C / C1 verification closure
 

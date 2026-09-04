@@ -306,9 +306,9 @@ target gain、SNR、coverage/dead-zone、runtime 和 grid。错误写 stderr 并
 python -m airmirror_future.experiments.phase_bits --output PATH
 ```
 
-C2 Ready target 将 `PATH` 定义为必须不存在的完整 run directory；默认根为
+C2 runner 将 `PATH` 定义为必须不存在的完整 run directory；默认根为
 `results/foundation_0_1_1/phase_bits/<run_id>/`，已存在时在计算前抛 `FileExistsError`，不提供
-`--force`。当前 0.1.0 runner 尚未实现该收紧，不得再把 tracked `results/phase_bits` 用作复算目标。
+`--force`。当前 runner 已实现该收紧，不得把 tracked `results/phase_bits` 用作复算目标。
 
 ## 7. 异常契约
 
