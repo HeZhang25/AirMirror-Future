@@ -82,7 +82,8 @@ Release 达到以上门禁并经项目维护者确认后，还必须完成 GitHu
 - 将验收分支推送到配置的 `origin`，并核对远端 commit；
 - 向维护者报告版本、分支、commit hash、主要变更、测试/人工验收、兼容或迁移影响、已知
   限制和下一阶段；
-- tag、GitHub Release、PR、合并和历史改写不由“版本完成”自动授权，必须按工作项明确执行；
+- 日常开发 PR 的创建由 Collaboration Governance v1 默认授权；tag、GitHub Release、合并、
+  status promotion、Verified、release 和历史改写仍须按对应 Work Item/Maintainer 授权执行；
 - 远端同步失败时保留可恢复的本地状态并报告阻塞，不 force push 或绕过分支保护。
 
 ## 7. 物理模型变更附加门禁

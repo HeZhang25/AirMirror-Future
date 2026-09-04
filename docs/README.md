@@ -22,7 +22,7 @@
    [A3 Work Item](work_items/foundation_0_1_1_a3.md)；
    Foundation B1/B2/B3 的 Ready/implementation/verification 证据见
    [combined B Work Item](work_items/foundation_0_1_1_b.md)；
-   Foundation C1 implementation evidence 与 C1/C2 的精确 Protocol/identity/provenance/no-overwrite 契约见
+   Foundation C1 implementation/verification evidence 与 C1/C2 的精确 Protocol/identity/provenance/no-overwrite 契约见
    [combined C Work Item](work_items/foundation_0_1_1_c.md)；
    A/B Interim Checkpoint 的自动、headless、隔离实验和外部人工证据见
    [checkpoint Work Item](work_items/foundation_0_1_1_ab_checkpoint.md)；

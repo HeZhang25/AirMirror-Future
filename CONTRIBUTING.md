@@ -80,11 +80,12 @@ C2 的具体 owner、内部 integration seam 和 `results/README.md` owner 记�
 不能批准自己的 PR。PR 创建是协作流程，merge、status promotion、release 和 Verified 仍需
 对应 Work Item/Integration Owner/Maintainer 授权。
 
-对于活动 integration 分支，D 按串行顺序合并 task PR。若 integration 在该 task 最近一次
-CI 之后发生变化，task owner 必须先 fetch 并 merge 最新 `origin/integration/<work-item>`，
-重新 push 并通过 CI，才能合并。每次 merge 后 D 在最新 integration 上运行完整 pytest 和
-受影响的 headless/实验回归；最后再创建 integration 到 `main` 的 final PR。若合并前发现
-integration 再次变化，取消本次合并并重新检查。
+对于活动 integration 分支，Integration Owner 按串行顺序合并 task PR；C2 中由 D 承担
+Integration Owner 角色。若 integration 在该 task 最近一次 CI 之后发生变化，task owner
+必须先 fetch 并 merge 最新 `origin/integration/<work-item>`，重新 push 并通过 CI，才能合并。
+每次 merge 后 Integration Owner 在最新 integration 上运行完整 pytest 和受影响的
+headless/实验回归；最后再创建 integration 到 `main` 的 final PR。若合并前发现 integration
+再次变化，取消本次合并并重新检查。
 
 GitHub 上的保护规则由维护者配置：`main` 和活动 integration 至少要求 PR、稳定 CI checks、
 一名非作者 approval、conversation resolution、禁止 force push 和 protected branch deletion。
@@ -181,5 +182,6 @@ python -m airmirror_future --headless --scene scenes/smart_room.json --generatio
 6. 若凭据、网络、分支保护或远端状态阻止同步，保留本地提交，准确报告阻塞原因，不使用
    force push、历史改写或降低验收标准绕过问题。
 
-默认不自动创建 tag、GitHub Release、PR 或改写远端历史；这些操作需要在对应版本工作项中
-明确约定。同步 GitHub 是已验收版本的交付步骤，不是替代验收的证据。
+日常开发 PR 的创建由 Collaboration Governance v1 默认授权；merge、status promotion、
+Verified、release、tag、GitHub Release 和 history rewrite 仍须按对应 Work Item、Integration
+Owner 或 Maintainer 的授权执行。同步 GitHub 是已验收版本的交付步骤，不是替代验收的证据。

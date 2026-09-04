@@ -382,6 +382,9 @@ schema；FND-QA-AP 可增加 QA 专用列，但必须复用这些字段和 pendi
 - 未知的非空 schema ID/version 明确拒绝，不能降级为 legacy；
 - legacy/checkpoint 结果仍可展示其原有字段，但不能相互重分类或与 `partial/complete` Foundation
   行拼接成一个无标签 aggregate，也不能作为 Foundation formal provenance evidence。
+- 分类器对合法 schema v1 新结果明确返回 `foundation_partial` 或 `foundation_complete`，分别对应
+  CSV 的 `provenance_status=partial` 或 `complete`；这两个分类与 legacy、checkpoint、malformed
+  和 unclassified 保持互斥。
 
 ### C2.3 No-overwrite contract
 
@@ -409,13 +412,13 @@ PNG。
 
 | Owner | Internal module / type / function | 输入输出与异常边界 |
 |---|---|---|
-| A / `FND-EXP-01A` | `airmirror_future.experiments.provenance`; `_build_provenance_fields(...) -> dict[str, object]` | 只接收实际 engine/scene/focus/world/search 输入和 B 的 `_RunDirectory`；从实际对象计算 Profile/Reflection 等字段，不接受调用者自报 identity；契约非法抛 `ValueError`，底层异常不静默替换 |
+| A / `FND-EXP-01A` | `airmirror_future.experiments.provenance`; `_build_provenance_fields(..., run_id: str) -> dict[str, object]` | 接收实际 engine/scene/focus/world/search 输入和 `run_id: str`；从实际对象计算 Profile/Reflection 等字段，不接受调用者自报 identity；契约非法抛 `ValueError`，底层异常不静默替换 |
 | B / `FND-EXP-01B` | `airmirror_future.experiments.run_output`; frozen internal `_RunDirectory(path: Path, run_id: str)`；`_create_run_directory(output: Path | None) -> _RunDirectory` | `run_id == path.name`；默认/显式目录均 exclusive create；保留 legacy path 抛 `ValueError`，目标已存在抛 `FileExistsError`，且必须发生在任何 scene/engine/simulation 调用之前；无 force/delete/reuse |
-| C / `FND-EXP-01C` | `airmirror_future.experiments.result_classification`; `ResultClassification = Literal["legacy_v0_1_unversioned", "checkpoint_non_formal", "malformed", "unclassified"]`；`_classify_result_directory(path: Path) -> ResultClassification` | 只读扫描目录和 schema；legacy/checkpoint 不写回；新 run 缺 schema、未知 schema 或未知来源按 C2.2 分类并明确失败/拒绝，不猜测为 legacy |
-| D / Integration Owner | 现有 `airmirror_future.experiments.phase_bits` 的 runner wiring | 只由 D 将 B→simulation→A 的顺序接入，并调用 C 的只读分类/校验；`phase_bits.py` 为 C2 single-writer；不得把内部 helper 重新导出为 public API |
+| C / `FND-EXP-01C` | `airmirror_future.experiments.result_classification`; `ResultClassification = Literal["foundation_partial", "foundation_complete", "legacy_v0_1_unversioned", "checkpoint_non_formal", "malformed", "unclassified"]`；`_classify_result_directory(path: Path) -> ResultClassification` | 只读扫描目录和 schema；合法 Foundation schema v1 的 `provenance_status=partial/complete` 分别分类为 `foundation_partial`/`foundation_complete`；legacy/checkpoint 不写回；新 run 缺 schema、未知 schema 或未知来源按 C2.2 分类并明确失败/拒绝，不猜测为 legacy |
+| D / Integration Owner | 现有 `airmirror_future.experiments.phase_bits` 的 runner wiring | 只由 D 将 B→simulation→A 的顺序接入，并调用 C 的只读分类/校验；B 返回对象的 `.run_id` 传给 A；`phase_bits.py` 为 C2 single-writer；不得把内部 helper 重新导出为 public API |
 
-接缝顺序冻结为：B 先建立并返回 `_RunDirectory` → D 在目录冲突检查通过后创建 scene/engine 并运行
-experiment → A 从本次实际运行对象和 `_RunDirectory` 生成 schema 字段 → D 在同一 run directory
+接缝顺序冻结为：B 先建立并返回 `_RunDirectory` → D 从返回对象取得 `.run_id`，在目录冲突检查通过后创建
+scene/engine 并运行 experiment → A 从本次实际运行对象和 `run_id` 生成 schema 字段 → D 在同一 run directory
 写 CSV/PNG → C 对结果目录执行只读分类/验证。A/B/C 的定向 tests 只能修改各自 owner 路径；
 `phase_bits.py`、`tests/test_documentation.py`、状态/requirements 文档和本表由 D/维护者单写。
 
