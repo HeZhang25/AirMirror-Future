@@ -94,7 +94,8 @@ engine                      -> carrier * Gamma_wall * before * after
 
 carrier-only helper 不查询 blocker、不应用墙系数。反射墙只通过唯一 wall ID 从两个 leg 查询排除；
 duplicate wall ID 在任何 Profile/reflection 求值前抛 `ValueError`，不按对象地址、列表位置或坐标
-回退。该 validation tightening 不增加 Scene v1 字段。
+回退。Wall/Obstacle non-empty string ID 也在构造/loader 与 engine preflight 明确校验，防止空 ID
+到 context/blocker 才失败；这些经兼容审计的 validation tightening 不增加 Scene v1 字段。
 零反射幅值墙继续由 engine 按 v0.1 规则跳过；carrier-only helper 不拥有墙系数。context 不收紧
 路径最小距离接受域，reflection 总长和 RIS-to-cell 等有效性仍由既有 physics kernels 校验。
 

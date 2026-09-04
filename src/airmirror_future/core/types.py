@@ -20,6 +20,14 @@ def _finite(value: float, name: str) -> None:
         raise ValueError(f"{name} must be finite")
 
 
+def _validate_environment_id(identifier: str, kind: str) -> None:
+    if not isinstance(identifier, str) or not identifier:
+        raise ValueError(
+            f"{kind} id={identifier!r} must be a non-empty string; "
+            "assign an explicit identifier"
+        )
+
+
 @dataclass(frozen=True, slots=True)
 class Vec3:
     """A three-dimensional point or vector in metres."""
@@ -88,6 +96,7 @@ class Wall:
     blocks_los: bool = True
 
     def __post_init__(self) -> None:
+        _validate_environment_id(self.id, "wall")
         for field_name, value in (("start.z", self.start.z), ("end.z", self.end.z)):
             if abs(value) > WALL_ENDPOINT_Z_ATOL_M:
                 raise ValueError(
@@ -121,6 +130,7 @@ class Obstacle:
     fully_blocking: bool = False
 
     def __post_init__(self) -> None:
+        _validate_environment_id(self.id, "obstacle")
         if not (
             self.min_corner.x < self.max_corner.x
             and self.min_corner.y < self.max_corner.y
@@ -254,15 +264,18 @@ class Scene:
             raise ValueError("bandwidth_hz must be finite and positive")
         if not 0.0 <= self.z_eval_m <= self.room_size.z:
             raise ValueError("z_eval_m must be inside the room")
-        self._validate_wall_ids()
+        self._validate_environment_ids()
 
-    def _validate_wall_ids(self) -> None:
-        """Guard ID-based reflection self-exclusion, including after list mutation."""
+    def _validate_environment_ids(self) -> None:
+        """Guard context/blocker IDs and wall exclusion after entity/list mutation."""
         seen: set[str] = set()
         for wall in self.walls:
+            _validate_environment_id(wall.id, "wall")
             if wall.id in seen:
                 raise ValueError(f"duplicate wall id in scene: {wall.id!r}")
             seen.add(wall.id)
+        for obstacle in self.obstacles:
+            _validate_environment_id(obstacle.id, "obstacle")
 
     def transmitter(self, identifier: str | None = None) -> Transmitter:
         if not self.transmitters:

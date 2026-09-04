@@ -19,6 +19,10 @@
 修正历史结果分类、FND-T14 范围、path-specific 距离有效性所有权及 version/seed 类型文字。
 C1/C2 保持 Ready，blocking ambiguity 0；不改变 ADR-0012 ownership 或进入实现。
 
+后续 C1 implementation 独立审查授权的 environment-ID compatibility closure 补充了下述数据
+边界：除 duplicate wall ID 外，Wall/Obstacle ID 也必须是 non-empty string。审计与实现证据见
+文末 closure；不改变 Profile 契约、路径距离接受域或 C2 scope。
+
 本节记录的 Ready Review 只冻结 C1/C2 的实现边界、接口、数据、错误和验收条件；当时没有修改 Python、
 tests、results、GUI 或 Scene，也不构成 C1/C2 Implemented/Verified 证据。ADR-0011 已冻结
 `geometry/environment -> a^GT`、`RIS phase/efficiency error -> Gamma_actual`，ADR-0012 已冻结
@@ -43,7 +47,7 @@ identity；历史结果保持原样且不会被覆盖。
 - C1 Protocol/context、五个固定 path roles、默认不可变 Profile 和跨进程稳定 identity；
 - direct、两段 reflection、两段 RIS environment modifier 的统一 engine 编排；
 - `single_wall_reflection` 的几何/carrier 与 coefficient/modifier 拆分；
-- reflecting-wall self-exclusion、duplicate wall ID 拒绝和因子唯一应用测试；
+- reflecting-wall self-exclusion、duplicate wall ID / Wall-Obstacle non-empty ID 拒绝和因子唯一应用测试；
 - C2 provenance schema v1、legacy 分类、pending-contract 标记和 no-overwrite 输出目录；
 - `FND-T13..T15` 自动测试、三代 headless 兼容回归和人工 ownership/provenance review。
 
@@ -54,8 +58,8 @@ identity；历史结果保持原样且不会被覆盖。
 - P1A cache/key 实现、矩阵化、增量 Greedy 或性能重写；
 - 新传播路径、新场景、高阶/混合反射、逐 patch 遮挡、PathEnsemble、fading、delay、Doppler、
   frequency-selective channel 或 OFDM；
-- GUI、Scene JSON v1 字段/结构、历史结果内容或完整历史迁移工具；duplicate wall ID 仅作不升
-  schema version 的 validation tightening。
+- GUI、Scene JSON v1 字段/结构、历史结果内容或完整历史迁移工具；duplicate wall ID 和
+  Wall/Obstacle non-empty ID 仅作经过兼容审计、不升 schema version 的 validation tightening。
 
 ## C1：PropagationProfile
 
@@ -140,7 +144,8 @@ working scene；Profile 对显式给定的相同 scene/context 做纯确定性�
 
 `PropagationPathContext.__post_init__` 必须拒绝未知 role、非有限坐标、空 ID 和 role/ID
 组合不一致；engine 在创建 context 前拒绝引用不存在或不唯一的 wall/RIS；RIS ID 校验沿用既有
-commanded-pattern 边界，C1 对既有输入接受域只新增 duplicate wall ID tightening。
+commanded-pattern 边界，C1 对既有输入接受域的收紧为 duplicate wall ID 拒绝及经审查授权的
+Wall/Obstacle non-empty string ID 数据边界 closure，不再将前者表述为唯一收紧。
 Context 不统一检查 `start.distance_to(end)`：direct 距离和 reflection 总路径长度继续由既有
 `complex_free_space_channel` 校验，RIS 的 TX/RX-to-cell 最小距离继续由 scattering kernel 校验。
 不得新增 reflection 单 leg 或 RIS center environment leg 的 `MIN_DISTANCE_M` 拒绝，包含零长度
@@ -270,6 +275,14 @@ Scene v1 继续不新增字段，但 `walls[*].id` 从“应唯一”收紧为�
 scene 和现有 tests 已审计为无 duplicate wall ID，因此该收紧不要求 schema version 升级；外部
 歧义输入必须显式改名。
 
+Wall/Obstacle `id` 同时必须为 non-empty string（`len(id)>0`）：实体构造和 loader 拒绝空字符串
+及非字符串，Scene 构造和 engine channel/map 在任何 working-world/Profile/physics 求值前复核，
+包括可变实体/list 被事后修改、墙反射或遮挡关闭的情况。`ValueError` 包含实体类型、实际 ID 和
+显式赋名指引。不得 trim、规范化、自动赋名或过滤 blocker ID；不新增 obstacle/global uniqueness
+enforcement。经受支持 Scene/内建场景/tests/Git 历史兼容审计，该 closure 保持 schema v1，
+但不承诺外部旧 reader 曾接受的空 ID 继续可用；外部文件必须显式赋名。Profile context 和
+blocker non-empty contract、self-exclusion 及传播公式保持不变。
+
 ### C1.7 Controller / Ground Truth / Profile ownership
 
 - Controller/Ground Truth 唯一拥有 nominal-vs-truth realization；engine 创建 working geometry；
@@ -391,7 +404,7 @@ PNG。
 | `FND-ARCH-01A` Protocol/context/identity types | C1 | Implemented | `simulation.profiles`、canonical identity tests |
 | `FND-ARCH-01B` default environment modifier | C1 | Implemented | immutable deterministic Profile、五 role contract tests |
 | `FND-ARCH-01C` reflection factor split | C1 | Implemented | carrier-only path helper、Gamma/before/after once-only tests |
-| `FND-ARCH-01D` engine integration and duplicate-ID guard | C1 | Implemented | constructor injection、all-role routing、wall-ID validation |
+| `FND-ARCH-01D` engine integration and environment-ID guards | C1 | Implemented | constructor injection、all-role routing、duplicate wall / non-empty Wall-Obstacle ID validation |
 | `FND-ARCH-01E` C1 compatibility/ownership closure | C1 | Implemented | component references、three-generation headless、manual call graph review |
 | `FND-EXP-01A` provenance schema/model metadata | C2 | Ready | schema v1 fields、pending/partial validation |
 | `FND-EXP-01B` versioned no-overwrite runner | C2 | Ready | new run directory、CSV/PNG、existing-target failure |
@@ -408,7 +421,8 @@ C1 和 C2 分两个 focused implementation reviews；C2 依赖 C1 实际 Profile
 - `FND-T13b`：spy Profile 验证五个 role、方向、ID 和调用次数；RIS 仍为 center scalar；
 - `FND-T13c`：分别只缩放 `Gamma_wall`、before、after，wall amplitude 恰好一次缩放；
 - `FND-T13d`：反射墙只从自身两个 legs 排除，其他 blocker 仍生效；duplicate wall ID 在 Profile
-  调用前失败；
+  调用前失败；Wall/Obstacle 空 ID 在 constructor/loader 拒绝，Scene 构造及 engine channel/map
+  preflight 防御事后修改，不到 world/Profile 求值才失败；
 - `FND-T14`：默认 Profile frozen/deterministic；ID/version/typed parameter mutation 改变 identity；
   两个独立 Python 进程 identity 一致；非法/non-finite output 和 context 明确失败；Reflection
   ID/version 独立于 Profile identity，改变墙系数不改变 `profile_identity`。wall/world state 对总体
@@ -533,3 +547,43 @@ PASS
 未修改 `results/`、版本化 Scene、GUI 产品代码、实验 runner、Focus 或 scattering 公式；未签署
 C / Foundation Verified、FND-QA-AP、FND-PHY-NB、FND-QA-CC 或 P1A gate。独立审查是下一步，
 本交付停止于 C1 Implemented。
+
+## C1 environment-ID compatibility closure
+
+2026-09-04，针对独立审查的唯一 C1 compatibility blocker，parent 为
+`a641b0d2c1c37e80d2c423d32ddbe239b61a9640`。C1 保持 Implemented，fix 待独立审查；C2 Ready、
+C / Foundation In Progress，不开始其他工作项。
+
+### Compatibility audit / schema decision
+
+- 开始时工作树干净，HEAD 与审查 SHA 一致。审计本地 `git rev-list --all` 的 22 个可达提交，
+  对 `src/`、`tests/` 的 Python 和 `scenes/` JSON 去重后检查 92 个 `(blob,path)` revision；
+- 唯一受支持 Scene `scenes/smart_room.json` 在这些历史中只有一个 blob
+  `e4e57225a7d1dec7195a6e499c456e1a73957b6c`：wall IDs 始终为
+  `north/south/west/east/partition`，obstacle ID 为 `cabinet`。Current/Advanced/Future 内建场景
+  复用这套环境实体，documentation test 继续验证内建与版本化 Scene 一致；
+- AST 检查上述历史源码/tests 共 25 处 Wall/Obstacle 构造调用：23 处 literal ID 均为非空字符串，
+  仅两处动态输入是 loader 的 `item["id"]`；未发现空 ID 赋值或受支持 JSON 中的空/非字符串 ID。
+  相关 wall geometry、blockage/reflection、Scene、Profile tests 均不依赖合法空 ID；
+- 旧构造器/loader 确实曾接受空 ID；不能把新限制误写为旧代码已有行为。审计未发现仓库内合法
+  依赖，因此按审查授权冻结 non-empty string 并保持 Scene v1：无字段/类型/必需性/结构变化，
+  有效场景传播公式、路径集合与数值不变。未知外部文件不在审计证明范围，空 ID 须显式赋名，
+  不自动修复或过滤。无需更改 ADR ownership decision 或建立新插件/迁移机制。
+
+### Focused fix / verification
+
+- Wall/Obstacle 构造器共享 non-empty string validator；loader 原样通过构造器拒绝非法 ID，
+  无新 JSON 字段或 coercion。Scene 构造及两个 engine 入口复核可变实体/list；保留 duplicate wall
+  guard，不新增 obstacle/global uniqueness，不更改 Profile context/blocker contract；
+- 新增 `tests/test_environment_ids.py`：修复前 `22 failed, 2 passed`，修复后 `24 passed`。
+  覆盖实体/Scene 构造、v1 loader、channel/map rename/append preflight、无反射/遮挡墙也拒绝空 ID，
+  以及非空 Unicode/空白原样 round-trip；全部归入 FND-T13d；
+- C1 targeted：原 implementation evidence 的 7 个测试文件加 `tests/test_environment_ids.py`
+  → `212 passed`；FND-T13..T14 的 numeric/path/ownership/identity 断言未放宽；
+- `python -m pytest tests/test_documentation.py` → `9 passed`；
+- `python -m pytest` → `299 passed`；`git diff --check` → PASS；
+- 再跑上述三代 fast headless（`80×60`），均 exit 0；共同 baseline
+  `-55.275335808122435 dBm`，focused power / gain / SNR / coverage 与上表完全一致；
+- focused consistency search 已同步 C Ready 的输入收紧措辞、data model、Scene schema、test strategy、
+  limitations、public API、architecture 和状态迁移说明；不再声称 C1 唯一输入收紧是 duplicate wall ID。
+  未修改 Profile/physics/GT/Focus、C2、GUI product、版本化 Scene 或 results；停止等待独立审查。

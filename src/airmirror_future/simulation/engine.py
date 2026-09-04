@@ -252,7 +252,7 @@ class SimulationEngine:
         model: Model | None = None,
     ) -> ChannelResult:
         """Compute one TX-RX link with coherent LOS, wall, and RIS fields."""
-        scene._validate_wall_ids()
+        scene._validate_environment_ids()
         nominal_tx = self._resolve_tx(scene, tx)
         nominal_rx = self._resolve_rx(scene, rx)
         patterns = self._validated_patterns(scene, ris_patterns)
@@ -293,7 +293,7 @@ class SimulationEngine:
     ) -> FieldMapResult:
         """Compute a regular fixed-height power/SNR map on the CPU."""
         started = time.perf_counter()
-        scene._validate_wall_ids()
+        scene._validate_environment_ids()
         tx = scene.transmitter()
         rx_template = scene.receiver()
         patterns = self._validated_patterns(scene, ris_patterns)

@@ -15,6 +15,9 @@
 - 不支持的 schema version 必须拒绝，不能自动猜测迁移；
 - 新增可选字段可保持 v1；改变含义、单位、必需性或结构必须升 schema version 并提供迁移。
 
+本文明确列出的 floor-anchor、duplicate wall ID 和 Wall/Obstacle non-empty ID validation
+tightening 保持 v1：它们有仓库兼容审计和显式外部迁移说明，不构成任意收紧 reader 的通用豁免。
+
 ## 2. 顶层对象
 
 | 字段 | 类型 | 必需 | 默认 | 说明 |
@@ -68,7 +71,7 @@ TX 的四个字段写出时均存在。RX 对应字段为 `id`、`position`、`g
 }
 ```
 
-`id/start/end` 必需。其他 reader 默认依次为 3.0、30.0、0.4、π、true。
+`id/start/end` 必需；`id` 必须是 non-empty string。其他 reader 默认依次为 3.0、30.0、0.4、π、true。
 
 `AMF-SIM-006` 在保持 schema version 1 的前提下把 Wall 冻结为 floor-anchored vertical wall：
 `start.z/end.z` 必须 finite 且各自满足 `|z|≤1e-9 m`，占据高度固定为 `[0,height_m]`。容差内
@@ -86,6 +89,14 @@ wall self-exclusion 只排除一堵墙。duplicate wall ID 在 Scene 构造/加�
 `ValueError`，engine 还会防御可变 list 的事后重复；不自动改名、选首项或按对象 identity 回退。
 该 validation tightening 已实现，仓库受支持 scene 已审计为无重复值，因此保持 schema v1。
 
+C1 compatibility closure 进一步把 Wall/Obstacle ID 冻结为非空字符串：实体构造和 reader
+拒绝 `""` 或非字符串，Scene 构造与 engine channel/map preflight 防御事后修改；错误包含实体
+类型、实际 ID 和显式赋名指引。不自动改名、trim 或过滤 blocker ID；Unicode/空白原值保持。
+保持 v1 是经审计的 validation tightening，不是声称旧 reader 已拒绝空 ID：唯一受支持的
+`scenes/smart_room.json`、三代内建场景、相关测试及本地可达 Git 历史均无合法空 ID 依赖，
+字段、类型、必需性、结构和有效场景数值不变。外部空 ID 文件须显式赋名后加载；审计范围和
+证据见 [C Work Item](work_items/foundation_0_1_1_c.md#c1-environment-id-compatibility-closure)。
+
 ## 5. Obstacle
 
 ```json
@@ -98,7 +109,8 @@ wall self-exclusion 只排除一堵墙。duplicate wall ID 在 Scene 构造/加�
 }
 ```
 
-`id/min_corner/max_corner` 必需。min 每个分量严格小于 max。
+`id/min_corner/max_corner` 必需；`id` 必须是 non-empty string，适用上述同一校验/迁移契约。
+min 每个分量严格小于 max。
 
 ## 6. RISSurface
 
@@ -128,8 +140,8 @@ wall self-exclusion 只排除一堵墙。duplicate wall ID 在 Scene 构造/加�
 ## 7. 标识符和引用
 
 - 同一数组中的 id 必须唯一；推荐全 scene 唯一以便日志定位；
-- C1 已实现 wall ID 的构造/reader/engine enforcement；其他数组仍按既有显式引用边界校验，
-  不借本次收紧增加全 scene ID validation；
+- C1 已实现 Wall/Obstacle non-empty string 和 wall ID 唯一性的构造/reader/engine enforcement；
+  不新增 obstacle 或全 scene 唯一性 enforcement，其他数组仍按既有显式引用边界校验；
 - JSON 不存对象引用，patterns/metrics 只在运行时按 id 关联；
 - 修改 id 是破坏性场景变更，会使外部实验记录无法关联。
 

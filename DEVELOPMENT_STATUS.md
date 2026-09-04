@@ -23,7 +23,11 @@ carrier-only reflection helper、engine 五类 role 接入与 duplicate wall-ID 
 coefficient builder、QA-AP/PHY-NB/QA-CC、cache 或新路径。
 
 迁移说明：Scene 构造/加载及 engine preflight 现在拒绝重复 wall ID，错误包含该 ID；
-外部歧义输入须显式改名。内部聚合 `single_wall_reflection` 已由 carrier-only helper 取代，
+对 `a641b0d` 的独立审查后，focused compatibility closure 还在 Wall/Obstacle 构造/loader 及
+Scene/engine preflight 拒绝空或非字符串 ID。受支持 Scene、内建场景、tests 与可达 Git 历史无
+合法空 ID 依赖；外部空/歧义 ID 输入须显式赋名，不过滤 blocker 或放宽 Profile 契约。证据见
+[C1 environment-ID closure](docs/work_items/foundation_0_1_1_c.md#c1-environment-id-compatibility-closure)。
+内部聚合 `single_wall_reflection` 已由 carrier-only helper 取代，
 完整反射贡献由 engine 唯一编排。Scene schema version、公共 channel/map 签名和默认数值不变。
 
 ## Foundation 0.1.1C Definition of Ready（历史记录）

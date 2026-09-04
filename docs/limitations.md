@@ -56,6 +56,10 @@
 - C1 支持 environment-only complex modifier，但只签入默认 Profile 的 v0.1 数值兼容；自定义
   复相位规则与最终 Focus/coefficient consistency 仍须 FND-QA-CC/必要 migration，不能凭注入
   Protocol 就声称已通过最终算法/物理门禁。
+- C1 的输入收紧包括 duplicate wall ID 和 Wall/Obstacle non-empty string ID 数据边界 closure。
+  仓库受支持 Scene/内建场景/tests/可达 Git 历史无合法空 ID 依赖，故保持 schema v1；外部旧文件
+  的空 ID 仍须显式赋名，不自动改名、过滤 blocker 或放宽 Profile contract。审计不覆盖未知外部
+  数据，详见 [C Work Item](work_items/foundation_0_1_1_c.md#c1-environment-id-compatibility-closure)。
 - C2 schema Ready 不使现有 `results/phase_bits` 获得 Profile/Reflection/channel/quadrature/
   coefficient identity；这些文件仍是只读 `legacy_v0_1_unversioned`，不得回填。C2 初始新结果也
   必须对未签署的 FND-PHY-NB/FND-QA-AP/FND-QA-CC 保持 partial/pending。

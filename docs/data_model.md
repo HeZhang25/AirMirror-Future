@@ -49,7 +49,7 @@
 
 | 字段 | 类型 | 默认/单位 | 约束 |
 |---|---|---|---|
-| `id` | str | required | C1 已实现构造/加载/engine preflight 的 walls 内唯一校验 |
+| `id` | str | required | non-empty string；Scene 构造/加载/engine preflight 校验 walls 内唯一 |
 | `start,end` | Vec3 | m | XY 端点必须不同；`|z|≤1e-9 m`，按 Scene v1 floor anchor 解释 |
 | `height_m` | float | 3.0 m | finite，`>0` |
 | `attenuation_db` | float | 30 dB | finite，`≥0` |
@@ -73,11 +73,18 @@ C1 因 reflection self-exclusion 依赖稳定 ID，已将 duplicate wall ID 校�
 preflight。该收紧不改变 JSON 结构或 schema version；不得自动改名或按对象 identity
 排除。详见 [C Work Item](work_items/foundation_0_1_1_c.md)。
 
+C1 compatibility closure 同时冻结 Wall / Obstacle 的 `id` 为 non-empty string（`len(id)>0`），
+实体构造/loader 拒绝空字符串和非字符串；Scene 构造与 channel/map preflight 防御实体/list
+事后修改。错误为含实体类型、实际 ID 和显式赋名指引的 `ValueError`。不 trim、规范化 Unicode、
+限制字符集或自动赋名，不增加 obstacle/global ID 唯一性 enforcement。受支持 Scene、内建场景、
+测试及可达 Git 历史无合法空 ID 依赖，因此这是有记录的 validation tightening，保持 schema v1；
+外部空 ID 输入须显式赋名，不通过放宽 Profile context/blocker 契约或过滤 ID 兼容。
+
 ### `Obstacle`
 
 | 字段 | 类型 | 默认/单位 | 约束 |
 |---|---|---|---|
-| `id` | str | required | 应在 obstacles 内唯一 |
+| `id` | str | required | non-empty string，构造/加载/engine preflight 拒绝空值；应在 obstacles 内唯一 |
 | `min_corner,max_corner` | Vec3 | m | 每个 min 分量严格小于 max |
 | `attenuation_db` | float | 20 dB | finite，`≥0` |
 | `fully_blocking` | bool | false | true 使用 300 dB 数值衰减 |
