@@ -637,14 +637,14 @@ Implemented/Verified，也不签署 FND-QA-AP、FND-PHY-NB 或 FND-QA-CC。
 
 #### FND-QA-AP：Minimum Aperture Quadrature Validity
 
-- 状态：**Ready**；FND-QA-AP-01 preregistration 已 signed/frozen，independent final Ready Review
-  PASS、blocking issues 0；不改变 A2 Verified 或整个 Foundation In Progress 的当前边界；
+- 状态：**Implemented（QA-AP-02..04）**；FND-QA-AP-01 preregistration 已 signed/frozen，independent final Ready Review
+  PASS、blocking issues 0；QA-AP-02..04 implementation/tests 已完成；不改变 A2 Verified、FND-QA-AP 未 Verified 或整个 Foundation In Progress 的当前边界；
 - Requirement：`AMF-RIS-011`；
 - 依赖：A2 Verified、ADR-0008 Accepted；正式执行依赖 A3/B/C Implemented 和 C2 provenance；
 - 输入：固定 aperture/control grid/commanded pattern/Profile/geometry，候选 quadrature
   rule/order 和预注册容差；
-- 输出：versioned QA matrix、internal refined numerical reference、误差/成本报告、最终
-  `quadrature_policy_id/version` 或 blocking decision；上述是后续 QA-AP-02..06 的实现/验证输出；
+- 输出：QA-AP-02..04 已提供内部求积 API、headless runner、internal refined numerical reference、误差/成本字段和定向测试；versioned formal QA matrix、最终
+  `quadrature_policy_id/version` 或 blocking decision 仍属于后续 QA-AP-05/06；
 - 验收：FND-T16..18、三代最小矩阵、successive refinement 与独立求积规则交叉检查、无
   非有限/静默跳过、项目维护者和物理审查者共同签署；
 - 边界：不重开 A2，不实现 partial-aperture blockage，不把内部 reference 称 EM truth，不

@@ -6,7 +6,7 @@
 | 当前 release | v0.1 |
 | release 状态 | Verified |
 | 规范基线 | [docs/README.md](docs/README.md) |
-| 当前 Capability | Foundation 0.1.1C overall In Progress：C1 Verified，C2 Verified；FND-QA-AP-01 preregistration signed/frozen（independent final Ready Review PASS，blocking issues 0）；FND-QA-AP Ready；Foundation overall In Progress；FND-PHY-NB/FND-QA-CC Planned；P1A gate closed |
+| 当前 Capability | Foundation 0.1.1C overall In Progress：C1 Verified，C2 Verified；FND-QA-AP-01 preregistration signed/frozen（independent final Ready Review PASS，blocking issues 0）；FND-QA-AP-02..04 Implemented，FND-QA-AP overall 未 Verified；Foundation overall In Progress；FND-PHY-NB/FND-QA-CC Planned；P1A gate closed |
 
 ## Foundation FND-QA-AP-01 preregistration final closure
 
