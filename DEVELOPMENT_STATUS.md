@@ -2,11 +2,11 @@
 
 | 属性 | 值 |
 |---|---|
-| 状态快照 | 2026-09-04 |
+| 状态快照 | 2026-09-05 |
 | 当前 release | v0.1 |
 | release 状态 | Verified |
 | 规范基线 | [docs/README.md](docs/README.md) |
-| 当前 Capability | Foundation 0.1.1C overall In Progress：C1 Verified，C2 Implemented；Foundation overall In Progress；P1A gate closed |
+| 当前 Capability | Foundation 0.1.1C overall In Progress：C1 Verified，C2 Verified；Foundation overall In Progress；P1A gate closed |
 
 ## Foundation 0.1.1C / C2 implementation
 
@@ -18,10 +18,24 @@ Advanced scene、显式 `ControllerModel` 和同一 world 完成 baseline/focuse
 只读 classifier 验证 `foundation_partial`。pending owners 保留 `FND-PHY-NB`、`FND-QA-AP`、
 `FND-QA-CC`，未签署 identity 保持空，legacy/checkpoint 结果未修改。
 
-证据：D-owned integration tests 5 passed；完整 `python -m pytest` 371 passed, 1 skipped；
+证据：D-owned integration tests 5 passed；完整 `python -m pytest` 372 passed, 1 skipped；
 Current/Advanced/Future fast headless 通过；真实 C2 Foundation run 的 CSV/PNG、run_id、
-provenance schema/status/pending 与最终 classification 已人工检查。C2 仍未 Verified；Foundation
-overall 保持 In Progress，P1A gate 保持关闭。
+provenance schema/status/pending 与最终 classification 已人工检查。该段记录 C2 implementation
+阶段；当前状态见下方 verification closure。Foundation overall 保持 In Progress，P1A gate 保持关闭。
+
+## Foundation 0.1.1C / C2 verification and status closure
+
+2026-09-05：基于 `integration/c2` HEAD
+`a5c434dd3d673069ea93c689e6435002aef4e83d` 的 C2 independent review 结论为 **PASS**，
+blocking issues 为 **0**。复核证据包括完整 `python -m pytest`（372 passed, 1 skipped）、
+Current/Advanced/Future fast headless、真实 C2 Phase Resolution Foundation run，以及
+`git diff --check`；CSV/PNG、schema v1 partial provenance、pending owners、最终
+`foundation_partial` classification 和 legacy/checkpoint unchanged 均已确认。
+
+C2 与 `AMF-EXP-006` 由 **Implemented** 提升为 **Verified**。C1 保持 Verified；C overall 与
+Foundation overall 保持 In Progress；P1A gate 保持 closed；`FND-QA-AP`、`FND-PHY-NB`、
+`FND-QA-CC` 继续 pending。该 closure 仅更新文档/状态，不修改 Python、tests、results、
+物理模型、schema 或 public API。
 
 ## Foundation 0.1.1C / C1 verification closure
 
@@ -30,7 +44,7 @@ overall 保持 In Progress，P1A gate 保持关闭。
 carrier-only reflection helper、engine 五类 role 接入与 duplicate wall-ID preflight。
 根据维护者提供的三轮外部独立审查最终结论，`AMF-SIM-005`、C1 / `FND-ARCH-01A..01E`
 由 Implemented 提升为 **Verified**：C1 review PASS、blocking issues 0。C 整体与 Foundation 保持
-**In Progress**，`AMF-EXP-006` / C2 保持 **Ready**，P1A gate closed；FND-QA-AP / FND-PHY-NB /
+**In Progress**，`AMF-EXP-006` / C2 已为 **Verified**，P1A gate closed；FND-QA-AP / FND-PHY-NB /
 FND-QA-CC 状态不变。审查 SHA 与逐轮结论见
 [C1 verification evidence](docs/work_items/foundation_0_1_1_c.md#c1-verification-and-status-closure)。
 
@@ -75,7 +89,7 @@ closure，不修改实现或启动 C2；前轮实现、兼容修复和回归数�
   伪造为 Verified/default provenance；
 - `FND-T15` 及 legacy/pending/no-overwrite 子项已补入 test strategy traceability。
 
-`AMF-SIM-005`、`AMF-EXP-006` 和 C1/C2 仅由 Planned 提升为 **Ready**；没有 Python/tests/results/
+`AMF-SIM-005`、`AMF-EXP-006` 和 C1/C2 仅由 Planned 提升为 **Ready**；该段为历史记录，没有 Python/tests/results/
 GUI/Scene 变化，也没有功能状态提升。Foundation overall 保持 **In Progress**，P1A gate 保持关闭。
 本轮未发现需要新 ADR 的高影响歧义；ADR-0011/0012 的所有权决定不变。
 
