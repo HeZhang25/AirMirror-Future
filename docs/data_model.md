@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| 基线版本 | v0.1 + Foundation A1-A3/FND-FIX-WALL/B + C1 Verified / C2 Ready and planned closure contracts |
+| 基线版本 | v0.1 + Foundation A1-A3/FND-FIX-WALL/B + C1 Verified / C2 Implemented and planned closure contracts |
 | 权威实现 | `src/airmirror_future/core/types.py` |
 
 ## 1. 通用规则
