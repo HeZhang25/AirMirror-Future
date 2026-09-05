@@ -306,9 +306,9 @@ result, production migration, or evidence of Verified status.
 | Task | 状态 | 预计颗粒度 | 完成输出 |
 |---|---|---:|---|
 | `FND-QA-AP-01` 冻结矩阵、坐标、seeds、容差和 floor | Ready | 0.5–1 天 | signed QA config/review；independent final Ready Review PASS，blocking issues 0 |
-| `FND-QA-AP-02` 实现内部 QuadratureSpec/parent mapping | Planned | 1–2 天 | 非 GUI、可测试内部 API |
-| `FND-QA-AP-03` 实现 midpoint/GL runner 和 metrics | Planned | 1–2 天 | versioned CSV/JSON summary |
-| `FND-QA-AP-04` 增加 FND-T16..18 | Planned | 1–2 天 | contract/convergence/provenance tests |
+| `FND-QA-AP-02` 实现内部 QuadratureSpec/parent mapping | Implemented | 1–2 天 | 非 GUI、可测试内部 API；实现位于 `ris/quadrature.py` |
+| `FND-QA-AP-03` 实现 midpoint/GL runner 和 metrics | Implemented | 1–2 天 | versioned CSV/JSON summary；实现位于 `experiments/fnd_qa_ap_01.py` |
+| `FND-QA-AP-04` 增加 FND-T16..18 | Implemented | 1–2 天 | `tests/test_fnd_qa_ap.py` 定向契约/收敛/provenance 测试 |
 | `FND-QA-AP-05` 运行矩阵并审查异常 | Planned | 1 天 | results + review record |
 | `FND-QA-AP-06` 冻结 production policy/cache identity | Planned | 0.5–1 天 | PASS decision 或 blocking ADR |
 
@@ -347,4 +347,5 @@ P1A cache 混在一个提交中。迁移完成后还必须执行 FND-QA-CC，不
 - [x] test、experiment、DoD：记录 QA 方法和 provenance；
 - [x] FND-QA-CC：记录 policy 签署后的 coefficient/Focus 一致性下游门禁；
 - [ ] GUI/scene schema：本工作项无修改；
-- [ ] code/tests/results：Planned，尚未实现。
+- [x] code/tests：QA-AP-02..04 已 Implemented；正式 QA-AP-05 full matrix 与 production policy decision 仍未执行。
+- [ ] results：正式 QA-AP-05 矩阵结果尚未生成；当前仅完成 lightweight runner smoke。
