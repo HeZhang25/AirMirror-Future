@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 文档状态 | Normative |
-| 基线版本 | v0.1 + Foundation 0.1.1C Implemented provenance contract |
+| 基线版本 | v0.1 + Foundation 0.1.1C Verified provenance contract |
 | 当前实验 | Phase Resolution |
 
 ## 1. 可复现性规则

@@ -3,7 +3,7 @@
 - 层级：L3 Deliverable（含可独立评审的 C1/C2）
 - Task IDs：FND-ARCH-01、FND-EXP-01
 - Requirement IDs：AMF-SIM-005、AMF-EXP-006
-- 状态：In Progress（C1 Verified，外部独立最终审查 PASS、blocking issues 0；C2 Implemented）
+- 状态：In Progress（C1 Verified，C2 Verified；外部独立最终审查 PASS、blocking issues 0）
 - 父项：Foundation 0.1.1
 - 依赖：Foundation 0.1.1A Verified、FND-FIX-WALL Verified、Foundation 0.1.1B Verified、
   A/B Interim Checkpoint PASS、ADR-0011/0012 Accepted
@@ -427,7 +427,7 @@ scene/engine 并运行 experiment → A 从本次实际运行对象和 `run_id` 
 
 ## Tasks
 
-所有 task 保持 0.5–2 天且可独立 code review；2026-09-04 C1 已 Verified，C2 尚未开始：
+所有 task 保持 0.5–2 天且可独立 code review；2026-09-05 C1/C2 已完成独立 verification closure：
 
 | Task | Deliverable | 状态 | 完成输出 |
 |---|---|---|---|
@@ -436,9 +436,9 @@ scene/engine 并运行 experiment → A 从本次实际运行对象和 `run_id` 
 | `FND-ARCH-01C` reflection factor split | C1 | Verified | carrier-only path helper、Gamma/before/after once-only tests |
 | `FND-ARCH-01D` engine integration and environment-ID guards | C1 | Verified | constructor injection、all-role routing、duplicate wall / non-empty Wall-Obstacle-RIS ID validation |
 | `FND-ARCH-01E` C1 compatibility/ownership closure | C1 | Verified | component references、three-generation headless、manual call graph review；三轮独立审查最终 PASS |
-| `FND-EXP-01A` provenance schema/model metadata | C2 | Implemented | schema v1 fields、pending/partial validation |
-| `FND-EXP-01B` versioned no-overwrite runner | C2 | Implemented | new run directory、CSV/PNG、existing-target failure |
-| `FND-EXP-01C` legacy classification and docs | C2 | Implemented | read-only legacy marker、results README、FND-T15 tests |
+| `FND-EXP-01A` provenance schema/model metadata | C2 | Verified | schema v1 fields、pending/partial validation |
+| `FND-EXP-01B` versioned no-overwrite runner | C2 | Verified | new run directory、CSV/PNG、existing-target failure |
+| `FND-EXP-01C` legacy classification and docs | C2 | Verified | read-only legacy marker、results README、FND-T15 tests |
 
 C1 和 C2 分两个 focused implementation reviews；C2 依赖 C1 实际 Profile/reflection metadata，不能
 先填默认字符串模拟依赖完成。任一 task 超过两天时必须继续拆分，不扩大本 Work Item scope。
@@ -478,10 +478,24 @@ world 传给 baseline/focused `compute_channel`、`compute_field_map` 及 proven
 共处新 run directory，随后调用只读 classifier 并要求 `foundation_partial`。C2 schema v1 字段、
 pending owner 标记与 legacy/checkpoint 只读边界由自动测试覆盖。
 
-验证命令：`python -m pytest`（371 passed, 1 skipped）、D-owned integration tests（5 passed）、
+验证命令：`python -m pytest`（372 passed, 1 skipped）、D-owned integration tests（5 passed）、
 Current/Advanced/Future fast headless，以及一次真实 Advanced Phase Resolution Foundation run；
-结果目录、run_id、provenance 和 classification 均通过人工检查。C2 状态提升至 **Implemented**；
-C2/C overall、Foundation 与 P1A 状态边界保持不变。
+结果目录、run_id、provenance 和 classification 均通过人工检查。该段记录 C2 implementation
+阶段；当前 verification closure 见下节。C2/C overall、Foundation 与 P1A 状态边界保持不变。
+
+### C2 verification and status closure
+
+2026-09-05：基于 `integration/c2` HEAD `a5c434dd3d673069ea93c689e6435002aef4e83d`，完成
+C2 independent review，结论 **PASS**，blocking issues **0**。复核证据包括完整
+`python -m pytest`（372 passed, 1 skipped）、Current/Advanced/Future fast headless、真实 C2
+Phase Resolution Foundation run、`git diff --check`，以及 CSV/PNG 同目录、run_id 一致、schema v1
+`provenance_status=partial`、pending owners 正确、最终 `foundation_partial` classification、
+legacy/checkpoint unchanged 检查。
+
+据此，`FND-EXP-01A..01C`、C2 与 `AMF-EXP-006` 由 **Implemented** 提升为 **Verified**。
+C1 保持 Verified；C overall 与 Foundation overall 保持 In Progress；P1A gate 保持 closed；
+`FND-QA-AP`、`FND-PHY-NB`、`FND-QA-CC` 继续 pending。本 closure 仅更新文档/状态，不修改
+Python、tests、results、物理模型、schema 或 public API。
 
 ### Integration and manual
 

@@ -4,7 +4,7 @@
 |---|---|
 | 文档状态 | Normative / 规范性 |
 | 基线版本 | v0.1 |
-| 最后复核 | 2026-09-04（Foundation C1 Verified；C2 Implemented；C/Foundation overall In Progress） |
+| 最后复核 | 2026-09-05（Foundation C1/C2 Verified；C/Foundation overall In Progress） |
 | 维护责任 | 代码由对应 owner 维护；共享 requirements、status 和集成事实源由 Work Item 指定的 Integration/Status Owner 统一维护 |
 
 本目录是 AirMirror Future 的工程事实源。根目录的 `项目说明提示词.md` 保存原始愿景和
