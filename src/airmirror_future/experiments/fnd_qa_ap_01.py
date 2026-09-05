@@ -474,6 +474,7 @@ def run(output: Path | None = None, *, generations: Iterable[str] = ("Current", 
     conditional_32_runtime_s = 0.0
     conditional_32_peak_rss_mb: float | None = None
     base_peak_rss_candidates: list[float] = []
+    run_rss_sampling_enabled = True
     for generation in generations:
         for geometry_case in geometry_cases:
             scene, focus_rx, evaluation_rx = _scene_for_case(generation, geometry_case)
@@ -489,7 +490,6 @@ def run(output: Path | None = None, *, generations: Iterable[str] = ("Current", 
                 # is the frozen series scope, not merely the refinement loop.
                 series_started = time.perf_counter()
                 series_meter = _PeakRSSMeter()
-                series_had_conditional = False
                 if pattern_class == "random_legal":
                     pattern = deterministic_random_pattern(ris, generation, geometry_case, int(pattern_seed))
                     focus_callable = generate_ris_only_focus_pattern
@@ -524,7 +524,7 @@ def run(output: Path | None = None, *, generations: Iterable[str] = ("Current", 
                     # Conditional 32x32 is measured separately and is not part
                     # of the base run wall-time scope.
                     run_meter.sample()
-                    series_had_conditional = True
+                    run_rss_sampling_enabled = False
                     conditional_meter = _PeakRSSMeter()
                     conditional_started = time.perf_counter()
                     for rule, ox, oy in (("midpoint", 32, 32), ("tensor_product_gauss_legendre", 32, 32)):
@@ -601,7 +601,7 @@ def run(output: Path | None = None, *, generations: Iterable[str] = ("Current", 
                     if raw_row["series_identity"] == series_identity:
                         raw_row["series_runtime_s"] = series_runtime_by_identity[series_identity]
                         raw_row["series_peak_rss_mb"] = series_peak_rss_by_identity[series_identity]
-                if not series_had_conditional:
+                if run_rss_sampling_enabled:
                     run_meter.sample()
     if provenance_engine is None or provenance_scene is None:
         raise ValueError("runner matrix is empty")
