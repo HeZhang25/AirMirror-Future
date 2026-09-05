@@ -8,10 +8,12 @@ import numpy as np
 import pytest
 
 from airmirror_future.experiments.fnd_qa_ap_01 import (
+    _assert_json_finite,
     canonical_pattern_hash,
     compare_to_reference,
     deterministic_random_pattern,
     evaluate_quadrature,
+    _enforce_thread_process_policy,
     run,
     select_internal_reference,
 )
@@ -19,6 +21,20 @@ from airmirror_future.ris.quadrature import midpoint_quadrature, tensor_product_
 from airmirror_future.ris.phase import generate_ris_only_focus_pattern
 from airmirror_future.scenarios.smart_space import create_smart_space_scene
 from airmirror_future.simulation.engine import SimulationEngine
+
+
+@pytest.fixture(autouse=True)
+def _frozen_thread_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    for key, value in {
+        "OMP_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "NUMEXPR_NUM_THREADS": "1",
+        "VECLIB_MAXIMUM_THREADS": "1",
+        "BLIS_NUM_THREADS": "1",
+        "MKL_DYNAMIC": "FALSE",
+    }.items():
+        monkeypatch.setenv(key, value)
 
 
 def test_fnd_t16_refinement_keeps_control_order_and_command_ownership() -> None:
@@ -72,6 +88,111 @@ def test_fnd_t18_reference_only_normalization_and_deep_null_semantics() -> None:
     assert metrics["phase_error_rad_h_ris"] is None
     assert metrics["reason"] == "deep_cancellation"
     assert all(np.isfinite(value) for key, value in metrics.items() if isinstance(value, float))
+
+
+def test_gl16_and_gl32_construction_is_fixed_control_grid() -> None:
+    ris = create_smart_space_scene("Current").ris_surfaces[0]
+    gl16 = tensor_product_gauss_legendre(ris, 16, 16)
+    gl32 = tensor_product_gauss_legendre(ris, 32, 32)
+    assert gl16.control_count == gl32.control_count == ris.cell_count
+    assert gl16.sample_count == ris.cell_count * 16 * 16
+    assert gl32.sample_count == ris.cell_count * 32 * 32
+    assert np.array_equal(gl16.parent_control_index[:: 16 * 16], np.arange(ris.cell_count))
+    assert np.array_equal(gl32.parent_control_index[:: 32 * 32], np.arange(ris.cell_count))
+
+
+def test_conditional_32_reference_runs_both_rules_and_is_measured_separately(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import airmirror_future.experiments.fnd_qa_ap_01 as qa
+
+    original_select = qa.select_internal_reference
+    original_evaluate = qa.evaluate_quadrature
+    select_calls: list[int] = []
+    evaluated: list[tuple[str, int, int]] = []
+
+    def force_conditional(rows: list[dict[str, object]]) -> dict[str, object]:
+        select_calls.append(len(rows))
+        if len(rows) == 6:
+            raise ValueError("forced base reference failure")
+        return rows[-1]
+
+    def record_evaluate(scene: object, pattern: np.ndarray, spec: object, *, engine: object = None) -> dict[str, object]:
+        evaluated.append((str(spec.rule), int(spec.order_x), int(spec.order_y)))
+        return original_evaluate(scene, pattern, spec, engine=engine)
+
+    monkeypatch.setattr(qa, "select_internal_reference", force_conditional)
+    monkeypatch.setattr(qa, "evaluate_quadrature", record_evaluate)
+    raw_path, _, run_path = run(
+        tmp_path / "conditional",
+        generations=("Current",),
+        geometry_cases=("near_field",),
+        include_random=False,
+    )
+    assert select_calls == [6, 8, 6, 8]
+    assert ("midpoint", 32, 32) in evaluated
+    assert ("tensor_product_gauss_legendre", 32, 32) in evaluated
+    run_metadata = json.loads(run_path.read_text(encoding="utf-8"))
+    assert run_metadata["conditional_32_runtime_s"] > 0.0
+    assert run_metadata["conditional_32_peak_rss_mb"] is None or run_metadata["conditional_32_peak_rss_mb"] > 0.0
+    with raw_path.open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    assert {row["reference_row_id"].split("|")[-1] for row in rows} == {"32x32"}
+
+
+def test_runner_runtime_rss_and_reference_identity_metadata(tmp_path: Path) -> None:
+    raw_path, summary_path, run_path = run(
+        tmp_path / "metadata",
+        generations=("Current",),
+        geometry_cases=("near_field",),
+        include_random=False,
+    )
+    with raw_path.open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    assert rows
+    assert all(float(row["quadrature_runtime_s"]) >= 0.0 for row in rows)
+    assert all(row["reference_row_id"].startswith(row["series_identity"] + "|") for row in rows)
+    assert all(row["quadrature_peak_rss_mb"] == "" or float(row["quadrature_peak_rss_mb"]) > 0.0 for row in rows)
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert all(record["series_runtime_s"] > 0.0 for record in summary["records"])
+    assert all(record["series_peak_rss_mb"] is None or record["series_peak_rss_mb"] > 0.0 for record in summary["records"])
+    metadata = json.loads(run_path.read_text(encoding="utf-8"))
+    assert metadata["run_runtime_s"] > 0.0
+    assert metadata["run_peak_rss_mb"] is None or metadata["run_peak_rss_mb"] > 0.0
+    assert metadata["conditional_32_runtime_s"] >= 0.0
+
+
+def test_deep_null_reason_and_ris_gain_use_reference_only_total_scale() -> None:
+    reference = {
+        "a": np.array([1 + 0j, -1 + 0j]),
+        "gamma": np.ones(2, dtype=complex),
+        "h_ris": 0j,
+        "h_baseline": 10 + 0j,
+        "h_total": 10 + 0j,
+    }
+    # Candidate total is deep-null against the fixed S_total=12, while the
+    # robust complex error is finite and can be made to pass another gate.
+    candidate = {**reference, "h_ris": -10 + 0j, "h_total": 1e-6 + 0j}
+    metrics = compare_to_reference(candidate, reference)
+    assert metrics["s_total"] == pytest.approx(12.0)
+    assert metrics["candidate_deep_null_h_total"]
+    assert metrics["magnitude_error_db_h_total"] is None
+    assert metrics["phase_error_rad_h_total"] is None
+    assert metrics["reason"] == "deep_cancellation"
+
+
+def test_nonfinite_values_are_hard_failures_and_not_serializable() -> None:
+    reference = {"a": np.array([1 + 0j]), "gamma": np.array([1 + 0j]), "h_ris": 1 + 0j, "h_baseline": 1 + 0j, "h_total": 2 + 0j}
+    with pytest.raises(ValueError, match="non-finite"):
+        compare_to_reference({**reference, "a": np.array([np.nan + 0j])}, reference)
+    with pytest.raises(ValueError, match="non-finite"):
+        compare_to_reference({**reference, "h_total": complex(float("inf"), 0.0)}, reference)
+    with pytest.raises(ValueError, match="non-finite"):
+        _assert_json_finite({"coefficient": [[float("nan"), 0.0]]})
+
+
+def test_thread_policy_rejects_incompatible_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OMP_NUM_THREADS", "2")
+    with pytest.raises(RuntimeError, match="single-process/single-thread"):
+        _enforce_thread_process_policy()
 
 
 def test_random_patterns_and_snapshot_hashes_are_deterministic_and_context_separated() -> None:
