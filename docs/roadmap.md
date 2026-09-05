@@ -63,7 +63,7 @@ id 错误异常待统一。这些进入 P1 tasks。
 ## 4. Foundation 0.1.1：物理模型契约
 
 状态：In Progress；Foundation 0.1.1A、A1/A2/A3、FND-FIX-WALL、B1/B2/B3 Verified；C1
-Verified，C2 Verified，C overall In Progress，P1A gate closed；FND-QA-AP、FND-PHY-NB 与 FND-QA-CC 尚未完成。详细背景、范围、
+Verified，C2 Verified，C overall In Progress，P1A gate closed；FND-QA-AP Ready（FND-QA-AP-01 preregistration signed/frozen，independent final Ready Review PASS，blocking issues 0）；FND-PHY-NB 与 FND-QA-CC Planned。详细背景、范围、
 Requirement IDs、L3/L4 工作项、测试、兼容策略和 Exit Gate 见
 [foundation_0_1_1_plan.md](foundation_0_1_1_plan.md)。
 

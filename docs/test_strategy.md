@@ -68,9 +68,9 @@ python -m airmirror_future.experiments.phase_bits --output results/checkpoints/<
 | FND-T15b | unsigned future identity boundary | 未签署 FND-PHY-NB/FND-QA-AP/FND-QA-CC 时保持 partial/pending，不伪造 Verified/default identity | Verified：C2 independent review PASS，blocking issues 0 |
 | FND-T15c | provenance source classification | v0.1 legacy 与 A/B checkpoint 分开且 bytes/mtime 不变；新 run 缺 schema 明确失败；未知来源不猜 legacy；未知 schema 拒绝 | Verified：C2 independent review PASS，legacy/checkpoint unchanged |
 | FND-T15d | experiment no-overwrite | existing run directory 在计算前失败；legacy hash 不变；新 CSV/PNG 只写唯一 run directory | Verified：C2 independent review PASS，真实 run |
-| FND-T16 | quadrature ownership boundary | 固定 aperture/control/pattern/Profile，只改变 rule/order | Planned：FND-QA-AP |
-| FND-T17 | refined reference construction | successive refinement + independent rule；未收敛明确失败 | Planned：FND-QA-AP |
-| FND-T18 | quadrature report/provenance guards | 深相消不输出 Inf/误导 phase/gain；policy identity 完整 | Planned：FND-QA-AP |
+| FND-T16 | quadrature ownership boundary | 固定 aperture/control/pattern/Profile，只改变 rule/order | Ready：FND-QA-AP-02..04；实现/执行尚未开始 |
+| FND-T17 | refined reference construction | successive refinement + independent rule；未收敛明确失败 | Ready：FND-QA-AP-02..05；实现/执行尚未开始 |
+| FND-T18 | quadrature report/provenance guards | 深相消不输出 Inf/误导 phase/gain；policy identity 完整 | Ready：FND-QA-AP-03..05；实现/执行尚未开始 |
 | FND-T19 | floor-anchored wall geometry | 超出 `1e-9 m` 的 endpoint z 拒绝；Ground Truth wall 仅刚体 XY 平移；blockage/reflection 同几何 | `tests/test_wall_geometry.py` |
 | FND-T20 | center-frequency flat-channel contract | `fc` 改变 h；`B` 不改变 h(fc) 但改变 noise/SNR/capacity；model ID 稳定 | Planned：FND-PHY-NB |
 | FND-T21 | RIS-only coefficient consistency | Focus 与最终 Controller `a_n^C` 相位共轭；1×1 时与历史中心路径等价 | Planned：FND-QA-CC |
@@ -133,7 +133,8 @@ simulation call 前失败。精确 schema 和 run directory 见
 
 FND-QA-AP 是 cross-cutting Foundation final gate，不是 A2 的重新验收。正式 runner 必须：
 
-1. 固定 aperture、control grid、flatten order、commanded pattern hash、Profile、几何和 seed；
+1. 固定 aperture、control grid、flatten order (`ris_cell_centers_meshgrid_xy_c_v1`)、commanded pattern hash、Profile、几何、C2
+   world/scene `random_seed` 和独立 `pattern_seed`；
 2. midpoint 至少运行 `1×1、2×2、4×4、8×8、16×16`，必要时 `32×32`；
 3. 以 successive differences 判断 reference 是否稳定，并用 tensor-product Gauss–Legendre
    或另一独立规则交叉检查；不能先指定 16×16 就是真值；
@@ -146,6 +147,42 @@ FND-QA-AP 是 cross-cutting Foundation final gate，不是 A2 的重新验收。
 7. 在正式运行前登记 reference tolerance、production tolerance、floor、geometry 和 seeds；
    失败后不得通过放宽阈值取得 PASS；
 8. 避开 partial-aperture blockage boundary，并记录当前 scalar blockage mode。
+
+QA-AP-01 的主 gating world 固定为 `ControllerModel`。C2 `random_seed` 继续表示
+world/scene seed；五个 random legal commanded patterns 使用独立的 `pattern_seed`，不得把
+pattern seed 写回 `random_seed`。`GroundTruthModel` 可以作为未来诊断对照，但不进入本门禁。
+在 off-focus case 中，pattern 只针对 `focus_target_rx` 生成一次；`evaluation_rx` 只重用该
+pattern，不得再次调用 Focus、量化或搜索。
+
+除 `h_RIS` 和 `h_total` 外，正式 runner 必须比较固定 `parent_control_index` 顺序的
+per-control complex coefficient vector `a_n`。最小确定性候选为：
+
+```text
+e_a(q, ref) = ||a(q)-a(ref)||_inf / max(||a(ref)||_inf, a_floor)
+```
+
+其中 `a_floor` 是预注册 finite positive channel-amplitude floor；同时记录最大绝对误差和
+reference infinity norm。不得按每个小系数自身归一化。reference convergence 对 `a_n`、
+`h_RIS`、`h_total` 三者均成立；production adequacy 也必须三者分别通过，aggregate 通过
+不能掩盖 per-control failure。若物理审查要求 signed/per-parent 替代 metric，该选择在
+Ready Review 前关闭，不能由 runner 临时解释。
+
+reference convergence 的相邻 refinement 与 GL cross-check 使用 approved/frozen-candidate robust
+tolerance `1e-3`；production order 相对 internal refined numerical reference 使用
+approved/frozen-candidate `1e-2`。其余 approved/frozen-candidate 数值为 magnitude `0.10 dB`、
+phase `0.05 rad`（仅 non-null case）、deep-null ratio `1e-3`、`a_floor=1e-12` 和 aggregate
+normalization floor `1e-12`。两个 floor 仅作 numerical normalization guard，必须记录 floor
+activation，不能单独导致 PASS。
+`32×32` 与其匹配的 GL32 cross-check 只有在 `16×16` 未通过 convergence 或 GL16 cross-rule 时运行。汇总不选择性删除
+seed；ill-conditioned 只允许 phase/magnitude/gain 等不适用指标置 null，不能豁免
+`a_n`/complex absolute-robust gate 或 reference 未收敛。
+
+Aggregate robust scales are reference-owned: `S_RIS=max(sum(abs(a_ref[n]*Gamma[n])),
+abs(h_RIS_ref), floor)` and `S_total=max(abs(h_baseline)+sum(abs(a_ref[n]*Gamma[n])),
+abs(h_total_ref), floor)`. Candidate quadrature values never participate in these scales.
+Reference and candidate deep-null flags are evaluated against the applicable fixed scale.
+`quadrature_runtime_s`, `series_runtime_s`, and `run_runtime_s` are separate measurements; the
+120/240/600-second limits apply to series scope and the 8-hour limit to the base run scope.
 
 内部最后稳定层级只叫 internal refined numerical reference，不构成 EM/full-wave/measurement
 truth。若当前 1×1 不通过，测试本身不静默切换 production；必须由独立 implementation Work

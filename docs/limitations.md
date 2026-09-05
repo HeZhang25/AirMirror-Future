@@ -15,7 +15,7 @@
 | 衍射 | 几何阴影可能过深 | 只计衰减和反射 | 城市拐角/低频 NLoS 定量需求 |
 | 高阶多反射 | 不包含两次以上墙反射 | 一次镜面路径 | 工厂/城市多径精度需求 |
 | RIS mutual coupling | 等效 patch 独立孔径采样 | 大尺度趋势 | 高密度/器件设计 |
-| patch 内场积分 | 当前 production 每个等效 patch 只取 `1×1` midpoint，且假定满填充 | 系统级面积归一化近似；A2 semantic Verified，不代表精度 Verified | FND-QA-AP 在 final exit/P1A 前冻结最小 policy；P1C 扩大研究 |
+| patch 内场积分 | 当前 production 每个等效 patch 只取 `1×1` midpoint，且假定满填充 | 系统级面积归一化近似；A2 semantic Verified，不代表 production runner 已实现或完整精度 Verified | FND-QA-AP 已签署最小 policy；后续 QA-AP-02..06 实现/执行；P1C 扩大研究 |
 | 控制/求积网格分离 | `nx/ny` 同时决定控制自由度和中心采样 | 现有细分测试只解释为不发散/稳定趋势 | FND-QA-AP 内部拆分；生产迁移需独立 Work Item/ADR |
 | 复杂极化 | 不跟踪 Jones/vector field | 标量复信道 | 偏振 RIS/天线研究 |
 | PIN diode 非线性 | 不建幅相耦合和功率依赖 | eta+phase error | 硬件校准/高功率 |
@@ -43,7 +43,7 @@
   支持后，才可在声明适用域内称 internal refined numerical reference；
 - 当前 RIS blockage 使用 TX→RIS center、RIS center→RX 的统一衰减；增加 quadrature samples
   不会自动得到 partial-aperture/spatially resolved blockage；
-- FND-QA-AP 完成前，三代精确 dBm 差值只能标为 current scalar center-point model 输出；允许
+- FND-QA-AP-01 签署只冻结 preregistration，不改变 production；在 QA-AP runner/矩阵完成前，三代精确 dBm 差值只能标为 current scalar center-point model 输出；允许
   展示系统级趋势，不应宣称精确到四位小数或推广到所有场图位置；
 - Future 64×48、High 200×160 可能计算较慢，后台运行不等于模型更精确；
 - `bandwidth_hz` 不会让引擎计算多个频点；当前 100 MHz 只进入 noise/flat-channel capacity，
@@ -63,8 +63,9 @@
   RIS 的 truthy non-string ID 也须显式赋名并更新 pattern key；disabled/uncommanded 不能绕过
   preflight。不新增 RIS/global uniqueness，也不借此收紧 TX/RX。
 - C2 schema Verified 不使现有 `results/phase_bits` 获得 Profile/Reflection/channel/quadrature/
-  coefficient identity；这些文件仍是只读 `legacy_v0_1_unversioned`，不得回填。C2 初始新结果也
-  必须对未签署的 FND-PHY-NB/FND-QA-AP/FND-QA-CC 保持 partial/pending。
+  coefficient identity；这些文件仍是只读 `legacy_v0_1_unversioned`，不得回填。C2 及 QA-AP-01
+  签署后的新结果仍必须对未完成的 FND-PHY-NB/FND-QA-AP/FND-QA-CC owner contract 保持
+  partial/pending；QA-AP-01 Ready 不等于 QA runner/production/Verified。
 
 ## 使用限制
 

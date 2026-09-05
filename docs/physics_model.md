@@ -205,7 +205,7 @@ Ground Truth 对应使用 `a_n^GT` 和含 actual efficiency/phase error 的 `Gam
 改变因子所有权，不授权改变数值；当前 production 仍直接按上面的每 patch `1×1` 公式计算。
 Foundation 默认的 `m_in/m_out` 仍是 RIS center scalar blockage 的复用值，不表示逐 q 遮挡。
 Focus 与 simulator 一致性由 [FND-QA-CC](work_items/foundation_0_1_1_coefficient_consistency.md)
-在 FND-QA-AP 签署 policy 后验证。若 policy 保持 1×1，只需证明现有中心路径相位等价；若选择
+在 FND-QA-AP 已签署 policy 后验证。若 policy 保持 1×1，只需证明现有中心路径相位等价；若选择
 多点求积，必须先经独立 production migration，不能只改 Focus 或只改 simulator。
 
 ### 孔径归一化不变量

@@ -173,6 +173,14 @@ ADR-0008 规定 Foundation final exit/P1A 前必须验证 production quadrature 
 - `policy_id/version`，进入 experiment provenance 和 cache identity；
 - 明确该 policy 不描述 physical meta-atom layout 或 spatially resolved blockage。
 
+FND-QA-AP-02 的最小内部候选接口（尚非 public API）为
+`QuadratureSpec(rule, order_x, order_y, sample_coordinates, weights, parent_control_index)`。
+它必须验证 finite、正的 order/weights、确定性 parent-major ordering 和一一对应的
+`sample_coordinates`/`weights`/`parent_control_index` 长度；每个 subpoint 只能继承其
+`parent_control_index` 的同一 commanded coefficient。`rule` 至少区分 `midpoint` 与
+`gauss_legendre_tensor_product`，`policy_id/version` 由 runner/config 传递。该接口不得改变
+public phase-array API 或 `ris_patterns` shape `[nx*ny]`，也不得把 subpoint 暴露为独立控制量。
+
 该内部/公共边界必须由独立 implementation Work Item 决定；本文不把 Planned 类型描述成现有
 API，也不改变 `RISSurface.nx/ny` 或 pattern shape。
 
@@ -239,8 +247,9 @@ ADR-0011/0012 要求 Foundation 内部拥有稳定的 `profile_identity`、
 [C Work Item](work_items/foundation_0_1_1_c.md)。上述类型位于 `simulation.profiles`；最小 Reflection
 ID/version 常量位于 `physics.reflections`，两者 version 都是字符串 `"1"`。
 `profile_identity` 只标识环境 modifier 规则；墙系数、scene/world realization 和 frequency 属于
-独立 reflection/world/coefficient identity。quadrature/coefficient 的具体类型仍由
-FND-QA-AP/FND-QA-CC 冻结，C1 不实现最终 coefficient builder。
+独立 reflection/world/coefficient identity。FND-QA-AP-01 已签署冻结 quadrature policy identity；
+具体内部类型仍由 FND-QA-AP-02 实现，coefficient builder 仍由 FND-QA-CC 负责，C1 不实现最终
+builder。
 
 ### `FieldMapResult`
 

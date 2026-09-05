@@ -1,0 +1,551 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "config_kind": "fnd_qa_ap_01_preregistration",
+  "config_version": "1",
+  "status": "Ready",
+  "approval_state": "signed",
+  "qa_ap_status": "Ready",
+  "baseline_commit": "3a384b70f971b4f5cfc35cd22bcc87d1ea87a538",
+  "normative_sources": [
+    "DEVELOPMENT_STATUS.md",
+    "docs/foundation_0_1_1_plan.md",
+    "docs/work_items/foundation_0_1_1_qa_ap.md",
+    "docs/adr/0008-minimum-aperture-quadrature-validity-gate.md",
+    "docs/test_strategy.md",
+    "docs/experiment_spec.md",
+    "docs/data_model.md",
+    "docs/architecture.md"
+  ],
+  "identity": {
+    "scheme": "sha256_canonical_json_v1",
+    "config_identity": "sha256:94dd4bf50ff0a5c5246980577ef4731e2e5d8504fa44fa1f56c4282ff4113cf7",
+    "config_identity_rationale": "Signed/frozen preregistration identity. Hash the canonical payload excluding the identity object, top-level status fields, review metadata, and measured-result fields listed below.",
+    "canonicalization": {
+      "encoding": "UTF-8",
+      "object_keys": "lexicographic Unicode code-point order",
+      "arrays": "preserve declared order",
+      "whitespace": "none",
+      "unicode_normalization": "none",
+      "numbers": "series_identity and config_identity payloads use C1 tagged scalar encoding: integers become [\"int\",\"<base-10>\"], finite binary64 floats become [\"float64_hex\",\"<value.hex()>\"], booleans become [\"bool\",true|false], null becomes [\"null\",null], and strings become [\"str\",\"<exact Unicode string>\"]; raw JSON numbers are forbidden in those identity payloads",
+      "float_encoding": "IEEE-754 binary64, hexadecimal value.hex(), round-to-nearest ties-to-even; reject NaN and Infinity",
+      "hash_prefix": "sha256:",
+      "excluded_top_level_fields": [
+        "identity",
+        "status",
+        "approval_state",
+        "qa_ap_status",
+        "review_and_unresolved",
+        "final_independent_ready_review",
+        "review",
+        "measured_results"
+      ]
+    },
+    "candidate_policy_identity": {
+      "quadrature_policy_id": "fnd_qa_ap_candidate",
+      "quadrature_policy_version": "1",
+      "signed": true,
+      "status": "signed_frozen"
+    }
+  },
+  "freeze_policy": {
+    "status": "frozen",
+    "pre_result_contract": "All numerical thresholds, floors, geometry, seeds, generator/hash rules, quadrature hierarchy, normalization/null rules, aggregation rules, and performance budgets are frozen before formal QA matrix execution.",
+    "post_result_change_rule": "A failed or surprising formal result must not directly modify this v1 contract. Any correction requires explicit independent review, an ADR or equivalent decision record when applicable, and a version bump; v1 is not silently edited."
+  },
+  "scope_and_ownership": {
+    "main_gating_world": "ControllerModel",
+    "ground_truth_in_main_gate": false,
+    "c2_random_seed": 20260901,
+    "c2_random_seed_semantics": "world/scene seed; copied to C2 provenance random_seed",
+    "pattern_seed_namespace": "independent_pattern_seed",
+    "production_physics_modified": false,
+    "public_phase_array_api_modified": false,
+    "production_quadrature_implemented": false
+  },
+  "runner_contract": {
+    "module": "airmirror_future.experiments.fnd_qa_ap_01",
+    "entry_point": "main(argv)",
+    "cli": "python -m airmirror_future.experiments.fnd_qa_ap_01 [--output DIR]",
+    "implementation_status": "not_implemented_on_this_branch",
+    "output_semantics": "--output DIR is a complete run directory, not a reusable container",
+    "default_no_overwrite_root": "results/foundation_0_1_1/qa_ap",
+    "no_overwrite": true,
+    "existing_target_behavior": "fail before scene load, engine construction, simulation, or file writes",
+    "force_reuse_merge": false,
+    "qa_schema_id": "airmirror_fnd_qa_ap",
+    "qa_schema_version": 1,
+    "raw_filename": "fnd_qa_ap_01_raw.csv",
+    "summary_filename": "fnd_qa_ap_01_summary.json",
+    "run_metadata_filename": "fnd_qa_ap_01_run.json",
+    "row_granularity": "one row per generation, geometry_case, pattern_class, pattern_seed, quadrature_rule, order_x, order_y",
+    "reference_relationship": "reference rows remain in raw CSV; reference_label=internal_refined_numerical_reference and reference_row_id points to the selected reference row for the same series",
+    "summary_granularity": "one summary record per generation, geometry_case, pattern_class, pattern_seed, and production candidate",
+    "raw_columns": [
+      "qa_schema_id",
+      "qa_schema_version",
+      "provenance_schema_id",
+      "provenance_schema_version",
+      "provenance_status",
+      "pending_contracts_json",
+      "run_id",
+      "generation",
+      "geometry_case",
+      "focus_target_rx_x_m",
+      "focus_target_rx_y_m",
+      "focus_target_rx_z_m",
+      "evaluation_rx_x_m",
+      "evaluation_rx_y_m",
+      "evaluation_rx_z_m",
+      "tx_x_m",
+      "tx_y_m",
+      "tx_z_m",
+      "ris_center_x_m",
+      "ris_center_y_m",
+      "ris_center_z_m",
+      "frequency_hz",
+      "width_m",
+      "height_m",
+      "nx",
+      "ny",
+      "pattern_class",
+      "pattern_seed",
+      "pattern_hash",
+      "series_identity",
+      "random_seed",
+      "world_model_id",
+      "profile_id",
+      "profile_version",
+      "profile_identity",
+      "reflection_model_id",
+      "reflection_model_version",
+      "channel_frequency_model_id",
+      "quadrature_policy_id",
+      "quadrature_policy_version",
+      "quadrature_rule",
+      "quadrature_order_x",
+      "quadrature_order_y",
+      "reference_label",
+      "reference_row_id",
+      "a_reference_artifact_identity",
+      "reference_a_inf_norm",
+      "a_inf_abs_error",
+      "a_inf_robust_rel_error",
+      "a_normalization_floor_active",
+      "a_successive_inf_robust_rel_error",
+      "h_ris_real",
+      "h_ris_imag",
+      "h_total_real",
+      "h_total_imag",
+      "h_ris_abs_error",
+      "h_total_abs_error",
+      "complex_robust_rel_error_h_ris",
+      "complex_robust_rel_error_h_total",
+      "normalization_floor_active_h_ris",
+      "normalization_floor_active_h_total",
+      "successive_robust_rel_error_h_ris",
+      "successive_robust_rel_error_h_total",
+      "magnitude_error_db_h_ris",
+      "magnitude_error_db_h_total",
+      "phase_error_rad_h_ris",
+      "phase_error_rad_h_total",
+      "ris_only_power_dbm",
+      "total_received_power_dbm",
+      "ris_gain_db",
+      "deep_null_ratio_h_ris",
+      "deep_null_ratio_h_total",
+      "status",
+      "reason",
+      "quadrature_runtime_s",
+      "quadrature_peak_rss_mb"
+    ],
+    "summary_fields": [
+      "series_runtime_s",
+      "series_peak_rss_mb",
+      "run_runtime_s",
+      "run_peak_rss_mb"
+    ],
+    "run_metadata_fields": [
+      "run_runtime_s",
+      "run_peak_rss_mb",
+      "base_minimum_matrix_wall_budget_h",
+      "conditional_32_runtime_s",
+      "conditional_32_peak_rss_mb"
+    ],
+    "runtime_measurements": {
+      "quadrature_runtime_s": "time.perf_counter wall time for one raw quadrature evaluation, including its sample evaluation and reduction but excluding unrelated series and human review",
+      "series_runtime_s": "time.perf_counter wall time for one generation x geometry_case x pattern series, including its complete midpoint ladder and required tensor-product Gauss-Legendre checks; Focus/pattern construction is performed once before refinement and is included in the series setup",
+      "run_runtime_s": "time.perf_counter wall time for the complete base minimum matrix from run-directory allocation through raw, summary, and run-metadata flush; excludes human review and conditional 32x32 extensions",
+      "peak_rss_measurement": "child-process peak RSS/Windows working-set equivalent recorded separately at quadrature, series, and run scopes where available; units are MiB",
+      "budget_scope": "Current/Advanced/Future limits apply to series_runtime_s; the 8-hour limit applies to run_runtime_s; conditional 32x32 uses separate conditional_32_runtime_s and conditional_32_peak_rss_mb fields"
+    },
+    "c2_provenance_wiring": {
+      "provenance_schema_id": "airmirror_experiment_provenance",
+      "provenance_schema_version": 1,
+      "provenance_status": "partial",
+      "pending_contracts": ["FND-PHY-NB", "FND-QA-AP", "FND-QA-CC"],
+      "candidate_identity_allowed": true,
+      "ground_truth_identity_in_main_gate": false,
+      "no_downstream_owner_completion": true
+    }
+  },
+  "reference_environment_and_measurement": {
+    "environment_status": "frozen",
+    "os": "Windows NT 10.0.26100.0; host product label reported as Windows 10 Home China; runner must record the effective OS/build",
+    "os_build": "10.0.26100.0",
+    "python": "3.14.3",
+    "numpy": "2.4.4",
+    "cpu_model": "Intel(R) Core(TM) Ultra 9 275HX",
+    "logical_cores_observed": 24,
+    "physical_cores": null,
+    "ram_bytes_observed": 34019852288,
+    "ram_gib_observed": 31.69,
+    "ram_gb": 34.02,
+    "thread_process_policy": {
+      "processes": 1,
+      "blas_openmp_threads": 1,
+      "environment_variables": {
+        "OMP_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "NUMEXPR_NUM_THREADS": "1",
+        "VECLIB_MAXIMUM_THREADS": "1",
+        "BLIS_NUM_THREADS": "1",
+        "MKL_DYNAMIC": "FALSE"
+      },
+      "policy_identity": "single_process_single_thread_v1"
+    },
+    "thread_process_policy_rationale": "The runner must execute one child process with one BLAS/OpenMP worker and record the effective environment; this removes scheduler/thread-count variation. CPU/RAM observations and the frozen numeric budgets are recorded in this signed preregistration; the runner still records the effective environment at execution time.",
+    "runtime_measurement": "Use the scoped quadrature_runtime_s, series_runtime_s, and run_runtime_s measurements defined in runner_contract.runtime_measurements; exclude human review",
+    "peak_memory_measurement": "child-process peak RSS/Windows working-set equivalent recorded at quadrature, series, and run scopes where available; method and units recorded in run metadata",
+    "runtime_budget_s": {
+      "Current": 120,
+      "Advanced": 240,
+      "Future": 600
+    },
+    "peak_rss_budget_gib": 4,
+    "peak_rss_budget_mb": 4096,
+    "base_minimum_matrix_wall_budget_h": 8,
+    "base_minimum_matrix_definition": "midpoint 1x1/2x2/4x4/8x8/16x16 plus fixed tensor-product Gauss-Legendre GL16x16 cross-check; excludes conditional midpoint32x32 and GL32x32 extensions",
+    "conditional_32_measurement": "record conditional_32_runtime_s and conditional_32_peak_rss_mb separately; when triggered, run both midpoint32 and GL32; its trigger does not alter numerical thresholds or the base budget",
+    "budget_status": "frozen",
+    "budget_rationale": "Frozen engineering budget for the declared single-process/single-BLAS-thread reference environment. Per-generation per-series limits are 120/240/600 seconds, peak RSS is capped at 4 GiB per process, and the base minimum matrix is capped at 8 hours. Conditional 32x32 work is separately measured and excluded from the base matrix wall budget."
+  },
+  "scene_and_geometry": {
+    "room_size_m": [10.0, 8.0, 3.0],
+    "frequency_hz": 5000000000.0,
+    "bandwidth_hz": 100000000.0,
+    "ris_center_m": [5.0, 7.9, 1.5],
+    "ris_yaw_rad": -1.5707963267948966,
+    "blockage_mode": "uniform_scalar_or_none",
+    "partial_aperture_blockage_allowed": false,
+    "min_distance_m": 0.000001,
+    "geometry_cases": [
+      {
+        "geometry_case": "default_target",
+        "tx_m": [1.0, 4.0, 2.4],
+        "focus_target_rx_m": [8.5, 4.0, 1.2],
+        "evaluation_rx_m": [8.5, 4.0, 1.2],
+        "tx_to_ris_center_m": 5.658621740318043,
+        "ris_center_to_focus_rx_m": 5.248809388804284,
+        "ris_center_to_evaluation_rx_m": 5.248809388804284,
+        "min_ris_cell_distance_by_generation_m": {
+          "Current": 5.01348182404205,
+          "Advanced": 4.76253463096187,
+          "Future": 4.393683598804794
+        },
+        "minimum_ris_subpoint_partition_edge_clearance_m_by_generation": {
+          "Current": 1.5454545454545459,
+          "Advanced": 1.19921875,
+          "Future": 0.7428571428571429
+        },
+        "checks": {
+          "min_distance_gate": "pass_by_coordinate_review",
+          "blockage_edge_gate": "pass_for_ris_legs; baseline may retain uniform scalar blockage",
+          "partial_aperture_blockage": "not_used"
+        }
+      },
+      {
+        "geometry_case": "near_field",
+        "tx_m": [1.0, 4.0, 2.4],
+        "focus_target_rx_m": [6.5, 6.4, 1.5],
+        "evaluation_rx_m": [6.5, 6.4, 1.5],
+        "tx_to_ris_center_m": 5.658621740318043,
+        "ris_center_to_focus_rx_m": 2.1213203435596424,
+        "ris_center_to_evaluation_rx_m": 2.1213203435596424,
+        "min_ris_cell_distance_by_generation_m": {
+          "Current": 1.8907670401189038,
+          "Advanced": 1.6698511244352827,
+          "Future": 1.5003277455889523
+        },
+        "minimum_ris_subpoint_partition_edge_clearance_m_by_generation": {
+          "Current": 1.5862068965517242,
+          "Advanced": 1.2727272727272734,
+          "Future": 0.848502139800285
+        },
+        "checks": {
+          "min_distance_gate": "pass_by_coordinate_review",
+          "blockage_edge_gate": "pass_for_ris_legs; baseline may retain uniform scalar blockage",
+          "partial_aperture_blockage": "not_used"
+        }
+      },
+      {
+        "geometry_case": "oblique_incidence",
+        "tx_m": [1.0, 6.0, 2.4],
+        "focus_target_rx_m": [8.5, 4.0, 1.2],
+        "evaluation_rx_m": [8.5, 4.0, 1.2],
+        "tx_to_ris_center_m": 4.518849411078001,
+        "ris_center_to_focus_rx_m": 5.248809388804284,
+        "ris_center_to_evaluation_rx_m": 5.248809388804284,
+        "min_ris_cell_distance_by_generation_m": {
+          "Current": 4.151505750929415,
+          "Advanced": 3.764315269002378,
+          "Future": 3.1587583284444793
+        },
+        "minimum_ris_subpoint_partition_edge_clearance_m_by_generation": {
+          "Current": 1.5454545454545459,
+          "Advanced": 1.19921875,
+          "Future": 0.7428571428571429
+        },
+        "checks": {
+          "min_distance_gate": "pass_by_coordinate_review",
+          "blockage_edge_gate": "pass_for_ris_legs; baseline may retain uniform scalar blockage",
+          "partial_aperture_blockage": "not_used"
+        }
+      },
+      {
+        "geometry_case": "off_focus_receiver",
+        "tx_m": [1.0, 4.0, 2.4],
+        "focus_target_rx_m": [8.5, 4.0, 1.2],
+        "evaluation_rx_m": [8.5, 6.5, 1.2],
+        "tx_to_ris_center_m": 5.658621740318043,
+        "ris_center_to_focus_rx_m": 5.248809388804284,
+        "ris_center_to_evaluation_rx_m": 3.7815340802378077,
+        "min_ris_cell_distance_by_generation_m": {
+          "Current": 3.44746283518764,
+          "Advanced": 3.071113171329105,
+          "Future": 2.4605803312239676
+        },
+        "minimum_ris_subpoint_partition_edge_clearance_m_by_generation": {
+          "Current": 1.5454545454545459,
+          "Advanced": 1.19921875,
+          "Future": 0.7428571428571429
+        },
+        "focus_generation": "exactly_once_for_focus_target_rx",
+        "evaluation_rule": "reuse_identical_commanded_pattern; never call Focus, quantization, or search again",
+        "checks": {
+          "min_distance_gate": "pass_by_coordinate_review",
+          "blockage_edge_gate": "pass_for_ris_legs; baseline may retain uniform scalar blockage",
+          "partial_aperture_blockage": "not_used"
+        }
+      }
+    ],
+    "geometry_rationale": "Coordinates are explicit Smart Space values, keep all RIS cell-center and preregistered subpoint paths far above MIN_DISTANCE_M, keep every preregistered RIS leg above the partition edge (minimum computed clearance 0.742857 m across the listed generations/cases), and avoid any conclusion that depends on spatially resolved partial-aperture blockage."
+  },
+  "generation_matrix": [
+    {
+      "generation": "Current",
+      "width_m": 0.8,
+      "height_m": 0.8,
+      "nx": 8,
+      "ny": 8,
+      "phase_bits": 1,
+      "reflection_efficiency": 0.7
+    },
+    {
+      "generation": "Advanced",
+      "width_m": 1.6,
+      "height_m": 1.2,
+      "nx": 24,
+      "ny": 24,
+      "phase_bits": 3,
+      "reflection_efficiency": 0.85
+    },
+    {
+      "generation": "Future",
+      "width_m": 3.0,
+      "height_m": 2.0,
+      "nx": 64,
+      "ny": 48,
+      "phase_bits": null,
+      "reflection_efficiency": 0.95
+    }
+  ],
+  "pattern_matrix": {
+    "pattern_classes": ["ris_only_focus", "coherent_target_focus", "random_legal"],
+    "random_pattern_seeds": [1101, 2203, 3307, 4409, 5511],
+    "random_pattern_seed_status": "frozen",
+    "random_pattern_generator": {
+      "algorithm": "sha256_counter_v1",
+        "digest_input": "B = b'fnd_qa_ap_pattern_v1\\x00' || pack('<I', len(generation_utf8)) || generation_utf8 || pack('<I', len(geometry_case_utf8)) || geometry_case_utf8 || pack('<Q', pattern_seed) || pack('<Q', parent_control_index); generation_utf8 and geometry_case_utf8 are UTF-8 bytes; SHA-256 is applied to B",
+        "finite_phase_bits": "For integer phase_bits, k = uint64_le(digest[0:8]) modulo 2**phase_bits and phase = correctly-rounded IEEE-754 binary64(tau_binary64 * k / 2**phase_bits)",
+        "continuous_phase": "For null phase_bits, let r=uint64_le(digest[0:8]), m=r >> 11, u=correctly-rounded IEEE-754 binary64(m * 2**-53), and phase=correctly-rounded IEEE-754 binary64(u * tau_binary64); m is in [0,2**53-1], so u is in [0,1-2**-53] and phase is strictly in [0,tau_binary64)",
+      "legal_pattern_validation": "reuse commanded-pattern validator; no repair or re-quantization",
+        "pattern_hash": "SHA-256 over UTF-8 canonical JSON bytes with object keys sorted lexicographically, arrays in declared order, ensure_ascii=false, separators=(',', ':'), no NaN/Infinity, and exact object {control_grid_identity, domain_separator, flatten_order, ordered_phase_binary64_be_hex, phase_bits, phase_control_semantics, schema_version, shape}; generation, geometry_case, pattern_seed and world/provenance context are excluded",
+        "byte_level_requirements": "UTF-8 encoding; generator digest uses uint32/uint64 little-endian fields; pattern-hash payload uses no decimal floating-point serialization; phase_bits is integer or null according to generation; shape is [nx, ny]; flatten_order is the literal token 'ris_cell_centers_meshgrid_xy_c_v1' meaning existing RIS cell_centers meshgrid(indexing='xy') flattened in C order with x-index fastest and parent_control_index=iy*nx+ix; control_grid_identity is the canonical JSON object {flatten_order, nx, ny}; domain_separator is the literal ASCII string 'airmirror_fnd_qa_ap_commanded_pattern'; schema_version is integer 1; phase_control_semantics is the literal ASCII string 'commanded_complex_gamma_from_phase_radians_v1'; tau_binary64 is the exact IEEE-754 binary64 constant with hexadecimal significand 0x1.921fb54442d18p+2; every commanded phase is encoded as lowercase hexadecimal of its raw IEEE-754 binary64 bytes in big-endian order (16 hex characters, exactly struct.pack('>d', phase).hex()); all phase arithmetic is correctly rounded to binary64 with round-to-nearest, ties-to-even and no fused multiply-add; final phase values are finite and signed zero is preserved"
+      },
+      "series_identity": {
+        "fields": ["generation", "geometry_case", "pattern_class", "pattern_seed", "pattern_hash", "frequency_hz", "profile_identity", "world_model_id", "random_seed", "baseline_identity", "aperture_identity", "control_grid_identity"],
+        "canonicalization": "canonical UTF-8 JSON object with lexicographic Unicode code-point keys and declared array order; before serialization, every scalar is encoded with the C1 tagged scalar forms from identity.canonicalization, so no raw decimal JSON number is permitted in this identity payload",
+        "representation": "sha256:<64 lowercase hexadecimal characters> over the canonical tagged fields object",
+        "identity_role": "experiment-series/provenance context; distinct from commanded pattern snapshot identity"
+      },
+    "focus_pattern_rule": "RIS-only Focus and Coherent Target Focus are generated once against focus_target_rx; refinement changes only quadrature rule/order."
+  },
+  "quadrature_matrix": {
+    "midpoint_orders": [[1, 1], [2, 2], [4, 4], [8, 8], [16, 16]],
+      "conditional_order": [[32, 32]],
+    "conditional_32_trigger": [
+      "16x16 successive refinement fails reference convergence for a_n, h_RIS, or h_total",
+      "16x16 midpoint versus tensor-product Gauss-Legendre cross-rule fails cross-rule tolerance"
+    ],
+    "cross_rule": {
+      "rule": "tensor_product_gauss_legendre",
+      "base_order": [16, 16],
+      "conditional_order": [32, 32],
+      "role": "signed preregistration cross-check contract, not a production migration decision; GL16 is always run, and GL32 is additionally run only when midpoint32 is triggered"
+    },
+    "reference_selection": {
+      "candidate_order": "select 16x16 only when 8x8-to-16x16 successive differences and GL16x16 agreement pass for all three metric families; otherwise run conditional 32x32",
+      "conditional_32_reference": "select 32x32 only when midpoint16-to-midpoint32 convergence and midpoint32-to-GL32 agreement pass for all three metric families; GL16 remains the base cross-check and is not substituted for the matched-order GL32 comparison",
+      "unresolved_reference": "any failure after the permitted hierarchy is a blocking reference failure; do not drop the case or call a non-converged row truth"
+    },
+    "ordering_and_ownership": {
+      "control_flatten_order": "ris_cell_centers_meshgrid_xy_c_v1",
+      "subpoint_order": "parent_control_index ascending, then local y index, then local x index",
+      "parent_control_index": "one integer per subpoint; fixed across all rules",
+      "command_inheritance": "every subpoint uses exactly its parent control patch commanded complex coefficient",
+      "focus_regeneration_on_order_change": false,
+      "quantization_or_search_on_order_change": false,
+      "public_ris_patterns_shape": "[nx*ny] unchanged"
+    }
+  },
+  "metrics_and_rules": {
+    "per_control_coefficient_metric": {
+      "formula": "||a(q)-a(ref)||_inf / max(||a(ref)||_inf, a_floor)",
+      "ordering": "fixed parent_control_index order",
+      "additional_fields": ["a_inf_abs_error", "a_inf_robust_rel_error", "reference_a_inf_norm", "a_reference_artifact_identity"],
+      "per_element_self_normalization": false,
+      "a_floor": 1.0e-12,
+      "a_floor_status": "frozen",
+      "a_floor_rationale": "Positive channel-amplitude floor is a frozen numerical normalization guard only: it prevents division by zero and is not a physical or engineering acceptance threshold. A floor-activated ratio cannot by itself produce PASS; the row must record normalization_floor_active and remain subject to the absolute-error/deep-null rules."
+    },
+    "aggregate_complex_metric": {
+      "formula": "abs(h(q)-h(ref)) / S_reference, where S_reference is the fixed reference-only scale defined below",
+      "applies_to": ["h_RIS", "h_total"],
+      "complex_amplitude_floor": 1.0e-12,
+      "floor_status": "frozen",
+      "floor_rationale": "Frozen numerical normalization guard only; deep-null classification is separate so a small denominator cannot silently turn a cancellation into a pass. A floor-activated aggregate ratio cannot by itself produce PASS and must record normalization_floor_active.",
+      "reference_scale": {
+        "h_RIS": "S_RIS=max(sum_n(abs(a_reference[n] * Gamma_control[n])), abs(h_RIS_reference), complex_amplitude_floor)",
+        "h_total": "S_total=max(abs(h_baseline) + sum_n(abs(a_reference[n] * Gamma_control[n])), abs(h_total_reference), complex_amplitude_floor)"
+      },
+      "scale_ownership": "S_reference is computed only from the selected reference coefficient decomposition, the fixed commanded pattern, the fixed non-RIS baseline, and the declared floor; candidate quadrature values never enter the normalization scale"
+    },
+      "successive_refinement_metrics": {
+      "formula": "same robust metric with q and q_previous replacing q and ref",
+      "applies_to": ["a_n", "h_RIS", "h_total"],
+      "first_order": "null with reason=no_previous_refinement",
+      "cross_rule_comparison": "compare midpoint16 to GL16 for the base rule; when midpoint32 is triggered, compare midpoint32 to GL32 at the matched conditional order; cross-rule errors against a selected reference use the fixed reference-only scale, while successive differences use the declared q-versus-q_previous metric",
+      "all_values_finite": true
+    },
+    "frozen_thresholds": {
+      "reference_robust_complex_tolerance": {
+        "value": 0.001,
+        "status": "frozen",
+        "rationale": "Approved 0.1% normalized agreement gives the internal numerical reference a stricter convergence screen than production adequacy."
+      },
+      "floor_activation_rule": "Record normalization_floor_active separately for a_n, h_RIS, and h_total when the selected denominator uses the declared floor; floor activation is diagnostic and never an acceptance exemption.",
+      "production_robust_complex_tolerance": {
+        "value": 0.01,
+        "status": "frozen",
+        "rationale": "Approved 1% robust complex error is a looser production-adequacy screen than reference convergence while remaining in the same engineering scale as the 0.10 dB magnitude screen."
+      },
+      "magnitude_tolerance_db": {
+        "value": 0.1,
+        "status": "frozen",
+        "rationale": "Approved 0.10 dB corresponds to approximately 1.16% amplitude ratio (10**(0.10/20)-1), consistent with the 1% complex engineering screen."
+      },
+      "phase_tolerance_rad": {
+        "value": 0.05,
+        "status": "frozen_non_null_only",
+        "rationale": "Approved 0.05 rad is approximately 2.86 degrees; phase is not a stable acceptance metric near a deep cancellation."
+      },
+      "deep_null_ratio": {
+        "value": 0.001,
+        "status": "frozen",
+        "rationale": "Approved values at or below 0.1% of the per-series finite reference scale are treated as deep cancellation for phase/magnitude/gain reporting, while complex robust errors remain recorded."
+      }
+    },
+    "deep_null_definition": "For each aggregate, use the fixed reference-only S_reference defined in aggregate_complex_metric. reference_deep_null is abs(h_reference)/S_reference <= deep_null_ratio; candidate_deep_null is abs(h_candidate)/S_reference <= deep_null_ratio; phase/magnitude/gain become null when the applicable candidate or reference is deep-null, while complex robust errors remain finite and gated.",
+    "null_rules": {
+      "phase_error_rad": "null with reason=deep_cancellation when candidate or reference is deep-null",
+      "magnitude_error_db": "null with reason=deep_cancellation when candidate or reference is deep-null",
+      "ris_gain_db": "null with reason=ill_conditioned when the applicable no-RIS, total reference, or candidate value is deep-null",
+      "complex_robust_errors": "always finite or explicit failure; never null solely to hide a gate failure",
+      "nonfinite_values": "hard failure; no NaN or Infinity serialization"
+    },
+    "aggregation_and_pass_fail": {
+      "reference_convergence": "every series must pass a_n, h_RIS, and h_total reference metrics and the GL cross-rule; unresolved reference is blocking",
+      "production_adequacy": "evaluate each candidate order against the selected reference; a candidate passes a series only if a_n, h_RIS, h_total robust metrics and all applicable magnitude/phase metrics pass",
+      "matrix_aggregation": "all generations, four geometries, two Focus classes, and all five random seeds are included; no median-based rescue and no selective seed removal",
+      "ill_conditioned_exemption": "only phase/magnitude/RIS-gain fields may be null under the declared null rules; a_n and complex h gates remain required",
+      "policy_decision": "report candidate-order pass/fail; do not select or migrate a production policy in this draft"
+    }
+  },
+  "final_independent_ready_review": {
+    "result": "PASS",
+    "blocking_issues": 0,
+    "scope": "FND-QA-AP-01 preregistration, physics, numerical and contract review",
+    "status": "signed_frozen"
+  },
+  "review_and_unresolved": [
+    {
+      "field": "numerical_thresholds_and_floors",
+      "status": "frozen",
+      "rationale": "Final independent Ready Review approved the exact values and rationale. These preregistered values are frozen before any formal QA matrix result and must not be changed after observing convergence results."
+    },
+    {
+      "field": "per_control_metric_and_a_floor",
+      "status": "frozen",
+      "rationale": "Final independent Ready Review approved the deterministic L-infinity metric and guard-only floor semantics. Floor activation cannot grant PASS."
+    },
+    {
+      "field": "random_pattern_generator_and_hash",
+      "status": "frozen",
+      "rationale": "Final independent Ready Review approved the SHA-256 counter generator, byte order, IEEE-754 phase mapping, legal-state mapping, canonical commanded-snapshot hash, and separate series_identity. No runner implementation is implied by this signature."
+    },
+    {
+      "field": "runtime_and_peak_memory_budgets",
+      "status": "frozen",
+      "rationale": "Final independent Ready Review approved the reference environment, single-process/single-thread policy, per-generation runtime limits, 4 GiB peak RSS cap, 8-hour base matrix budget, and separate conditional-32x32 measurement rule. Physical-core count remains unavailable and is recorded as such."
+    },
+    {
+      "field": "runner_implementation",
+      "status": "downstream_planned_not_a_contract_blocker",
+      "rationale": "Module, entry point, output semantics, QA schema, filenames, row granularity, reference linkage, and QA-specific no-overwrite root are signed contract fields; implementing the runner remains FND-QA-AP-02/03 scope and is intentionally absent from this review."
+    },
+    {
+      "field": "production_policy",
+      "status": "intentionally_unresolved",
+      "rationale": "The signed preregistration does not imply runner implementation, formal QA matrix execution, production policy migration, or Verified status."
+    }
+  ],
+  "dependency_classification": {
+    "ready_blockers": [],
+    "downstream_pending_dependencies_not_ready_blockers": [
+      "FND-PHY-NB",
+      "FND-QA-CC",
+      "runner_implementation",
+      "production_policy_migration"
+    ],
+    "status_rule": "FND-QA-AP-01 preregistration is signed/frozen after final independent Ready Review PASS with zero blocking issues; FND-QA-AP is Ready for QA-AP-02 implementation. Downstream pending dependencies remain pending, and no production quadrature migration or formal QA matrix execution is implied."
+  },
+  "validation_rules": {
+    "reject_nan_inf": true,
+    "reject_unknown_geometry_case": true,
+    "require_fixed_series_identity": ["aperture", "control_grid", "geometry", "frequency", "profile", "world", "baseline", "commanded_pattern", "pattern_hash", "pattern_seed"],
+    "require_controller_only_main_gate": true,
+    "require_pending_contracts": ["FND-PHY-NB", "FND-QA-AP", "FND-QA-CC"],
+    "require_provenance_status": "partial"
+  }
+}

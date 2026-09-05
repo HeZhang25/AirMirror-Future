@@ -5,7 +5,7 @@
 | 文档状态 | Operational / Normative for sequencing |
 | 当前实现基线 | v0.1 Verified，commit `edfa43c` |
 | 目标版本 | v0.1.1 Foundation |
-| 当前计划状态 | Foundation 0.1.1 In Progress；Foundation 0.1.1A、A1/A2/A3、FND-FIX-WALL、B1/B2/B3 Verified；C1/C2 Verified，C overall In Progress；FND-QA-AP、FND-PHY-NB、FND-QA-CC 尚未完成；P1A gate closed |
+| 当前计划状态 | Foundation 0.1.1 In Progress；Foundation 0.1.1A、A1/A2/A3、FND-FIX-WALL、B1/B2/B3 Verified；C1/C2 Verified，C overall In Progress；FND-QA-AP Ready（FND-QA-AP-01 preregistration signed/frozen，independent final Ready Review PASS，blocking issues 0）；FND-PHY-NB、FND-QA-CC Planned；P1A gate closed |
 | 父级路线 | v0.1 Smart Space → Foundation 0.1.1 → P1A |
 | 主要责任 | 项目维护者、物理仿真负责人、GUI/测试负责人 |
 | 最后复核 | 2026-09-04（C1 implementation handoff；Profile ownership 仍以 ADR-0012 为准） |
@@ -637,13 +637,14 @@ Implemented/Verified，也不签署 FND-QA-AP、FND-PHY-NB 或 FND-QA-CC。
 
 #### FND-QA-AP：Minimum Aperture Quadrature Validity
 
-- 状态：**Planned**；不改变 A2 Verified 或整个 Foundation In Progress 的当前边界；
+- 状态：**Ready**；FND-QA-AP-01 preregistration 已 signed/frozen，independent final Ready Review
+  PASS、blocking issues 0；不改变 A2 Verified 或整个 Foundation In Progress 的当前边界；
 - Requirement：`AMF-RIS-011`；
 - 依赖：A2 Verified、ADR-0008 Accepted；正式执行依赖 A3/B/C Implemented 和 C2 provenance；
 - 输入：固定 aperture/control grid/commanded pattern/Profile/geometry，候选 quadrature
   rule/order 和预注册容差；
 - 输出：versioned QA matrix、internal refined numerical reference、误差/成本报告、最终
-  `quadrature_policy_id/version` 或 blocking decision；
+  `quadrature_policy_id/version` 或 blocking decision；上述是后续 QA-AP-02..06 的实现/验证输出；
 - 验收：FND-T16..18、三代最小矩阵、successive refinement 与独立求积规则交叉检查、无
   非有限/静默跳过、项目维护者和物理审查者共同签署；
 - 边界：不重开 A2，不实现 partial-aperture blockage，不把内部 reference 称 EM truth，不
@@ -707,8 +708,8 @@ Implemented/Verified，也不签署 FND-QA-AP、FND-PHY-NB 或 FND-QA-CC。
 | 10 | `FND-UI-02` 增加 Customized、Pattern 信息和准确标签 | Implemented | `docs/work_items/foundation_0_1_1_b.md`；Pattern metadata/GUI smoke 与人工清单 |
 | 11 | `FND-QA-AB` A/B 中期验收与人工复核 | Verified | 三代 headless、GUI、临时隔离实验和独立审查记录；§14.4 checkpoint PASS |
 | 12 | `FND-ARCH-01` 接入 environment-only PropagationProfile | Verified | C Work Item C1 verification evidence；FND-T13..14、三代 headless；三轮外部独立审查最终 PASS、blocking issues 0 |
-| 13 | `FND-EXP-01` 加入最小实验 provenance | Ready | C Work Item 01A..01C；schema v1、partial/pending、legacy 和 no-overwrite |
-| 14 | `FND-QA-AP` 最小孔径求积有效性门禁 | Planned | FND-T16..18、versioned matrix、signed coefficient policy |
+| 13 | `FND-EXP-01` 加入最小实验 provenance | Verified | C Work Item 01A..01C；schema v1、partial/pending、legacy 和 no-overwrite；C2 independent review PASS |
+| 14 | `FND-QA-AP` 最小孔径求积有效性门禁 | Ready | FND-QA-AP-01 signed/frozen preregistration；independent final Ready Review PASS，blocking issues 0；后续 FND-T16..18、versioned matrix、production policy |
 | 15 | `FND-PHY-NB` 冻结 center-frequency flat-channel contract | Planned | FND-T20、model ID 与准确标签 |
 | 16 | `FND-QA-CC` 验证 Controller coefficient/Focus 一致性 | Planned | FND-T21..22、identity/boundary review |
 | 17 | `FND-QA-01` 全量回归、headless、GUI 和实验验收 | Planned | Foundation final exit evidence |
@@ -903,7 +904,8 @@ Commanded validation、search levels 和 GUI dirty state 如果不改变层依�
 开始任何代码实现前必须满足：
 
 - `AMF-RIS-008..012`、`AMF-PHY-007`、`AMF-OPT-004`、`AMF-SIM-005..006`、`AMF-UI-007..008`、
-  `AMF-EXP-006` 已在 requirements 中保持 Planned/Ready；
+  `AMF-EXP-006` 的状态必须与 requirements 及各自 verification evidence 一致（当前 C1/C2/
+  `AMF-EXP-006` 已 Verified，QA-AP/PHY-NB/QA-CC 仍 Planned）；
 - 当前要进入的子 Capability 对应 ADR 选项、影响和否决方案已评审；
 - 第 10 节相关行为测试已经设计；红灯可存在于本地 TDD 过程，但交付 commit 必须保持绿色；
 - 明确旧实验、公共 API 和 Scene v1 的兼容策略；
@@ -960,8 +962,9 @@ visualization 均 PASS，blocking issues 0；上述五个 requirements 与 B Del
 
 ### 14.6 FND-QA-AP and Foundation Final Exit Gate
 
-- aperture、control grid、commanded pattern、Profile、geometry 和 seed 在每个 refinement series
-  内固定；只有 quadrature rule/order 改变；
+- aperture、control grid、commanded pattern、Profile、geometry、ControllerModel world/scene
+  realization、C2 `random_seed` 和独立 `pattern_seed` 在每个 refinement series 内固定；只有
+  quadrature rule/order 改变；GroundTruthModel 不进入 QA-AP 主门禁；
 - midpoint successive refinement 与独立求积规则交叉检查完成，内部参考不冒充 EM truth；
 - 三代、四类代表性几何、两个 Focus 和不少于 5 个固定 random seeds 的最小矩阵可重放；
 - FND-T16..18、深相消数值保护、runtime/memory 和无静默跳过检查通过；

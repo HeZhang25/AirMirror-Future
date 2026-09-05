@@ -123,8 +123,9 @@ Foundation 0.1.1 在进入最终人工验收前还必须满足：
    `Gamma_wall`/Profile 独立扰动和 Controller/Ground Truth 墙系数消费测试均通过；
 7. C2 新实验使用稳定 schema/version 和 exclusive no-overwrite run directory；v0.1 legacy 与 A/B
    checkpoint 按 C Work Item C2.2 分开只读保留，新 run 缺 schema 明确失败，未知来源不猜 legacy；
-   尚未由 FND-PHY-NB/FND-QA-AP/FND-QA-CC 签署的 identity 只能为空/显式 candidate，
-   并保持 `partial`/pending，不得伪造 Verified/default provenance；
+   尚未由 FND-PHY-NB/FND-QA-CC 签署的 identity 只能为空/显式 candidate；QA-AP-01 已签署的
+   policy identity 可记录，但 FND-QA-AP runner/production evidence 未完成前仍保持
+   `partial`/pending，不得伪造 Verified/default provenance；
 8. 上述工作项任一仍为 Planned/Ready/In Progress 时，Foundation 不得标为 Implemented/Verified，
    P1A 不得进入 In Progress。
 
