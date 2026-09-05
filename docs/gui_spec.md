@@ -77,7 +77,7 @@ Shannon 理论上界”，TX Power 是该带宽内总功率而非 PSD；不能�
 
 Foundation B 的 Model Info/结果说明还必须标注当前 production aperture integration 为
 `1×1 midpoint per equivalent control patch`，并把精确 dBm 解释为 current scalar
-center-point model 输出。FND-QA-AP Verified 前不得显示“quadrature converged”“EM accurate”或
+center-point model 输出。FND-QA-AP runner/verification 完成前不得显示“quadrature converged”“EM accurate”或
 把小数位数当作物理精度；GUI 不新增 quadrature order 可编辑控件，除非后续 production policy
 Work Item 明确授权。
 

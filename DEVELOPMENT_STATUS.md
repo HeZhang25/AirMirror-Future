@@ -6,7 +6,29 @@
 | 当前 release | v0.1 |
 | release 状态 | Verified |
 | 规范基线 | [docs/README.md](docs/README.md) |
-| 当前 Capability | Foundation 0.1.1C overall In Progress：C1 Verified，C2 Verified；Foundation overall In Progress；P1A gate closed |
+| 当前 Capability | Foundation 0.1.1C overall In Progress：C1 Verified，C2 Verified；FND-QA-AP-01 preregistration signed/frozen（independent final Ready Review PASS，blocking issues 0）；FND-QA-AP Ready；Foundation overall In Progress；FND-PHY-NB/FND-QA-CC Planned；P1A gate closed |
+
+## Foundation FND-QA-AP-01 preregistration final closure
+
+2026-09-05：FND-QA-AP-01 preregistration、independent physics review、independent numerical
+review 和 independent contract review 均 **PASS**，blocking issues **0**。签署配置为
+[`configs/foundation_0_1_1/fnd_qa_ap_01_preregistration_v1.json`](configs/foundation_0_1_1/fnd_qa_ap_01_preregistration_v1.json)，
+状态为 `Ready` / `signed` / `frozen`，config identity 为
+`sha256:94dd4bf50ff0a5c5246980577ef4731e2e5d8504fa44fa1f56c4282ff4113cf7`。
+
+据此，`FND-QA-AP-01` preregistration closure 为 **PASS**，`FND-QA-AP` 由 **Planned** 提升为
+**Ready**。Ready 仅表示 QA-AP-02 implementation 可以开始；本轮未实现 QuadratureSpec、parent
+mapping、runner 或正式 QA matrix，未进行 production quadrature migration，且不代表
+FND-QA-AP 或 `AMF-RIS-011` 已 Implemented/Verified。
+
+签署后，v1 的 numerical thresholds、floors、geometry、seeds、generator/hash、series identity、
+midpoint/GL hierarchy、normalization/null、aggregation/pass-fail 和 performance budgets 均为
+pre-result frozen contract。正式结果不得静默修改；如发现 preregistration 错误，必须通过显式
+independent review、适用 ADR/decision record 和 version bump 处理。
+
+C2 provenance 继续使用 schema v1，`provenance_status=partial`，pending contracts 继续为
+`FND-PHY-NB`、`FND-QA-AP`、`FND-QA-CC`。Foundation overall 保持 **In Progress**，
+`FND-PHY-NB` 与 `FND-QA-CC` 保持 **Planned**，P1A gate 保持 **closed**。
 
 ## Foundation 0.1.1C / C2 implementation
 
@@ -51,8 +73,9 @@ FND-QA-CC 状态不变。审查 SHA 与逐轮结论见
 默认分量与路径集合通过 `d9ab04a` 的 8 组 nominal/GT 固定 reference；三代 fast headless 的
 功率、RIS Gain、SNR 和 coverage 与改动前一致。完整命令、FND-T13..T14 与数值见
 [C Work Item 的 C1 implementation evidence](docs/work_items/foundation_0_1_1_c.md#c1-implementation-evidence)。
-没有修改 GUI、版本化 Scene、results、Focus/scattering 公式或实验 runner；未实现 C2、最终
-coefficient builder、QA-AP/PHY-NB/QA-CC、cache 或新路径。
+没有修改 GUI、版本化 Scene、results、Focus/scattering 公式或实验 runner；该段仅记录 C1
+implementation handoff，当时未实现 C2。当前 C2 已由顶部 verification closure 标记为 Verified；
+最终 coefficient builder、QA-AP/PHY-NB/QA-CC、cache 或新路径仍未完成。
 
 迁移说明：Scene 构造/加载及 engine preflight 现在拒绝重复 wall ID，错误包含该 ID；
 对 `a641b0d` 的独立审查后，focused compatibility closure 还在 Wall/Obstacle 构造/loader 及
@@ -396,10 +419,10 @@ Implemented/Verified。
   P1C 保留完整 aperture/field-map/适用域研究；
 - A3 commanded hardware-state validation、B1/B2/B3 及其五个 B requirements 已 Verified；
 - C1 Profile/Reflection 接入与稳定 Profile identity 已 Verified，不代表后续 coefficient/physics gate 已签署；
-- C2 provenance/no-overwrite 尚未实现；自定义复数 Profile 不构成最终 Focus/coefficient consistency
+- C2 provenance/no-overwrite 已 Verified；自定义复数 Profile 不构成最终 Focus/coefficient consistency
   签署，仍须 FND-QA-CC 与必要的独立 production migration；
-- `frequency_hz/bandwidth_hz` 的 flat-channel 语义已由 ADR-0010 冻结，但 model ID、标签和
-  provenance closure 尚未实现；
+- `frequency_hz/bandwidth_hz` 的 flat-channel 语义已由 ADR-0010 冻结；具体 channel model ID
+  仍由 FND-PHY-NB 签署，不能因 C2 provenance 已闭合而视为 narrowband contract 完成；
 - FND-FIX-WALL 已 Verified：floor-anchored Wall/XY-only Ground Truth 语义当前仍不支持悬空/倾斜墙；
 - FND-QA-AP 后仍须 FND-QA-CC 证明最终 Controller coefficient 与两种 Focus 一致；
 - 高质量 `200×160` 场图在 Future 64×48 网格下计算较慢，但运行于后台且可取消；
@@ -416,12 +439,10 @@ Implemented/Verified。
 
 ## 下一阶段
 
-1. 后续另行授权后，按 [Foundation 0.1.1C Work Item](docs/work_items/foundation_0_1_1_c.md)
-   独立实现/评审 C2 minimum experiment provenance；本次不开始；
-2. 执行 FND-QA-AP，冻结 production quadrature policy；若要求改变 production，先走独立迁移；
-3. 完成 FND-PHY-NB 和 FND-QA-CC，冻结 frequency/coefficient/cache identity；
-4. Foundation final verification 通过后再进入 P1A 几何系数缓存与矩阵求值；
-5. 随后完成相位误差和 P1C 扩展孔径研究，再扩展 XR/Factory/City。
+1. 执行 FND-QA-AP，冻结 production quadrature policy；若要求改变 production，先走独立迁移；
+2. 完成 FND-PHY-NB 和 FND-QA-CC，冻结 frequency/coefficient/cache identity；
+3. Foundation final verification 通过后再进入 P1A 几何系数缓存与矩阵求值；
+4. 随后完成相位误差和 P1C 扩展孔径研究，再扩展 XR/Factory/City。
 
 阶段顺序、entry/exit gate 和工作颗粒度以 [docs/roadmap.md](docs/roadmap.md) 为准。本页只
 记录状态，不新增需求或改变优先级。

@@ -191,7 +191,7 @@ link_metric_key = (
 缓存实现必须配套命中/失效测试；没有测试前不声称“已缓存”。
 
 P1A 不得把“每个 control patch 一个中心点”作为无版本的永久系数定义。Foundation
-FND-QA-AP 必须先冻结 `quadrature_policy_id/version`；P1A 缓存的是该 policy 积分得到的
+FND-QA-AP 已签署并冻结 `quadrature_policy_id/version`；P1A 缓存的是该 policy 积分得到的
 control-level `a_n`。若 policy 改变，cache 必须失效，旧实验必须通过 model/policy version 保留。
 
 若 QA 需要多点求积，候选内部数据流为：
@@ -202,6 +202,12 @@ QuadratureSpec -> subpoints + weights + parent_control_index
 subpoint field -> reduce to a_control[N_control]
 h_RIS = A_control @ Gamma_control
 ```
+
+FND-QA-AP-02 的内部候选 `QuadratureSpec` 至少携带 `rule`、`order_x`、`order_y`、确定性
+`sample_coordinates`、`weights` 和 `parent_control_index`；coordinates/weights/index 按
+parent-major、row-major 的稳定顺序排列。每个 subpoint 继承 parent control patch 的同一
+command coefficient，quadrature order 变化不得触发 Focus、量化、搜索或 pattern/hash 重建。
+这是内部 QA/implementation 边界，不改变 public phase-array API 或 `ris_patterns` shape。
 
 控制维度保持 `N_control=nx*ny`，quadrature samples 不获得独立 commanded phase。当前尚无公共
 `QuadratureSpec` 类型；rule/order/weights/version 和 blockage sampling ownership 必须由后续

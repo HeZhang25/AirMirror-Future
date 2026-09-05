@@ -61,7 +61,10 @@ path-role 和 experiment provenance。
 - control grid `nx/ny` 及其 flatten 顺序；
 - operating frequency、TX/RX 几何、天线 gain 和传播 Profile；
 - commanded pattern `Gamma_control`，包括量化后的离散状态；
-- Ground Truth realization、seed 和非 RIS baseline；
+- `ControllerModel` world/scene realization、C2 `random_seed` 和非 RIS baseline；
+- `GroundTruthModel` 不进入 QA-AP 主门禁。任何 GroundTruth 对照只能作为未来诊断，不得改变
+  本门禁的 commanded pattern、coefficient 或 pass/fail 结果；random legal pattern 使用独立
+  `pattern_seed`，不得把它写回或重解释为 C2 `random_seed`；
 - 当前统一标量 blockage factor（若使用）。
 
 只允许改变每个 control patch 内的 quadrature rule/order。求积细化时禁止重新生成 Focus、
@@ -69,9 +72,18 @@ path-role 和 experiment provenance。
 
 ### 4. 参考层级和术语
 
-求积层级至少包含 midpoint `1×1、2×2、4×4、8×8、16×16`，必要时增加 `32×32`。必须检查
-successive refinement，且至少使用一种独立规则（首选 tensor-product Gauss–Legendre）进行
-交叉验证。
+求积层级至少包含 midpoint `1×1、2×2、4×4、8×8、16×16`，必要时增加 `32×32`。基础
+cross-rule 固定为 tensor-product Gauss–Legendre `GL16×16`；仅当 `16×16` successive
+convergence 或 midpoint-vs-GL16 cross-rule 失败时，才增加 midpoint `32×32`，并同时运行
+匹配阶的 `GL32×32`。conditional reference 只有在 midpoint16→midpoint32 和 midpoint32↔GL32
+均通过时才能成立。
+
+Aggregate robust normalization 必须由 reference-only decomposition 构成，不能把 candidate
+quadrature values 纳入 scale。对固定 commanded `Gamma_control`、reference `a(ref)`、baseline
+`h_baseline` 和 aggregate floor，使用
+`S_RIS=max(sum(abs(a(ref)*Gamma_control)),abs(h_RIS(ref)),floor)` 以及
+`S_total=max(abs(h_baseline)+sum(abs(a(ref)*Gamma_control)),abs(h_total(ref)),floor)`；
+candidate/reference deep-null 均相对于该固定 scale 判断。
 
 最后一个稳定层级只能称为 **internal refined numerical reference**。它仍属于同一个系统级
 标量模型，不得称为 ground truth、electromagnetic truth、full-wave result 或 measurement。
