@@ -3,7 +3,7 @@
 - 层级：L4 Task（cross-cutting QA）
 - Task ID：FND-QA-AP
 - Requirement IDs：AMF-RIS-011
-- 状态：Ready
+- 状态：Verified（2026-09-06；FND-QA-AP-05/06 formal evidence and policy closure）
 - 父项：Foundation 0.1.1 Final Exit Gate；下游为 FND-QA-CC
 - 依赖：A2 Verified；ADR-0008 Accepted；正式执行依赖 A3、B、C Implemented 和 experiment
   provenance 可用
@@ -31,21 +31,43 @@ Electromagnetic/full-wave accuracy = Not claimed
 numerical 和 contract review 均 **PASS**，blocking issues **0**。签署配置为
 `configs/foundation_0_1_1/fnd_qa_ap_01_preregistration_v1.json`，config identity 为
 `sha256:94dd4bf50ff0a5c5246980577ef4731e2e5d8504fa44fa1f56c4282ff4113cf7`。
-FND-QA-AP-01 preregistration 已 signed/frozen；本 Work Item 状态为 **Ready**，表示
+FND-QA-AP-01 preregistration 已 signed/frozen；在该 Ready Review 时点，本 Work Item 状态为 **Ready**，表示
 QA-AP-02 implementation 可以开始，不表示 runner、正式 QA matrix、production quadrature
 或 AMF-RIS-011 已 Implemented/Verified。
 
+## FND-QA-AP-05/06 formal verification and policy closure
+
+2026-09-06：正式 v1 matrix run `20260906T094526-de4745c3` 与 frozen
+reference-resolution continuation `20260906T123708-78615a33` 均已完成并通过独立审查。
+84/84 preregistered series 获得 resolved numerical reference；M1 rejected，M2 rejected，
+M4 未达到全局 adequacy；M8 在 84/84 series 通过原 frozen production gates。
+
+据此，`AMF-RIS-011` / `FND-QA-AP` **Verified**，并签署以下 production quadrature policy：
+
+> 在每个既有 RIS control patch 内使用 midpoint `8×8` integration subpoints，作为
+> signed QA domain 内 minimum globally adequate production quadrature policy。
+
+这里的 `8×8` 是 control patch 内的积分细化，不增加 independent control cells、不改变
+`parent_control_index`、command vector size 或 control-level pattern semantics。该 closure
+只冻结 policy decision；production migration 尚未实施，当前 production default behavior
+保持不变。任何将该 policy 接入 production coefficient/Focus/simulator 的 migration 必须
+作为独立、可审查的后续变更完成。
+
+FND-QA-CC 必须在 production migration 完成后再进行最终 closure；本 QA-AP 结果不单独
+签署 Focus、Controller simulator 与 production coefficient builder 的组合一致性，也不解除
+FND-PHY-NB、FND-QA-CC 或 P1A gate。
+
 ## 状态与授权边界
 
-- 本工作项已达到 Ready；本文档和签署配置冻结的是 runner/测试/policy 的实现契约，不是
-  runner、正式 QA matrix 或 production policy 已实现的证据；
+- 本工作项已达到 **Verified**；本文档和正式结果冻结的是 signed QA domain 内的 runner、
+  测试和 production policy decision；不声称 electromagnetic/full-wave accuracy；
 - 创建本文档不改变 A1/A2、Foundation 0.1.1A、AMF-RIS-009 或 Foundation 0.1.1 的状态；
-- 只有后续 QA-AP-02..06 的自动证据、版本化结果和最终人工复核全部通过后，AMF-RIS-011
-  才能由 Implemented 提升为 Verified；
+- QA-AP-01..06 的自动证据、版本化结果和最终人工复核已完成，`AMF-RIS-011` 已提升为
+  **Verified**；
 - 若候选 policy 均未通过，Foundation 保持 In Progress，P1A 不得开始；
 - 不修改当前 `.py`、GUI、场景或默认 1×1 行为，除非后续独立 implementation Work Item 和 ADR
   明确授权。
-- 本工作项 Ready 不自动授权 P1A；FND-PHY-NB、FND-QA-CC 与 Foundation final review 仍须完成。
+- 本工作项 Verified 不自动授权 P1A；FND-PHY-NB、FND-QA-CC 与 Foundation final review 仍须完成。
 
 ## In / Out
 
@@ -275,8 +297,10 @@ fastest and `parent_control_index = iy*nx + ix`.
 
 ### FND-QA-AP-01 preregistration closure boundary
 
-The signed/frozen preregistration freezes the engineering contract and records the accepted policy;
-the enclosing config and Work Item are Ready after final independent Ready Review. It defines:
+At the 2026-09-05 Ready Review time, the signed/frozen preregistration froze the engineering
+contract and recorded the candidate-policy boundary; the enclosing config and Work Item were
+then **Ready**. The subsequent formal evidence and policy closure are recorded above. The
+preregistration defines:
 
 - runner module/entry point, complete-run-directory `--output`, default no-overwrite root,
   schema ID/version, raw/summary filenames, row granularity, and reference/raw linkage;
@@ -294,9 +318,10 @@ the enclosing config and Work Item are Ready after final independent Ready Revie
   `FND-PHY-NB/FND-QA-AP/FND-QA-CC`, candidate policy identity only, and no-overwrite.
 
 The runner contract and frozen values are recorded in
-`configs/foundation_0_1_1/fnd_qa_ap_01_preregistration_v1.json`; this file is explicitly
-`signed_frozen`/`Ready` and is not a baseline configuration, runner implementation, formal QA matrix
-result, production migration, or evidence of Verified status.
+`configs/foundation_0_1_1/fnd_qa_ap_01_preregistration_v1.json`; this file remains explicitly
+`signed_frozen`/`Ready` as a preregistration artifact and is not itself a baseline configuration,
+runner implementation, formal QA matrix result, production migration, or standalone evidence of
+Verified status.
 
 这些数值必须在查看正式结果之前冻结。正式结果失败后只能修复算法/模型，或通过 ADR 说明为何
 原阈值/适用域错误；不得静默放宽。
@@ -305,12 +330,12 @@ result, production migration, or evidence of Verified status.
 
 | Task | 状态 | 预计颗粒度 | 完成输出 |
 |---|---|---:|---|
-| `FND-QA-AP-01` 冻结矩阵、坐标、seeds、容差和 floor | Ready | 0.5–1 天 | signed QA config/review；independent final Ready Review PASS，blocking issues 0 |
-| `FND-QA-AP-02` 实现内部 QuadratureSpec/parent mapping | Implemented | 1–2 天 | 非 GUI、可测试内部 API；实现位于 `ris/quadrature.py` |
-| `FND-QA-AP-03` 实现 midpoint/GL runner 和 metrics | Implemented | 1–2 天 | versioned CSV/JSON summary；实现位于 `experiments/fnd_qa_ap_01.py` |
-| `FND-QA-AP-04` 增加 FND-T16..18 | Implemented | 1–2 天 | `tests/test_fnd_qa_ap.py` 定向契约/收敛/provenance 测试 |
-| `FND-QA-AP-05` 运行矩阵并审查异常 | Planned | 1 天 | results + review record |
-| `FND-QA-AP-06` 冻结 production policy/cache identity | Planned | 0.5–1 天 | PASS decision 或 blocking ADR |
+| `FND-QA-AP-01` 冻结矩阵、坐标、seeds、容差和 floor | Verified | 0.5–1 天 | signed QA config/review；independent final Ready Review PASS，blocking issues 0 |
+| `FND-QA-AP-02` 实现内部 QuadratureSpec/parent mapping | Verified | 1–2 天 | 非 GUI、可测试内部 API；实现位于 `ris/quadrature.py` |
+| `FND-QA-AP-03` 实现 midpoint/GL runner 和 metrics | Verified | 1–2 天 | versioned CSV/JSON summary；实现位于 `experiments/fnd_qa_ap_01.py` |
+| `FND-QA-AP-04` 增加 FND-T16..18 | Verified | 1–2 天 | `tests/test_fnd_qa_ap.py` 定向契约/收敛/provenance 测试 |
+| `FND-QA-AP-05` 运行矩阵并审查异常 | Verified | 1 天 | v1 formal results + review record |
+| `FND-QA-AP-06` 冻结 production policy/cache identity | Verified | 0.5–1 天 | signed M8 policy decision；production migration remains separate |
 
 若 implementation 需要改变生产散射公式，必须另建独立 Work Item；不得把 runner、生产迁移和
 P1A cache 混在一个提交中。迁移完成后还必须执行 FND-QA-CC，不能仅凭本 QA 结果推断 Focus
@@ -347,5 +372,7 @@ P1A cache 混在一个提交中。迁移完成后还必须执行 FND-QA-CC，不
 - [x] test、experiment、DoD：记录 QA 方法和 provenance；
 - [x] FND-QA-CC：记录 policy 签署后的 coefficient/Focus 一致性下游门禁；
 - [ ] GUI/scene schema：本工作项无修改；
-- [x] code/tests：QA-AP-02..04 已 Implemented；正式 QA-AP-05 full matrix 与 production policy decision 仍未执行。
-- [ ] results：正式 QA-AP-05 矩阵结果尚未生成；当前仅完成 lightweight runner smoke。
+- [x] code/tests：QA-AP-02..04 已完成并通过定向验证；正式 v1 matrix 与 reference-resolution
+  continuation 已完成审查，未修改 production implementation。
+- [x] results：v1 formal run `20260906T094526-de4745c3` 与 continuation
+  `20260906T123708-78615a33` 已生成并作为不可修改历史证据保留。

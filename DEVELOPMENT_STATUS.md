@@ -2,13 +2,33 @@
 
 | 属性 | 值 |
 |---|---|
-| 状态快照 | 2026-09-05 |
+| 状态快照 | 2026-09-06 |
 | 当前 release | v0.1 |
 | release 状态 | Verified |
 | 规范基线 | [docs/README.md](docs/README.md) |
-| 当前 Capability | Foundation 0.1.1C overall In Progress：C1 Verified，C2 Verified；FND-QA-AP-01 preregistration signed/frozen（independent final Ready Review PASS，blocking issues 0）；FND-QA-AP-02..04 Implemented，FND-QA-AP overall 未 Verified；Foundation overall In Progress；FND-PHY-NB/FND-QA-CC Planned；P1A gate closed |
+| 当前 Capability | Foundation 0.1.1C overall In Progress：C1 Verified，C2 Verified；FND-QA-AP-01 preregistration signed/frozen，FND-QA-AP-02..06 Verified；signed M8×8 production quadrature policy（production migration pending）；Foundation overall In Progress；FND-PHY-NB/FND-QA-CC Planned；P1A gate closed |
 
-## Foundation FND-QA-AP-01 preregistration final closure
+## Foundation FND-QA-AP-05/06 formal verification and policy closure
+
+2026-09-06：FND-QA-AP formal v1 run `20260906T094526-de4745c3` 与 frozen
+reference-resolution continuation `20260906T123708-78615a33` 已完成并通过独立审查。84/84
+preregistered series 均获得 resolved numerical reference；M1、M2 rejected，M4 未达到全局
+adequacy，M8 通过 84/84 series。
+
+因此 `AMF-RIS-011` / `FND-QA-AP` 现为 **Verified**。签署的 policy wording 为：
+
+> 每个既有 RIS control patch 内使用 midpoint `8×8` integration subpoints；这是 signed QA
+> domain 内 minimum globally adequate production quadrature policy。`8×8` 只表示 patch 内
+> integration refinement，不增加 control cells，不改变 command vector size 或 pattern
+> semantics。
+
+该结论是 policy closure，不是 production migration。当前 production quadrature/default
+behavior 未改变；如需接入 production coefficient、Focus 或 simulator，必须另行完成独立
+migration 和审查。FND-QA-CC 必须在 production migration 完成后再最终 closure；本结论不
+单独签署 Focus/simulator/coefficient builder 一致性，不解除 FND-PHY-NB、FND-QA-CC 或 P1A
+gate。v1 与 continuation result artifacts 保持不可修改历史证据。
+
+## Foundation FND-QA-AP-01 preregistration final closure（历史记录）
 
 2026-09-05：FND-QA-AP-01 preregistration、independent physics review、independent numerical
 review 和 independent contract review 均 **PASS**，blocking issues **0**。签署配置为
@@ -16,10 +36,11 @@ review 和 independent contract review 均 **PASS**，blocking issues **0**。�
 状态为 `Ready` / `signed` / `frozen`，config identity 为
 `sha256:94dd4bf50ff0a5c5246980577ef4731e2e5d8504fa44fa1f56c4282ff4113cf7`。
 
-据此，`FND-QA-AP-01` preregistration closure 为 **PASS**，`FND-QA-AP` 由 **Planned** 提升为
-**Ready**。Ready 仅表示 QA-AP-02 implementation 可以开始；本轮未实现 QuadratureSpec、parent
-mapping、runner 或正式 QA matrix，未进行 production quadrature migration，且不代表
-FND-QA-AP 或 `AMF-RIS-011` 已 Implemented/Verified。
+据此，`FND-QA-AP-01` preregistration closure 为 **PASS**，`FND-QA-AP` 在该历史时点由
+**Planned** 提升为 **Ready**。Ready 仅表示 QA-AP-02 implementation 可以开始；该时点尚未
+实现 QuadratureSpec、parent mapping、runner 或正式 QA matrix，未进行 production quadrature
+migration，且不代表 FND-QA-AP 或 `AMF-RIS-011` 已 Implemented/Verified。当前状态见上方
+2026-09-06 FND-QA-AP-05/06 closure。
 
 签署后，v1 的 numerical thresholds、floors、geometry、seeds、generator/hash、series identity、
 midpoint/GL hierarchy、normalization/null、aggregation/pass-fail 和 performance budgets 均为
@@ -439,8 +460,8 @@ Implemented/Verified。
 
 ## 下一阶段
 
-1. 执行 FND-QA-AP，冻结 production quadrature policy；若要求改变 production，先走独立迁移；
-2. 完成 FND-PHY-NB 和 FND-QA-CC，冻结 frequency/coefficient/cache identity；
+1. 如需将 signed M8×8 policy 接入 production，先完成独立、可审查的 production migration；
+2. 完成 FND-PHY-NB 和 FND-QA-CC，冻结 frequency/coefficient/cache identity；QA-CC 须在 production migration 后最终 closure；
 3. Foundation final verification 通过后再进入 P1A 几何系数缓存与矩阵求值；
 4. 随后完成相位误差和 P1C 扩展孔径研究，再扩展 XR/Factory/City。
 
