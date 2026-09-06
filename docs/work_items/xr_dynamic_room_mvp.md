@@ -5,6 +5,9 @@
 Non-release prototype / vertical slice，用于尽快验证第一个可运行 XR 场景。它不修改正式
 release gate，不表示 Foundation、P1A 或 formal v0.2 entry gate 已满足。
 
+Prototype 状态：**Implemented / exit condition met**；该状态只表示本 work item 的 headless
+vertical slice 可运行，不是 release capability 的 Completed/Verified。
+
 ## Entry condition
 
 - FND-QA-AP 已 Verified，production quadrature policy 已 signed/frozen 为每个既有 RIS control
@@ -19,8 +22,8 @@ release gate，不表示 Foundation、P1A 或 formal v0.2 entry gate 已满足�
 - No RIS：在对照计算中禁用 RIS contribution；
 - Static RIS：在轨迹第一个 sample / initial RX position，通过现有默认 model-based Focus path
   生成一次 legal commanded pattern，并在整条轨迹中原样保持该 pattern，不重新计算；
-- Adaptive RIS 仅在容易复用当前接口时纳入，不作为第一版必需项；如后续纳入，必须与 Static
-  RIS 明确区分，并随 RX position 变化通过现有接口重新计算 commanded pattern；
+- Adaptive RIS 第一版未实现，保持 **deferred for scene-first MVP**；如后续纳入，必须与
+  Static RIS 明确区分，并随 RX position 变化通过现有接口重新计算 commanded pattern；
 - 使用当前 center-frequency narrowband channel behavior；不作 wideband / OFDM claim，
   FND-PHY-NB formal closure 保持 **deferred for scene-first MVP**；
 - 复用现有 Scene / SimulationEngine / RIS / Pattern / metrics。
@@ -43,6 +46,9 @@ release gate，不表示 Foundation、P1A 或 formal v0.2 entry gate 已满足�
 - headless CSV；
 - PNG result。
 
+可运行入口为 `python -m airmirror_future.experiments.xr_dynamic_room_mvp`；默认使用 exclusive
+no-overwrite 的 `results/prototypes/xr_dynamic_room_mvp/<run_id>/`，生成 artifact 不提交。
+
 ## Non-goals
 
 - 不实现 formal v0.2 XR release capability 或解除其 entry gate；
@@ -54,3 +60,6 @@ release gate，不表示 Foundation、P1A 或 formal v0.2 entry gate 已满足�
 同一确定性轨迹可用现有引擎重放 No RIS 与 Static RIS，输出完整 CSV 和 PNG，received power(t)
 与 SNR(t) 可比较并可重复；Adaptive RIS 若未能直接复用现有接口可保持延期。
 Foundation overall 仍为 In Progress，P1A formal gate 仍 closed，formal v0.2 gate not satisfied。
+
+该条件已由 deterministic/reproducibility、Static pattern freeze、No RIS disabled contribution、
+shared-condition、finite-output 与 headless artifact tests，以及一次实际 headless run 满足。

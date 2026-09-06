@@ -126,7 +126,15 @@ midpoint `8×8` 已接入 production；FND-PHY-NB、FND-QA-CC 与其余 Foundati
 python -m airmirror_future.experiments.phase_bits --output results/phase_bits
 ```
 
-孔径、相位误差、RIS 数量和动态用户实验属于后续里程碑，目前未提供假入口。
+non-release XR Dynamic Room MVP 可重放同一条确定性轨迹上的 No RIS / Static RIS，并输出
+received power(t)、SNR(t) CSV 与双 panel PNG：
+
+```powershell
+python -m airmirror_future.experiments.xr_dynamic_room_mvp
+```
+
+该入口不是 formal v0.2 XR；Adaptive RIS、人体/头部模型、Doppler、fading、wideband/OFDM
+均未实现。孔径、相位误差、RIS 数量和 formal Dynamic User 实验仍属于后续里程碑。
 
 ## 四个目标场景与路线图
 

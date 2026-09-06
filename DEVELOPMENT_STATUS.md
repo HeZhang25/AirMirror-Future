@@ -7,7 +7,7 @@
 | release 状态 | Verified |
 | 规范基线 | [docs/README.md](docs/README.md) |
 | 当前 Capability | Foundation 0.1.1C overall In Progress：C1 Verified，C2 Verified；FND-QA-AP-01 preregistration signed/frozen，FND-QA-AP-02..06 Verified；signed midpoint 8×8 production quadrature policy 已接入 production RIS scattering；Foundation overall In Progress；FND-PHY-NB/FND-QA-CC Planned；P1A gate closed |
-| Prototype lane | M8 production migration 已完成，XR Dynamic Room MVP entry condition 已满足；仍只允许 non-release prototype；FND-PHY-NB / FND-QA-CC Planned / deferred for scene-first MVP；P1A formal gate closed；formal v0.2 gate not satisfied |
+| Prototype lane | XR Dynamic Room MVP 已 Implemented / exit condition met，仅为 non-release prototype；FND-PHY-NB / FND-QA-CC Planned / deferred for scene-first MVP；P1A formal gate closed；formal v0.2 gate not satisfied |
 
 ## Foundation FND-QA-AP-05/06 formal verification and policy closure
 
@@ -55,9 +55,11 @@ release gate，也不跳过后续 Foundation/P1 工作。以下阶段可在 prot
 Foundation Final Verification、P1A、P1B、P1C。P1A formal gate 继续 **closed**。
 
 第一版仅覆盖 1 indoor room、1 TX、1 RIS、1 moving RX/user、deterministic `position(t)`、
-No RIS / Static RIS；Adaptive RIS 仅在可直接复用当前接口时纳入。输出为 received power(t)、
-SNR(t)、headless CSV 与 PNG。实现必须复用现有 Scene / SimulationEngine / RIS / Pattern /
-metrics，不得建立第二套 propagation engine 或 coefficient system。范围与退出条件见
+No RIS / Static RIS；Adaptive RIS 未实现并保持 deferred。headless runner 复用 Current Smart
+Space Scene、production `SimulationEngine` / midpoint M8 scattering、`ControllerModel` 与默认
+`generate_coherent_target_pattern`，在 initial RX 生成一次 legal command，并在 11 个轨迹点原样
+复用。输出为 received power(t)、SNR(t)、CSV 与双 panel PNG；未建立第二套 propagation engine、
+coefficient system 或 scene framework。范围与退出条件见
 [XR Dynamic Room MVP Work Item](docs/work_items/xr_dynamic_room_mvp.md)。
 
 ## Foundation FND-QA-AP-01 preregistration final closure（历史记录）
@@ -485,7 +487,7 @@ Implemented/Verified。
 
 ## 尚未实现
 
-- XR、Factory、City 场景；XR Dynamic Room MVP 目前仅已规划为 non-release prototype，尚未实现；
+- formal v0.2 XR、Factory、City 场景；XR Dynamic Room MVP 仅已实现为 non-release prototype；
 - 多 RIS 联合优化和 max-min 用户目标；
 - 衍射、双 RIS 连续反射、宽带、active/STAR/space-time RIS；
 - Aperture、Phase Error、RIS Count、Dynamic User 四组批量实验。
@@ -496,7 +498,8 @@ Implemented/Verified。
 Foundation Final Verification → P1A → formal v0.2 XR。P1A formal gate 保持 closed，formal
 v0.2 gate 未满足。
 
-prototype 快线：M8 production migration → XR Dynamic Room MVP，entry condition 现已满足。
+prototype 快线：M8 production migration → XR Dynamic Room MVP，现已达到 prototype exit
+condition；这不构成正式 gate evidence。
 FND-PHY-NB、FND-QA-CC、
 Foundation Final Verification、P1A、P1B、P1C 可在 MVP 后补回，状态统一为
 **deferred for scene-first MVP**；该快线不提升任何正式 gate 状态。
