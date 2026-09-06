@@ -61,6 +61,7 @@ PRODUCTION_TOLERANCE = 0.01
 MAGNITUDE_TOLERANCE_DB = 0.1
 PHASE_TOLERANCE_RAD = 0.05
 DEEP_NULL_RATIO = 0.001
+BLOCKAGE_MODE = "uniform_scalar_or_none"
 MIDPOINT_ORDERS = ((1, 1), (2, 2), (4, 4), (8, 8), (16, 16))
 THREAD_ENVIRONMENT = {
     "OMP_NUM_THREADS": "1",
@@ -102,39 +103,17 @@ def _require_finite_array(value: object, name: str) -> np.ndarray:
     return result
 
 
-def _process_peak_rss_mb() -> float | None:
-    """Return process peak RSS/Windows peak working set in MiB when available."""
+def _windows_memory_mb() -> tuple[float, float] | None:
+    """Return current and lifetime peak working set in MiB on Windows."""
     try:
         if os.name == "nt":
-            class _Counters(ctypes.Structure):
-                _fields_ = [
-                    ("cb", ctypes.c_ulong),
-                    ("PageFaultCount", ctypes.c_ulong),
-                    ("PeakWorkingSetSize", ctypes.c_size_t),
-                    ("WorkingSetSize", ctypes.c_size_t),
-                    ("QuotaPeakPagedPoolUsage", ctypes.c_size_t),
-                    ("QuotaPagedPoolUsage", ctypes.c_size_t),
-                    ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
-                    ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
-                    ("PagefileUsage", ctypes.c_size_t),
-                    ("PeakPagefileUsage", ctypes.c_size_t),
-                ]
-
-            counters = _Counters()
-            counters.cb = ctypes.sizeof(_Counters)
-            psapi = ctypes.WinDLL("psapi", use_last_error=True)
-            get_current_process = ctypes.windll.kernel32.GetCurrentProcess
-            get_current_process.argtypes = []
-            get_current_process.restype = wintypes.HANDLE
-            get_info = psapi.GetProcessMemoryInfo
-            get_info.argtypes = [wintypes.HANDLE, ctypes.POINTER(_Counters), wintypes.DWORD]
-            get_info.restype = wintypes.BOOL
-            if not get_info(get_current_process(), ctypes.byref(counters), counters.cb):
+            counters = _PROCESS_MEMORY_COUNTERS_EX()
+            counters.cb = ctypes.sizeof(_PROCESS_MEMORY_COUNTERS_EX)
+            get_info = _get_process_memory_info()
+            if not get_info(_get_current_process_handle(), ctypes.byref(counters), counters.cb):
                 return None
-            # WorkingSetSize is sampled at scope boundaries and accumulated by
-            # _PeakRSSMeter.  Using the current working set keeps separate
-            # conditional-32 measurements from contaminating the base scope.
-            return float(counters.WorkingSetSize) / (1024.0 * 1024.0)
+            factor = 1024.0 * 1024.0
+            return float(counters.WorkingSetSize) / factor, float(counters.PeakWorkingSetSize) / factor
         # ru_maxrss is KiB on Linux and bytes on macOS/BSD.
         if _resource is None:
             return None
@@ -143,24 +122,113 @@ def _process_peak_rss_mb() -> float | None:
             value /= 1024.0 * 1024.0
         else:
             value /= 1024.0
-        return value
+        return value, value
     except (AttributeError, OSError, TypeError, ValueError):
         return None
 
 
+class _PROCESS_MEMORY_COUNTERS_EX(ctypes.Structure):
+    _fields_ = [
+        ("cb", ctypes.c_ulong),
+        ("PageFaultCount", ctypes.c_ulong),
+        ("PeakWorkingSetSize", ctypes.c_size_t),
+        ("WorkingSetSize", ctypes.c_size_t),
+        ("QuotaPeakPagedPoolUsage", ctypes.c_size_t),
+        ("QuotaPagedPoolUsage", ctypes.c_size_t),
+        ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
+        ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+        ("PagefileUsage", ctypes.c_size_t),
+        ("PeakPagefileUsage", ctypes.c_size_t),
+        ("PrivateUsage", ctypes.c_size_t),
+    ]
+
+
+_GET_PROCESS_MEMORY_INFO: Any = None
+_GET_CURRENT_PROCESS: Any = None
+
+
+def _get_process_memory_info() -> Any:
+    """Load GetProcessMemoryInfo once; sampling must not reload psapi."""
+    global _GET_PROCESS_MEMORY_INFO
+    if _GET_PROCESS_MEMORY_INFO is None:
+        psapi = ctypes.WinDLL("psapi", use_last_error=True)
+        get_info = psapi.GetProcessMemoryInfo
+        get_info.argtypes = [
+            wintypes.HANDLE,
+            ctypes.POINTER(_PROCESS_MEMORY_COUNTERS_EX),
+            wintypes.DWORD,
+        ]
+        get_info.restype = wintypes.BOOL
+        _GET_PROCESS_MEMORY_INFO = get_info
+    return _GET_PROCESS_MEMORY_INFO
+
+
+def _get_current_process_handle() -> Any:
+    global _GET_CURRENT_PROCESS
+    if _GET_CURRENT_PROCESS is None:
+        get_current_process = ctypes.windll.kernel32.GetCurrentProcess
+        get_current_process.argtypes = []
+        get_current_process.restype = wintypes.HANDLE
+        _GET_CURRENT_PROCESS = get_current_process
+    return _GET_CURRENT_PROCESS()
+
+
+def _process_working_set_mb() -> float | None:
+    memory = _windows_memory_mb()
+    return None if memory is None else memory[0]
+
+
+def _process_peak_rss_mb() -> float | None:
+    """Return the OS-reported process peak RSS/working set in MiB."""
+    memory = _windows_memory_mb()
+    return None if memory is None else memory[1]
+
+
 class _PeakRSSMeter:
-    """Cheap single-threaded peak measurement for one scoped operation."""
+    """Measure one scope using OS lifetime peak plus boundary working-set checks.
+
+    ``PeakWorkingSetSize`` is maintained by Windows for the process and catches
+    peaks between Python checkpoints.  Each scope snapshots that counter at
+    entry; ``checkpoint`` resets only the scope baseline, allowing the run meter
+    to exclude conditional-32 work while continuing to measure later base
+    series.  No worker thread is created, so numerical execution remains a
+    single process with the frozen BLAS/OpenMP environment.
+    """
 
     def __init__(self) -> None:
-        self.peak = _process_peak_rss_mb()
+        self.peak = _process_working_set_mb()
+        self._os_peak_at_start = _process_peak_rss_mb()
 
     def sample(self) -> None:
-        value = _process_peak_rss_mb()
+        value = _process_working_set_mb()
         if value is not None:
             self.peak = value if self.peak is None else max(self.peak, value)
 
-    def finish(self) -> float | None:
-        self.sample()
+    def _capture_os_peak(self) -> None:
+        """Fold the current OS lifetime peak into this scope's result."""
+        os_peak = _process_peak_rss_mb()
+        if os_peak is not None and (
+            self._os_peak_at_start is None or os_peak > self._os_peak_at_start
+        ):
+            self.peak = os_peak if self.peak is None else max(self.peak, os_peak)
+
+    def checkpoint(self, *, include_os_peak: bool = True) -> None:
+        """Close the current OS peak interval and start a fresh one.
+
+        ``include_os_peak=False`` is used immediately after conditional 32x32
+        work so the lifetime counter raised by that conditional block becomes
+        the new baseline instead of contaminating the base run scope.
+        """
+        if include_os_peak:
+            self._capture_os_peak()
+        self._os_peak_at_start = _process_peak_rss_mb()
+
+    def finish(self, *, include_current: bool = True, include_os_peak: bool = True) -> float | None:
+        if include_current:
+            self.sample()
+        if include_os_peak:
+            # The OS lifetime counter catches peaks between sampler ticks.
+            self._capture_os_peak()
         return self.peak
 
 
@@ -490,6 +558,7 @@ def run(output: Path | None = None, *, generations: Iterable[str] = ("Current", 
                 # is the frozen series scope, not merely the refinement loop.
                 series_started = time.perf_counter()
                 series_meter = _PeakRSSMeter()
+                series_had_conditional = False
                 if pattern_class == "random_legal":
                     pattern = deterministic_random_pattern(ris, generation, geometry_case, int(pattern_seed))
                     focus_callable = generate_ris_only_focus_pattern
@@ -524,7 +593,13 @@ def run(output: Path | None = None, *, generations: Iterable[str] = ("Current", 
                     # Conditional 32x32 is measured separately and is not part
                     # of the base run wall-time scope.
                     run_meter.sample()
+                    run_meter.checkpoint()
                     run_rss_sampling_enabled = False
+                    series_had_conditional = True
+                    # Close the base portion of this series before the
+                    # conditional extension; its later OS counter must not
+                    # reclassify conditional memory as series-base memory.
+                    series_meter.checkpoint()
                     conditional_meter = _PeakRSSMeter()
                     conditional_started = time.perf_counter()
                     for rule, ox, oy in (("midpoint", 32, 32), ("tensor_product_gauss_legendre", 32, 32)):
@@ -538,11 +613,13 @@ def run(output: Path | None = None, *, generations: Iterable[str] = ("Current", 
                         row32["successive"] = compare_to_reference(row32, rows[-2])
                         rows.append(row32)
                         conditional_meter.sample()
-                        series_meter.sample()
                     conditional_32_runtime_s += time.perf_counter() - conditional_started
                     conditional_rss = conditional_meter.finish()
                     if conditional_rss is not None:
                         conditional_32_peak_rss_mb = conditional_rss if conditional_32_peak_rss_mb is None else max(conditional_32_peak_rss_mb, conditional_rss)
+                    run_meter.checkpoint(include_os_peak=False)
+                    series_meter.checkpoint(include_os_peak=False)
+                    run_rss_sampling_enabled = False
                     try:
                         reference = select_internal_reference(rows)
                         reference_label = "internal_refined_numerical_reference"
@@ -557,6 +634,7 @@ def run(output: Path | None = None, *, generations: Iterable[str] = ("Current", 
                 artifact_records.append({
                     "reference_row_id": ref_id,
                     "series_identity": series_identity,
+                    "blockage_mode": BLOCKAGE_MODE,
                     "pattern_hash": series_fields["pattern_hash"],
                     "quadrature_rule": reference["quadrature_rule"],
                     "quadrature_order_x": reference["quadrature_order_x"],
@@ -592,7 +670,10 @@ def run(output: Path | None = None, *, generations: Iterable[str] = ("Current", 
                     )
                     raw_rows.append({"qa_schema_id": QA_SCHEMA_ID, "qa_schema_version": QA_SCHEMA_VERSION, "run_id": run_id, "generation": generation, "geometry_case": geometry_case, "focus_target_rx_x_m": focus_rx.position.x, "focus_target_rx_y_m": focus_rx.position.y, "focus_target_rx_z_m": focus_rx.position.z, "evaluation_rx_x_m": evaluation_rx.position.x, "evaluation_rx_y_m": evaluation_rx.position.y, "evaluation_rx_z_m": evaluation_rx.position.z, "tx_x_m": scene.transmitter().position.x, "tx_y_m": scene.transmitter().position.y, "tx_z_m": scene.transmitter().position.z, "ris_center_x_m": ris.position.x, "ris_center_y_m": ris.position.y, "ris_center_z_m": ris.position.z, "frequency_hz": scene.frequency_hz, "width_m": ris.width_m, "height_m": ris.height_m, "nx": ris.nx, "ny": ris.ny, "pattern_class": pattern_class, "pattern_seed": "" if pattern_seed is None else pattern_seed, "pattern_hash": series_fields["pattern_hash"], "series_identity": series_identity, "random_seed": scene.random_seed, "world_model_id": "controller_nominal", "profile_id": "", "profile_version": "", "profile_identity": "", "reflection_model_id": "", "reflection_model_version": "", "channel_frequency_model_id": "", "quadrature_policy_id": QUADRATURE_POLICY_ID, "quadrature_policy_version": QUADRATURE_POLICY_VERSION, "quadrature_rule": row["quadrature_rule"], "quadrature_order_x": row["quadrature_order_x"], "quadrature_order_y": row["quadrature_order_y"], "reference_label": reference_label if row is reference else "", "reference_row_id": ref_id, "reference_a_inf_norm": metrics["reference_a_inf_norm"], "a_inf_abs_error": metrics["a_inf_abs_error"], "a_inf_robust_rel_error": metrics["a_inf_robust_rel_error"], "a_normalization_floor_active": metrics["a_normalization_floor_active"], "a_successive_inf_robust_rel_error": successive.get("a_inf_robust_rel_error", ""), "h_ris_real": row["h_ris"].real, "h_ris_imag": row["h_ris"].imag, "h_total_real": row["h_total"].real, "h_total_imag": row["h_total"].imag, "h_ris_abs_error": abs(row["h_ris"] - reference["h_ris"]), "h_total_abs_error": abs(row["h_total"] - reference["h_total"]), "complex_robust_rel_error_h_ris": metrics["complex_robust_rel_error_h_ris"], "complex_robust_rel_error_h_total": metrics["complex_robust_rel_error_h_total"], "normalization_floor_active_h_ris": metrics["normalization_floor_active_h_ris"], "normalization_floor_active_h_total": metrics["normalization_floor_active_h_total"], "successive_robust_rel_error_h_ris": successive.get("complex_robust_rel_error_h_ris", ""), "successive_robust_rel_error_h_total": successive.get("complex_robust_rel_error_h_total", ""), "magnitude_error_db_h_ris": metrics["magnitude_error_db_h_ris"], "magnitude_error_db_h_total": metrics["magnitude_error_db_h_total"], "phase_error_rad_h_ris": metrics["phase_error_rad_h_ris"], "phase_error_rad_h_total": metrics["phase_error_rad_h_total"], "ris_only_power_dbm": ris_power_dbm, "total_received_power_dbm": total_power_dbm, "ris_gain_db": None if gain_null else total_power_dbm - baseline_power_dbm, "deep_null_ratio_h_ris": DEEP_NULL_RATIO, "deep_null_ratio_h_total": DEEP_NULL_RATIO, "status": "pass" if candidate_status else "fail", "reason": reason, "quadrature_runtime_s": row["quadrature_runtime_s"], "quadrature_peak_rss_mb": row["quadrature_peak_rss_mb"]})
                 series_runtime_by_identity[series_identity] = time.perf_counter() - series_started
-                series_peak_rss_by_identity[series_identity] = series_meter.finish()
+                series_peak_rss_by_identity[series_identity] = series_meter.finish(
+                    include_current=not series_had_conditional,
+                    include_os_peak=True,
+                )
                 for base_row in rows[:6]:
                     rss = base_row.get("quadrature_peak_rss_mb")
                     if rss is not None:
@@ -603,6 +684,12 @@ def run(output: Path | None = None, *, generations: Iterable[str] = ("Current", 
                         raw_row["series_peak_rss_mb"] = series_peak_rss_by_identity[series_identity]
                 if run_rss_sampling_enabled:
                     run_meter.sample()
+                else:
+                    # Once a conditional block has run, use only the OS
+                    # lifetime counter for later base work.  Sampling current
+                    # working set here could retain conditional allocations in
+                    # the base peak field.
+                    run_meter._capture_os_peak()
     if provenance_engine is None or provenance_scene is None:
         raise ValueError("runner matrix is empty")
     provenance = _build_provenance_fields(engine=provenance_engine, scene=provenance_scene, focus=generate_ris_only_focus_pattern, world=ControllerModel(), run_id=run_id, quadrature_policy_id=QUADRATURE_POLICY_ID, quadrature_policy_version=QUADRATURE_POLICY_VERSION, coefficient_model_identity="candidate:controller_coefficient_v1")
@@ -650,10 +737,10 @@ def run(output: Path | None = None, *, generations: Iterable[str] = ("Current", 
         record["run_runtime_s"] = time.perf_counter() - started_run - conditional_32_runtime_s
         record["run_peak_rss_mb"] = run_peak_rss_mb
     _assert_json_finite(summary_records)
-    summary_path.write_text(json.dumps({"qa_schema_id": QA_SCHEMA_ID, "qa_schema_version": QA_SCHEMA_VERSION, "run_id": run_id, "provenance_status": "partial", "pending_contracts": ["FND-PHY-NB", "FND-QA-AP", "FND-QA-CC"], "reference_artifact_identity": artifact_identity, "records": summary_records}, allow_nan=False, default=str, separators=(",", ":")), encoding="utf-8")
+    summary_path.write_text(json.dumps({"qa_schema_id": QA_SCHEMA_ID, "qa_schema_version": QA_SCHEMA_VERSION, "run_id": run_id, "blockage_mode": BLOCKAGE_MODE, "provenance_status": "partial", "pending_contracts": ["FND-PHY-NB", "FND-QA-AP", "FND-QA-CC"], "reference_artifact_identity": artifact_identity, "records": summary_records}, allow_nan=False, default=str, separators=(",", ":")), encoding="utf-8")
     run_path = output_path / "fnd_qa_ap_01_run.json"
     run_elapsed = time.perf_counter() - started_run - conditional_32_runtime_s
-    run_metadata = {"qa_schema_id": QA_SCHEMA_ID, "qa_schema_version": QA_SCHEMA_VERSION, "run_id": run_id, "run_runtime_s": run_elapsed, "run_peak_rss_mb": run_peak_rss_mb, "peak_memory_method": "windows_working_set" if os.name == "nt" else "resource_ru_maxrss", "python": platform.python_version(), "os": platform.platform(), "blas_environment": effective_environment, "base_minimum_matrix_wall_budget_h": 8, "conditional_32_runtime_s": conditional_32_runtime_s, "conditional_32_peak_rss_mb": conditional_32_peak_rss_mb}
+    run_metadata = {"qa_schema_id": QA_SCHEMA_ID, "qa_schema_version": QA_SCHEMA_VERSION, "run_id": run_id, "blockage_mode": BLOCKAGE_MODE, "run_runtime_s": run_elapsed, "run_peak_rss_mb": run_peak_rss_mb, "peak_memory_method": "windows_peak_working_set_counter" if os.name == "nt" else "resource_ru_maxrss", "peak_memory_units": "MiB", "python": platform.python_version(), "os": platform.platform(), "blas_environment": effective_environment, "base_minimum_matrix_wall_budget_h": 8, "conditional_32_runtime_s": conditional_32_runtime_s, "conditional_32_peak_rss_mb": conditional_32_peak_rss_mb}
     _assert_json_finite(run_metadata)
     run_path.write_text(json.dumps(run_metadata, allow_nan=False, default=str, separators=(",", ":")), encoding="utf-8")
     return raw_path, summary_path, run_path

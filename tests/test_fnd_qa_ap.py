@@ -160,6 +160,56 @@ def test_runner_runtime_rss_and_reference_identity_metadata(tmp_path: Path) -> N
     assert metadata["conditional_32_runtime_s"] >= 0.0
 
 
+def test_peak_memory_measurement_and_blockage_provenance(tmp_path: Path) -> None:
+    import airmirror_future.experiments.fnd_qa_ap_01 as qa
+
+    measured = qa._process_peak_rss_mb()
+    assert measured is None or measured > 0.0
+    raw_path, summary_path, run_path = run(
+        tmp_path / "peak-contract",
+        generations=("Current",),
+        geometry_cases=("near_field",),
+        include_random=False,
+    )
+    with raw_path.open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    assert rows and "blockage_mode" not in rows[0]
+    assert all(row["quadrature_peak_rss_mb"] for row in rows)
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert summary["blockage_mode"] == "uniform_scalar_or_none"
+    metadata = json.loads(run_path.read_text(encoding="utf-8"))
+    assert metadata["blockage_mode"] == "uniform_scalar_or_none"
+    assert metadata["peak_memory_method"] in {"windows_peak_working_set_counter", "resource_ru_maxrss"}
+    assert metadata["peak_memory_units"] == "MiB"
+    artifacts = json.loads((raw_path.parent / "fnd_qa_ap_01_coefficients.json").read_text(encoding="utf-8"))
+    assert artifacts and {record["blockage_mode"] for record in artifacts} == {"uniform_scalar_or_none"}
+
+
+def test_peak_rss_meter_excludes_conditional_and_captures_later_base(monkeypatch: pytest.MonkeyPatch) -> None:
+    import airmirror_future.experiments.fnd_qa_ap_01 as qa
+
+    state = {"working": 10.0, "peak": 10.0}
+    monkeypatch.setattr(qa, "_process_working_set_mb", lambda: state["working"])
+    monkeypatch.setattr(qa, "_process_peak_rss_mb", lambda: state["peak"])
+
+    base = qa._PeakRSSMeter()
+    state.update(working=20.0, peak=20.0)
+    base.sample()
+    base.checkpoint()
+
+    state.update(working=90.0, peak=90.0)
+    conditional = qa._PeakRSSMeter()
+    state.update(working=95.0, peak=95.0)
+    assert conditional.finish() == pytest.approx(95.0)
+
+    base.checkpoint(include_os_peak=False)
+    state.update(working=30.0, peak=95.0)
+    assert base.finish() == pytest.approx(30.0)
+
+    state.update(working=40.0, peak=110.0)
+    assert base.finish() == pytest.approx(110.0)
+
+
 def test_deep_null_reason_and_ris_gain_use_reference_only_total_scale() -> None:
     reference = {
         "a": np.array([1 + 0j, -1 + 0j]),
@@ -220,11 +270,13 @@ def test_runner_smoke_writes_partial_c2_artifacts_and_refuses_overwrite(tmp_path
     assert {row["provenance_status"] for row in rows} == {"partial"}
     assert {row["quadrature_policy_id"] for row in rows} == {"fnd_qa_ap_candidate"}
     assert all("FND-QA-CC" in row["pending_contracts_json"] for row in rows)
+    assert "blockage_mode" not in rows[0]
     assert {row["pattern_seed"] for row in rows} == {""}
     assert len({row["series_identity"] for row in rows}) == 2
     assert len({row["pattern_hash"] for row in rows}) == 2
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
     assert summary["provenance_status"] == "partial"
+    assert summary["blockage_mode"] == "uniform_scalar_or_none"
     assert summary["reference_artifact_identity"].startswith("sha256:")
 
     with pytest.raises(FileExistsError):
