@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 import math
 
 import numpy as np
 from PySide6.QtCore import QPointF, Qt
-from PySide6.QtGui import QColor, QImage, QPen, QPixmap
+from PySide6.QtGui import QBrush, QColor, QImage, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (
     QGraphicsEllipseItem,
     QGraphicsItem,
     QGraphicsLineItem,
+    QGraphicsPathItem,
     QGraphicsPixmapItem,
     QGraphicsRectItem,
     QGraphicsScene,
@@ -98,6 +99,11 @@ class SceneView(QGraphicsView):
         self._gain_legend_gmax_db: float | None = None
         self._show_labels = True
         self._show_rays = True
+        self._entities_draggable = True
+        self._entity_items: dict[str, QGraphicsItem] = {}
+        self._entity_labels: dict[str, QGraphicsSimpleTextItem] = {}
+        self._trajectory_path: QGraphicsPathItem | None = None
+        self._trajectory_markers: list[QGraphicsEllipseItem] = []
 
     def _point(self, position: Vec3) -> QPointF:
         assert self.model_scene is not None
@@ -155,6 +161,10 @@ class SceneView(QGraphicsView):
         self._field_legend_labels = []
         self._field_legend_text = None
         self._gain_legend_gmax_db = old_gain_gmax
+        self._entity_items = {}
+        self._entity_labels = {}
+        self._trajectory_path = None
+        self._trajectory_markers = []
         room_width = scene.room_size.x * self.scale_px_m
         room_height = scene.room_size.y * self.scale_px_m
         self.graphics_scene.setSceneRect(0, 0, room_width, room_height)
@@ -187,23 +197,35 @@ class SceneView(QGraphicsView):
         entities.extend((rx.id, rx.position, QColor("#22c55e"), "RX") for rx in scene.receivers)
         for identifier, position, color, label in entities:
             item = _DraggableItem(identifier, 8.0, color, self._moved)
+            item.setFlag(
+                QGraphicsItem.GraphicsItemFlag.ItemIsMovable,
+                self._entities_draggable,
+            )
             item.setPos(self._point(position))
             self.graphics_scene.addItem(item)
+            self._entity_items[identifier] = item
             if self._show_labels:
                 text = self.graphics_scene.addSimpleText(label)
                 text.setBrush(Qt.GlobalColor.white)
                 text.setPos(item.pos() + QPointF(10, -18))
                 text.setZValue(21)
+                self._entity_labels[identifier] = text
         for ris in scene.ris_surfaces:
             item = _DraggableRIS(ris.id, ris.width_m * self.scale_px_m, self._moved)
+            item.setFlag(
+                QGraphicsItem.GraphicsItemFlag.ItemIsMovable,
+                self._entities_draggable,
+            )
             item.setPos(self._point(ris.position))
             item.setRotation(-math.degrees(ris.yaw_rad + math.pi / 2.0))
             self.graphics_scene.addItem(item)
+            self._entity_items[ris.id] = item
             if self._show_labels:
                 text = self.graphics_scene.addSimpleText(f"RIS · {ris.generation}")
                 text.setBrush(Qt.GlobalColor.white)
                 text.setPos(item.pos() + QPointF(8, 8))
                 text.setZValue(21)
+                self._entity_labels[ris.id] = text
         if self._show_rays and scene.transmitters and scene.receivers:
             tx_point = self._point(scene.transmitter().position)
             rx_point = self._point(scene.receiver().position)
@@ -224,6 +246,79 @@ class SceneView(QGraphicsView):
             self._render_gain_legend(old_gain_gmax)
         self._suppress_moves = False
         self.fitInView(self.graphics_scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
+
+    def set_entities_draggable(self, enabled: bool) -> None:
+        """Enable ordinary scene editing or freeze entities for result playback."""
+        self._entities_draggable = bool(enabled)
+        for item in self._entity_items.values():
+            item.setFlag(
+                QGraphicsItem.GraphicsItemFlag.ItemIsMovable,
+                self._entities_draggable,
+            )
+
+    def set_entity_visual_position(self, identifier: str, position: Vec3) -> None:
+        """Move one rendered entity without mutating the underlying Scene."""
+        item = self._entity_items.get(identifier)
+        if item is None or self.model_scene is None:
+            return
+        self._suppress_moves = True
+        try:
+            item.setPos(self._point(position))
+            label = self._entity_labels.get(identifier)
+            if label is not None:
+                label.setPos(item.pos() + QPointF(10, -18))
+        finally:
+            self._suppress_moves = False
+
+    def clear_trajectory(self) -> None:
+        """Remove the prototype trajectory overlay, if present."""
+        if self._trajectory_path is not None:
+            self.graphics_scene.removeItem(self._trajectory_path)
+        for marker in self._trajectory_markers:
+            self.graphics_scene.removeItem(marker)
+        self._trajectory_path = None
+        self._trajectory_markers = []
+
+    def show_trajectory(self, positions: Sequence[Vec3]) -> None:
+        """Draw one fixed top-down trajectory and all of its sample positions."""
+        self.clear_trajectory()
+        if self.model_scene is None or not positions:
+            return
+        points = [self._point(position) for position in positions]
+        path = QPainterPath(points[0])
+        for point in points[1:]:
+            path.lineTo(point)
+        self._trajectory_path = self.graphics_scene.addPath(
+            path,
+            QPen(QColor("#38bdf8"), 2, Qt.PenStyle.DashLine),
+        )
+        self._trajectory_path.setZValue(10)
+        for point in points:
+            marker = self.graphics_scene.addEllipse(
+                -3.0,
+                -3.0,
+                6.0,
+                6.0,
+                QPen(QColor("#e0f2fe"), 1),
+                QBrush(QColor("#0ea5e9")),
+            )
+            marker.setPos(point)
+            marker.setZValue(11)
+            self._trajectory_markers.append(marker)
+        self.set_trajectory_index(0)
+
+    def set_trajectory_index(self, index: int) -> None:
+        """Highlight the active sample without rebuilding the overlay."""
+        if not 0 <= index < len(self._trajectory_markers):
+            return
+        for marker_index, marker in enumerate(self._trajectory_markers):
+            active = marker_index == index
+            marker.setBrush(QBrush(QColor("#facc15" if active else "#0ea5e9")))
+            if active:
+                marker.setRect(-5.0, -5.0, 10.0, 10.0)
+            else:
+                marker.setRect(-3.0, -3.0, 6.0, 6.0)
+            marker.setZValue(12 if active else 11)
 
     @staticmethod
     def _rgba(values: np.ndarray) -> np.ndarray:

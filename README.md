@@ -134,7 +134,9 @@ python -m airmirror_future.experiments.xr_dynamic_room_mvp
 ```
 
 该入口不是 formal v0.2 XR；Adaptive RIS、人体/头部模型、Doppler、fading、wideband/OFDM
-均未实现。孔径、相位误差、RIS 数量和 formal Dynamic User 实验仍属于后续里程碑。
+均未实现。桌面应用的 Scenario 下拉框也提供 `XR Dynamic Room MVP · Prototype`，后台完成
+同一真实计算后只播放冻结结果，不生成动态 heatmap。孔径、相位误差、RIS 数量和 formal
+Dynamic User 实验仍属于后续里程碑。
 
 ## 四个目标场景与路线图
 

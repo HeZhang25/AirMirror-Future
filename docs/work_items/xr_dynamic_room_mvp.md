@@ -6,7 +6,8 @@ Non-release prototype / vertical slice，用于尽快验证第一个可运行 XR
 release gate，不表示 Foundation、P1A 或 formal v0.2 entry gate 已满足。
 
 Prototype 状态：**Implemented / exit condition met**；该状态只表示本 work item 的 headless
-vertical slice 可运行，不是 release capability 的 Completed/Verified。
+vertical slice 与现有桌面前端中的最小 result-playback Demo 可运行，不是 release capability
+的 Completed/Verified。
 
 ## Entry condition
 
@@ -44,7 +45,8 @@ vertical slice 可运行，不是 release capability 的 Completed/Verified。
 - received power(t)；
 - SNR(t)；
 - headless CSV；
-- PNG result。
+- PNG result；
+- 现有 MainWindow / SceneView 中的 non-release trajectory result playback。
 
 可运行入口为 `python -m airmirror_future.experiments.xr_dynamic_room_mvp`；默认使用 exclusive
 no-overwrite 的 `results/prototypes/xr_dynamic_room_mvp/<run_id>/`，生成 artifact 不提交。
@@ -62,4 +64,5 @@ no-overwrite 的 `results/prototypes/xr_dynamic_room_mvp/<run_id>/`，生成 art
 Foundation overall 仍为 In Progress，P1A formal gate 仍 closed，formal v0.2 gate not satisfied。
 
 该条件已由 deterministic/reproducibility、Static pattern freeze、No RIS disabled contribution、
-shared-condition、finite-output 与 headless artifact tests，以及一次实际 headless run 满足。
+shared-condition、finite-output、headless artifact 与 GUI playback tests，以及实际 headless/GUI
+运行满足。GUI 仅后台预计算一次 11×2 link states；Play/Pause/Reset 不重算 M8 physics 或 field map。
