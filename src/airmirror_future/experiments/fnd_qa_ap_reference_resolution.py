@@ -64,6 +64,7 @@ PARENT_ARTIFACT_IDENTITIES = {
     "summary": "sha256:9627c3689a5ac547aeb7e021d7188310a9987a2d801811dee1188ee21d1679a4",
     "coefficients": "sha256:1b3df9e155f0eb841ac44fb0086df2253214434b3e241161ed1cae53a2fc5454",
 }
+PARENT_EVIDENCE_MANIFEST_IDENTITY = "sha256:a035712d3ac477ba334c1c13a7c49708e9191589ec717eb98ad6e1ee59065208"
 REFERENCE_TOLERANCE = 1.0e-3
 M64_CHUNK_SIZE = 4096
 
@@ -187,8 +188,10 @@ def _load_parent_manifest() -> dict[str, Any]:
     actual = tuple((entry.get("pattern_class"), entry.get("pattern_seed"), entry.get("pattern_hash"), entry.get("series_identity")) for entry in entries)
     if set(actual) != {(kind, seed, pattern, series) for kind, seed, pattern, series in EXPECTED_PARENT_SCOPE}:
         raise ValueError("parent-evidence manifest scope or identities mismatch")
-    if manifest.get("identity", {}).get("config_identity"):
-        identity = manifest["identity"]
+    identity = manifest.get("identity")
+    if not isinstance(identity, dict) or identity.get("config_identity") != PARENT_EVIDENCE_MANIFEST_IDENTITY:
+        raise ValueError("parent-evidence manifest identity is missing or unexpected")
+    if identity:
         excluded = set(identity.get("canonicalization", {}).get("excluded_top_level_fields", ["identity"]))
         unsigned = {key: value for key, value in manifest.items() if key not in excluded}
         def tag(value: object) -> object:
@@ -202,7 +205,7 @@ def _load_parent_manifest() -> dict[str, Any]:
             raise TypeError(type(value).__name__)
         encoded = json.dumps(tag(unsigned), ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode("utf-8")
         actual_identity = "sha256:" + hashlib.sha256(encoded).hexdigest()
-        if actual_identity != identity["config_identity"]:
+        if actual_identity != PARENT_EVIDENCE_MANIFEST_IDENTITY:
             raise ValueError("parent-evidence manifest identity mismatch")
     return manifest
 

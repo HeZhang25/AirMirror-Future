@@ -87,12 +87,18 @@ def test_parent_v1_hash_and_series_identity_reproduce() -> None:
 def test_m64_gl64_directional_rules_and_parent_ownership(monkeypatch: pytest.MonkeyPatch) -> None:
     parent_rows = parent_scope_for_tests()
     calls: list[tuple[str, int]] = []
-    from airmirror_future.experiments import fnd_qa_ap_reference_resolution as continuation
-    original = continuation.evaluate_chunked
-
     def capture(scene, pattern, spec, *, engine, chunk_size):
         calls.append((spec.rule, spec.order_x))
-        return original(scene, pattern, spec, engine=engine, chunk_size=chunk_size)
+        # This test verifies continuation orchestration only.  In particular,
+        # it must not execute real Future M64/GL64 physics during pytest.
+        ris = scene.ris_surfaces[0]
+        return {
+            "a": np.ones(ris.cell_count, dtype=complex),
+            "gamma": np.ones(ris.cell_count, dtype=complex),
+            "h_ris": 1.0 + 0.0j,
+            "h_baseline": 1.0 + 0.0j,
+            "h_total": 2.0 + 0.0j,
+        }
 
     result = resolve_one_series(parent_rows, pattern_class="ris_only_focus", pattern_seed=None, evaluator=capture)
     assert calls == [("midpoint", 8), ("midpoint", 32), ("midpoint", 64), ("tensor_product_gauss_legendre", 64)]
