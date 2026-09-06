@@ -200,3 +200,12 @@ def test_frozen_config_and_continuation_linkage() -> None:
     assert continuation["parent_run_id"] == PARENT_RUN_ID
     assert continuation["parent_config_identity"] == PARENT_CONFIG_IDENTITY
     assert continuation["identity"]["config_identity"] == CONTINUATION_CONFIG_IDENTITY
+    assert continuation["status"] == "Ready"
+    assert continuation["approval_state"] == "signed"
+    assert continuation["qa_ap_status"] == "Ready"
+    assert continuation["freeze_policy"]["status"] == "frozen"
+    assert continuation["freeze_boundary"] == {
+        "independent_review": "PR #10",
+        "parent_merged_main_commit": "770d327792a17b8102b63619289d9ccb07385f2c",
+    }
+    assert continuation["final_independent_ready_review"]["status"] == "signed_frozen"
