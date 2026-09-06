@@ -158,35 +158,38 @@ r_y     = pitch_y/lambda
 
 改变 `Nx/Ny` 不改变实体孔径；改变 `f` 只改变传播波长、波数和上述比例，也不自动缩放孔径。
 `r_x/r_y` 是模型透明度信息，不是物理阵元间距合规检查；尤其 `pitch/lambda > 0.5` 不会使
-当前系统级模型自动失效。A2 不提供 patch 内 phase-span 数值或硬阈值，因为当前尚未独立
-定义 production control grid 与 quadrature grid。A2 的语义决定见
+当前系统级模型自动失效。A2 不提供 patch 内 phase-span 数值或硬阈值；后续 FND-QA-AP 已在
+保持 control grid 不变的前提下签署独立 midpoint `8×8` production quadrature。A2 的语义决定见
 [ADR-0007](adr/0007-equivalent-controllable-aperture-patches.md)；在 Foundation final exit/P1A
 前建立最小独立求积有效性证据的门禁见
 [ADR-0008](adr/0008-minimum-aperture-quadrature-validity-gate.md)。
 
 ## 7. RIS 双基地散射
 
-对第 n 个单元：
+对第 n 个既有 control patch 内的第 q 个 production integration subpoint：
 
 ```text
-d1_n = |TX-cell_n|
-d2_n = |cell_n-RX|
-u_in  = (TX-cell_n)/d1_n
-u_out = (RX-cell_n)/d2_n
+d1_nq = |TX-r_nq|
+d2_nq = |r_nq-RX|
+u_in   = (TX-r_nq)/d1_nq
+u_out  = (RX-r_nq)/d2_nq
 
 cos_in  = max(dot(u_in,n),0)
 cos_out = max(dot(u_out,n),0)
-D_n = (cos_in*cos_out)^(q/2), q=1 default
+D_nq = (cos_in*cos_out)^(p/2), p=1 default
+w_nq = A_patch/64
 
-h_n = sqrt(Gt*Gr*eta_n)
-      * A_cell/(4*pi*d1_n*d2_n)
-      * D_n
-      * exp[-j*k*(d1_n+d2_n) + j*(phi_command_n+epsilon_phi_n)]
+h_nq = sqrt(Gt*Gr*eta_n)
+       * w_nq/(4*pi*d1_nq*d2_nq)
+       * D_nq
+       * exp[-j*k*(d1_nq+d2_nq) + j*(phi_command_n+epsilon_phi_n)]
 
-h_RIS = sum_n(h_n)
+h_RIS = sum_n(sum_q(h_nq))
 ```
 
-方向图中的平方根表示从功率方向因子转为场幅因子。任一方向位于背面时贡献为零。
+production 固定使用每 patch midpoint `8×8`；64 个 subpoints 共享 parent patch 的 commanded
+phase、phase error 与 efficiency scale，权重之和等于原 patch 面积。方向图中的平方根表示从
+功率方向因子转为场幅因子。任一方向位于背面时贡献为零。
 TX-RIS 和 RIS-RX 的中心路径可受几何阻挡；v0.1 不逐 cell 计算不同阻挡边缘。
 C1 仅把这两个标量分别路由为 `ris_incident` 与 `ris_scattered`；它不改变散射公式，也不按
 patch/quadrature sample 计算遮挡。direct 路径使用 `direct` role，墙反射使用上节两个独立 role。
@@ -201,12 +204,11 @@ Gamma_cmd,n = sqrt(eta_nominal,n) * exp(j*phi_cmd,n)
 h_RIS^C = sum_n a_n^C*Gamma_cmd,n
 ```
 
-Ground Truth 对应使用 `a_n^GT` 和含 actual efficiency/phase error 的 `Gamma_actual,n`。该分解只
-改变因子所有权，不授权改变数值；当前 production 仍直接按上面的每 patch `1×1` 公式计算。
-Foundation 默认的 `m_in/m_out` 仍是 RIS center scalar blockage 的复用值，不表示逐 q 遮挡。
-Focus 与 simulator 一致性由 [FND-QA-CC](work_items/foundation_0_1_1_coefficient_consistency.md)
-在 FND-QA-AP 已签署 policy 后验证。若 policy 保持 1×1，只需证明现有中心路径相位等价；若选择
-多点求积，必须先经独立 production migration，不能只改 Focus 或只改 simulator。
+Ground Truth 对应使用 `a_n^GT` 和含 actual efficiency/phase error 的 `Gamma_actual,n`。独立
+production migration 已让 simulator 通过现有 aperture kernel 按 signed M8 求和；Foundation
+默认的 `m_in/m_out` 仍是 RIS center scalar blockage 的复用值，不表示逐 q 遮挡。现有 Focus
+生成路径与 commanded-pattern 语义未改变；它与 simulator 的最终 coefficient 一致性仍由
+[FND-QA-CC](work_items/foundation_0_1_1_coefficient_consistency.md) 后续验证。
 
 ### 孔径归一化不变量
 
@@ -218,9 +220,9 @@ patch 内 integration grid。FND-QA-AP 在 Foundation final exit 前建立 P1A �
 coefficient policy；P1C 再扩大 aperture、field-map、frequency/angle/near-field 等研究适用域。
 增大实体孔径通常增加理想聚焦能力，但最终总信道可能因与 LOS/墙路径相消而在个别点下降。
 
-当前 production policy 仍是每个 control patch 一个 midpoint。任何 `2×2/4×4/16×16` 等内部
-细化结果都属于同一标量模型的 numerical reference；没有全波或测量校准时不得称 Ground Truth。
-求积细化必须让所有 subpoints 继承同一个 parent control command，不得随 order 重新生成 Focus。
+当前 production policy 是每个 control patch 内 midpoint `8×8`。其他 order 的内部细化结果都
+属于同一标量模型的 numerical reference；没有全波或测量校准时不得称 Ground Truth。求积细化
+必须让所有 subpoints 继承同一个 parent control command，不得随 order 重新生成 Focus。
 当前 TX→RIS center、RIS center→RX 的统一 blockage factor 也不会因 subpoint 增加而变成空间
 分辨遮挡。
 

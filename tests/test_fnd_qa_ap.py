@@ -55,11 +55,11 @@ def test_fnd_t16_refinement_keeps_control_order_and_command_ownership() -> None:
         )
 
 
-def test_midpoint_one_matches_existing_production_center_point_behavior() -> None:
+def test_midpoint_eight_matches_production_quadrature_behavior() -> None:
     scene = create_smart_space_scene("Current")
     ris = scene.ris_surfaces[0]
     pattern = generate_ris_only_focus_pattern(ris, scene.transmitter(), scene.receiver(), scene.frequency_hz)
-    qa = evaluate_quadrature(scene, pattern, midpoint_quadrature(ris))
+    qa = evaluate_quadrature(scene, pattern, midpoint_quadrature(ris, 8, 8))
     production = SimulationEngine().compute_channel(scene, ris_patterns={ris.id: pattern})
 
     assert qa["h_ris"] == pytest.approx(production.ris_channel, rel=1e-14, abs=1e-15)

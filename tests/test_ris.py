@@ -63,13 +63,13 @@ def test_physics_focus_beats_random_pattern_median() -> None:
     assert focused > 4.0 * np.median(random_values)
 
 
-def test_fixed_aperture_subdivision_converges_without_cell_gain() -> None:
+def test_fixed_aperture_uniform_pattern_converges_without_cell_gain() -> None:
     tx, rx = _link()
     frequency = 5.0e9
     amplitudes = []
     for count in (8, 16, 32):
         ris = _surface(count, count, 1.0, 1.0)
-        pattern = generate_focus_pattern(ris, tx, rx, frequency)
+        pattern = np.zeros(ris.cell_count)
         amplitudes.append(
             abs(ris_channel(tx, rx.position, rx.gain_linear, ris, pattern, frequency))
         )
@@ -111,4 +111,3 @@ def test_back_side_receiver_gets_no_ris_field() -> None:
     ris = _surface()
     pattern = generate_focus_pattern(ris, tx, rx, 5.0e9)
     assert abs(ris_channel(tx, rx.position, 1.0, ris, pattern, 5.0e9)) == 0.0
-

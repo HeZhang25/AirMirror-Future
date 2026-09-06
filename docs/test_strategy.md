@@ -68,12 +68,12 @@ python -m airmirror_future.experiments.phase_bits --output results/checkpoints/<
 | FND-T15b | unsigned future identity boundary | 未签署 FND-PHY-NB/FND-QA-AP/FND-QA-CC 时保持 partial/pending，不伪造 Verified/default identity | Verified：C2 independent review PASS，blocking issues 0 |
 | FND-T15c | provenance source classification | v0.1 legacy 与 A/B checkpoint 分开且 bytes/mtime 不变；新 run 缺 schema 明确失败；未知来源不猜 legacy；未知 schema 拒绝 | Verified：C2 independent review PASS，legacy/checkpoint unchanged |
 | FND-T15d | experiment no-overwrite | existing run directory 在计算前失败；legacy hash 不变；新 CSV/PNG 只写唯一 run directory | Verified：C2 independent review PASS，真实 run |
-| FND-T16 | quadrature ownership boundary | 固定 aperture/control/pattern/Profile，只改变 rule/order | Ready：FND-QA-AP-02..04；实现/执行尚未开始 |
-| FND-T17 | refined reference construction | successive refinement + independent rule；未收敛明确失败 | Ready：FND-QA-AP-02..05；实现/执行尚未开始 |
-| FND-T18 | quadrature report/provenance guards | 深相消不输出 Inf/误导 phase/gain；policy identity 完整 | Ready：FND-QA-AP-03..05；实现/执行尚未开始 |
+| FND-T16 | quadrature ownership boundary | 固定 aperture/control/pattern/Profile，只改变 rule/order | Verified：FND-QA-AP-02..06 formal evidence |
+| FND-T17 | refined reference construction | successive refinement + independent rule；未收敛明确失败 | Verified：FND-QA-AP-02..06 formal evidence |
+| FND-T18 | quadrature report/provenance guards | 深相消不输出 Inf/误导 phase/gain；policy identity 完整 | Verified：FND-QA-AP-02..06 formal evidence |
 | FND-T19 | floor-anchored wall geometry | 超出 `1e-9 m` 的 endpoint z 拒绝；Ground Truth wall 仅刚体 XY 平移；blockage/reflection 同几何 | `tests/test_wall_geometry.py` |
 | FND-T20 | center-frequency flat-channel contract | `fc` 改变 h；`B` 不改变 h(fc) 但改变 noise/SNR/capacity；model ID 稳定 | Planned：FND-PHY-NB |
-| FND-T21 | RIS-only coefficient consistency | Focus 与最终 Controller `a_n^C` 相位共轭；1×1 时与历史中心路径等价 | Planned：FND-QA-CC |
+| FND-T21 | RIS-only coefficient consistency | Focus 与最终 Controller `a_n^C` 相位共轭；验证现有 Focus 与 M8 production coefficient | Planned / deferred for scene-first MVP：FND-QA-CC |
 | FND-T22 | Coherent coefficient consistency | Focus objective 与 Controller simulation 共用 `a_n^C/h_baseline^C`，保留 A1 量化/退化规则 | Planned：FND-QA-CC |
 
 若更换物理近似导致这些容差不再适用，必须先提交 ADR 解释新性质，并加入等价或更强的
@@ -185,8 +185,8 @@ Reference and candidate deep-null flags are evaluated against the applicable fix
 120/240/600-second limits apply to series scope and the 8-hour limit to the base run scope.
 
 内部最后稳定层级只叫 internal refined numerical reference，不构成 EM/full-wave/measurement
-truth。若当前 1×1 不通过，测试本身不静默切换 production；必须由独立 implementation Work
-Item 和必要 ADR 接入 policy，再重跑完整回归。
+truth。M1/M2 已 rejected，测试本身没有静默切换 production；signed M8 policy 已由独立
+implementation 接入，并重新运行 production 回归，未重跑 formal QA matrix。
 
 ### 3.2 Foundation final physics/algorithm closure
 
@@ -197,9 +197,8 @@ FND-T19..22 是相互独立但都位于 Foundation final exit 前的门禁：
 2. **FND-T20 / narrowband**：比较时固定除一个变量外的所有输入。改变 `fc` 必须重算
    `lambda/k/h`；只改变 `B` 时 LOS/wall/RIS/total complex channel 必须不变，noise/SNR/capacity
    按 ADR-0010 变化；
-3. **FND-T21/T22 / coefficient**：必须在 FND-QA-AP 签署 production policy 后运行。若保持
-   `1×1`，验证 center-path 与 `a_n^C` 等价；若改为多点，先完成独立 migration，再验证 Focus、
-   engine 和 QA runner 共用 coefficient；
+3. **FND-T21/T22 / coefficient**：必须在 FND-QA-AP 签署 production policy 后运行。M8 独立
+   migration 已完成；后续仍须验证 Focus、engine 和 QA runner 共用 coefficient；
 4. coefficient test 只能读取 Controller nominal values。改变隐藏 Ground Truth realization 不得
    改变 model-based pattern，但可以改变 oracle measurement；
 5. identity mutation matrix 必须区分 coefficient inputs 与 link-metric-only inputs：frequency、

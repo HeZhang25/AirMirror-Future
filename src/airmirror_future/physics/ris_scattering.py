@@ -10,6 +10,37 @@ from airmirror_future.core.constants import MIN_DISTANCE_M
 from airmirror_future.core.pattern_contract import validate_commanded_pattern
 from airmirror_future.core.types import RISSurface, Transmitter, Vec3
 from airmirror_future.physics.free_space import wave_number_rad_m
+from airmirror_future.ris.quadrature import QuadratureSpec, midpoint_quadrature
+
+
+PRODUCTION_QUADRATURE_ORDER = 8
+_MAX_POINT_SAMPLE_PAIRS = 262_144
+
+
+def _production_quadrature_spec(ris: RISSurface) -> QuadratureSpec:
+    """Build the signed midpoint 8x8 rule inside each control patch."""
+    return midpoint_quadrature(
+        ris,
+        order_x=PRODUCTION_QUADRATURE_ORDER,
+        order_y=PRODUCTION_QUADRATURE_ORDER,
+    )
+
+
+def _require_production_quadrature(
+    ris: RISSurface,
+    spec: QuadratureSpec,
+) -> QuadratureSpec:
+    if (
+        spec.rule != "midpoint"
+        or spec.order_x != PRODUCTION_QUADRATURE_ORDER
+        or spec.order_y != PRODUCTION_QUADRATURE_ORDER
+        or spec.control_count != ris.cell_count
+    ):
+        raise ValueError(
+            "production RIS quadrature must be midpoint 8x8 with one parent "
+            "group per control patch"
+        )
+    return spec
 
 
 def _ris_channel_for_points_from_validated_pattern(
@@ -22,6 +53,7 @@ def _ris_channel_for_points_from_validated_pattern(
     *,
     cell_phase_error_rad: np.ndarray | None = None,
     efficiency_scale: np.ndarray | float = 1.0,
+    quadrature_spec: QuadratureSpec | None = None,
 ) -> np.ndarray:
     """Evaluate scattering after the commanded hardware boundary."""
     if ris.active:
@@ -31,15 +63,38 @@ def _ris_channel_for_points_from_validated_pattern(
     points = np.asarray(receiver_points, dtype=float)
     if points.ndim != 2 or points.shape[1] != 3:
         raise ValueError("receiver_points must have shape [N, 3]")
-    cells = ris.cell_centers()
-    contributions = _ris_aperture_point_contributions(
-        tx, points, receiver_gain_linear, ris, cells,
-        np.arange(ris.cell_count, dtype=int),
-        np.full(ris.cell_count, ris.cell_area_m2), phase, frequency_hz,
-        cell_phase_error_rad=cell_phase_error_rad,
-        efficiency_scale=efficiency_scale,
+    if len(points) == 0:
+        return np.zeros(0, dtype=complex)
+    spec = _require_production_quadrature(
+        ris,
+        _production_quadrature_spec(ris) if quadrature_spec is None else quadrature_spec,
     )
-    return np.sum(contributions, axis=1)
+    weights_m2 = spec.weights * ris.cell_area_m2
+    result = np.zeros(len(points), dtype=complex)
+    receiver_batch_size = min(len(points), 64)
+    for point_start in range(0, len(points), receiver_batch_size):
+        point_stop = min(point_start + receiver_batch_size, len(points))
+        point_batch = points[point_start:point_stop]
+        sample_batch_size = max(1, _MAX_POINT_SAMPLE_PAIRS // len(point_batch))
+        batch_total = np.zeros(len(point_batch), dtype=complex)
+        for sample_start in range(0, spec.sample_count, sample_batch_size):
+            sample_stop = min(sample_start + sample_batch_size, spec.sample_count)
+            contributions = _ris_aperture_point_contributions(
+                tx,
+                point_batch,
+                receiver_gain_linear,
+                ris,
+                spec.sample_coordinates[sample_start:sample_stop],
+                spec.parent_control_index[sample_start:sample_stop],
+                weights_m2[sample_start:sample_stop],
+                phase,
+                frequency_hz,
+                cell_phase_error_rad=cell_phase_error_rad,
+                efficiency_scale=efficiency_scale,
+            )
+            batch_total += np.sum(contributions, axis=1)
+        result[point_start:point_stop] = batch_total
+    return result
 
 
 def _ris_aperture_point_contributions(
@@ -121,14 +176,16 @@ def ris_channel_for_points(
 ) -> np.ndarray:
     """Return RIS complex channel for receiver points.
 
-    Each cell contribution is
+    Each integration-subpoint contribution is
 
-    ``sqrt(Gt*Gr*eta_n) * A_cell/(4*pi*d1*d2) * D * exp(-jk(d1+d2)+j*phi_n)``.
+    ``sqrt(Gt*Gr*eta_n) * w/(4*pi*d1*d2) * D * exp(-jk(d1+d2)+j*phi_n)``.
 
-    The cell-area-linear amplitude makes a fixed physical aperture converge as
-    it is subdivided, instead of creating energy merely by increasing cell
-    count. ``D`` is the square root of a cosine power pattern because the
-    directional quantity is treated as a power gain.
+    Production uses signed midpoint 8x8 integration inside every existing
+    control patch. The subpoint weights sum to the original control-patch
+    area, and each subpoint inherits its parent patch command. Thus the
+    command vector and control grid are unchanged. ``D`` is the square root
+    of a cosine power pattern because the directional quantity is treated as
+    a power gain.
     """
     phase = validate_commanded_pattern(ris, pattern_rad)
     return _ris_channel_for_points_from_validated_pattern(

@@ -257,8 +257,9 @@ GroundTruthModel；它不读取 MeasurementOracle。unknown/disabled/ambiguous R
 [ADR-0006](adr/0006-coherent-target-focus-objective.md)。
 
 FND-QA-CC 将在最终 production quadrature policy 下证明该策略与 Controller simulator 使用同一
-control-level coefficient。该门禁尚未实现；A1 Verified 只证明当前 1×1 nominal objective，
-不得据此假设未来多点 quadrature/complex Profile 已自动一致。完整边界见
+control-level coefficient。production scattering 已迁移到 signed midpoint `8×8`，但 public
+phase-array API、pattern shape 和现有 Focus 路径未改变。FND-QA-CC 尚未实现；不得因 migration
+推断 M8/complex Profile 下的 Focus/coefficient 已自动一致。完整边界见
 [ADR-0011](adr/0011-controller-coefficient-focus-consistency.md)。
 
 ```python

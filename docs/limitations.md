@@ -15,8 +15,8 @@
 | 衍射 | 几何阴影可能过深 | 只计衰减和反射 | 城市拐角/低频 NLoS 定量需求 |
 | 高阶多反射 | 不包含两次以上墙反射 | 一次镜面路径 | 工厂/城市多径精度需求 |
 | RIS mutual coupling | 等效 patch 独立孔径采样 | 大尺度趋势 | 高密度/器件设计 |
-| patch 内场积分 | 当前 production 每个等效 patch 只取 `1×1` midpoint，且假定满填充 | 系统级面积归一化近似；A2 semantic Verified，不代表 production runner 已实现或完整精度 Verified | FND-QA-AP 已签署最小 policy；后续 QA-AP-02..06 实现/执行；P1C 扩大研究 |
-| 控制/求积网格分离 | `nx/ny` 同时决定控制自由度和中心采样 | 现有细分测试只解释为不发散/稳定趋势 | FND-QA-AP 内部拆分；生产迁移需独立 Work Item/ADR |
+| patch 内场积分 | 当前 production 在每个等效 patch 内使用 signed midpoint `8×8`，仍假定满填充 | signed QA domain 内最小 globally adequate 系统级面积归一化近似；不是全波/测量真值 | P1C 扩大适用域研究 |
+| 控制/求积网格分离 | `nx/ny` 只决定控制自由度；每个 control patch 固定 64 个 production integration subpoints | subpoints 继承 parent command，不是独立 control cells | 改变 signed policy 需独立 QA/迁移；P1C 扩大研究 |
 | 复杂极化 | 不跟踪 Jones/vector field | 标量复信道 | 偏振 RIS/天线研究 |
 | PIN diode 非线性 | 不建幅相耦合和功率依赖 | eta+phase error | 硬件校准/高功率 |
 | 严格近场 | 面积模型不保证近孔径精度 | 避免 cell 零距离 | 超大孔径近距离用户 |
@@ -28,24 +28,25 @@
 | 动态控制时延 | update_rate 目前是元数据 | 静态重配置 | XR 时间步和 latency |
 | Profile v1 路径集合 | Foundation Profile 只计划提供 environment modifier，不生成 delay/angle/Doppler 多径集合 | 默认确定性路径编排 | fading/wideband/dynamic multipath 需要独立 PathEnsemble ADR |
 | Wall z/vertical placement | v1 只支持地面锚定竖直墙，不支持悬空/倾斜墙或墙底高度误差 | endpoint z 在 `1e-9 m` 容差内为 0，占据 `[0,height]`；Ground Truth 只消费刚体 XY delta | 悬空/倾斜/楼层墙需求触发 schema v2 与独立 ADR |
-| Focus/coefficient future migration | 当前 1×1 中中心路径相位等价；未来复杂 Profile/多点求积可能破坏等价 | A1 objective 已验证，不代表未来 policy 自动一致 | FND-QA-CC；需要时先做独立 production migration |
+| Focus/coefficient consistency | production scattering 已迁移到 M8，现有 Focus 路径保持不变 | A1 objective 已验证，不代表 M8 下 coefficient/Focus 已正式一致 | FND-QA-CC（Planned / deferred for scene-first MVP） |
 
 ## 数值边界
 
 - 极小功率在 dBm 边界 floor 到 `1e-30 W`；这限制显示下界，不改变复场计算；
 - 完全阻挡以 300 dB 表示数值近零，不是数学绝对零；
-- 评价点过近 RIS cell 会拒绝，而不是给出发散结果；
+- 评价点过近 RIS aperture integration sample 会拒绝，而不是给出发散结果；
 - 场图有限网格可能漏掉非常窄的干涉峰/谷；改变质量会改变 coverage 采样误差；
 - A2 的 `pitch/wavelength` 只提供模型透明度，不是 `lambda/2` 合规或栅瓣判定；
-- A2 不输出 patch 内相位跨度、pass/fail 或 warning severity；这些需要先拆分 control 与
-  quadrature grid 并建立有来源的适用域验证；
+- A2 不输出 patch 内相位跨度、pass/fail 或 warning severity；control 与 quadrature grid 虽已
+  分离并由 signed M8 policy 覆盖 QA domain，该诊断仍不扩展为通用物理有效性判定；
 - 一次 `16×16` 或更细结果不是 electromagnetic truth；只有 successive refinement 和独立规则
   支持后，才可在声明适用域内称 internal refined numerical reference；
 - 当前 RIS blockage 使用 TX→RIS center、RIS center→RX 的统一衰减；增加 quadrature samples
   不会自动得到 partial-aperture/spatially resolved blockage；
-- FND-QA-AP-01 签署只冻结 preregistration，不改变 production；在 QA-AP runner/矩阵完成前，三代精确 dBm 差值只能标为 current scalar center-point model 输出；允许
-  展示系统级趋势，不应宣称精确到四位小数或推广到所有场图位置；
-- Future 64×48、High 200×160 可能计算较慢，后台运行不等于模型更精确；
+- FND-QA-AP formal run/reference-resolution 已完成，signed M8 policy 已接入 production；三代
+  dBm 差值仍只能标为当前系统级标量 M8 输出，不应宣称测量精度或推广到所有场图位置；
+- M8 correctness-first migration 使场图比旧 M1 明显更慢；Future 64×48、High 200×160 尤其可能
+  计算较久，后台运行不等于模型更精确；
 - `bandwidth_hz` 不会让引擎计算多个频点；当前 100 MHz 只进入 noise/flat-channel capacity，
   软件没有自动证明该带宽对任意几何都满足窄带条件；
 - Field Map 对所有网格点使用同一 fixed RIS pattern，不是逐像素最优聚焦包络；
@@ -78,5 +79,5 @@
 引用结果时至少报告：频率、TX power/gains、带宽/NF、场景几何、RIS 实体尺寸/等效 patch
 网格/phase/eta、算法、Ground Truth sigma、seed、coverage threshold、channel frequency model、
 Profile、coefficient/quadrature identity（若可用）和本限制文档版本；不得把等效 patch 数量或
-effective pitch 报告成真实 meta-atom 布局。若
-结果仍使用当前 1×1 policy，应明确标注 `current scalar center-point model`。
+effective pitch 报告成真实 meta-atom 布局。当前结果应明确标注为 signed midpoint `8×8`
+production policy 下的 system-level scalar model。

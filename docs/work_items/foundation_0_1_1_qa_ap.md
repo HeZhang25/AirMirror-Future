@@ -49,11 +49,10 @@ M4 未达到全局 adequacy；M8 在 84/84 series 通过原 frozen production ga
 
 这里的 `8×8` 是 control patch 内的积分细化，不增加 independent control cells、不改变
 `parent_control_index`、command vector size 或 control-level pattern semantics。该 closure
-只冻结 policy decision；production migration 尚未实施，当前 production default behavior
-保持不变。任何将该 policy 接入 production coefficient/Focus/simulator 的 migration 必须
-作为独立、可审查的后续变更完成。
+本身只冻结 policy decision；其后独立、可审查的 production migration 已把同一 M8 policy
+接入 RIS scattering/coefficient evaluation，未修改本 Work Item 的 formal QA artifacts。
 
-FND-QA-CC 必须在 production migration 完成后再进行最终 closure；本 QA-AP 结果不单独
+FND-QA-CC 仍须在已完成的 production migration 后另行最终 closure；本 QA-AP 结果不单独
 签署 Focus、Controller simulator 与 production coefficient builder 的组合一致性，也不解除
 FND-PHY-NB、FND-QA-CC 或 P1A gate。
 
@@ -335,7 +334,7 @@ Verified status.
 | `FND-QA-AP-03` 实现 midpoint/GL runner 和 metrics | Verified | 1–2 天 | versioned CSV/JSON summary；实现位于 `experiments/fnd_qa_ap_01.py` |
 | `FND-QA-AP-04` 增加 FND-T16..18 | Verified | 1–2 天 | `tests/test_fnd_qa_ap.py` 定向契约/收敛/provenance 测试 |
 | `FND-QA-AP-05` 运行矩阵并审查异常 | Verified | 1 天 | v1 formal results + review record |
-| `FND-QA-AP-06` 冻结 production policy/cache identity | Verified | 0.5–1 天 | signed M8 policy decision；production migration remains separate |
+| `FND-QA-AP-06` 冻结 production policy/cache identity | Verified | 0.5–1 天 | signed M8 policy decision；production migration completed separately |
 
 若 implementation 需要改变生产散射公式，必须另建独立 Work Item；不得把 runner、生产迁移和
 P1A cache 混在一个提交中。迁移完成后还必须执行 FND-QA-CC，不能仅凭本 QA 结果推断 Focus
