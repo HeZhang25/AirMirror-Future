@@ -16,14 +16,19 @@ from airmirror_future.experiments.fnd_qa_ap_01 import (
 )
 from airmirror_future.experiments.fnd_qa_ap_reference_resolution import (
     CONTINUATION_CONFIG_IDENTITY,
+    PARENT_ARTIFACT_IDENTITIES,
+    PARENT_EVIDENCE_MANIFEST_PATH,
     PARENT_CONFIG_IDENTITY,
     PARENT_RUN_ID,
     REFERENCE_TOLERANCE,
     UNRESOLVED_SCOPE,
     _convergence_metrics,
     _m8_result,
+    _validate_continuation_config,
     evaluate_chunked,
     load_parent_scope,
+    parent_scope_for_tests,
+    streaming_quadrature,
     resolve_one_series,
     run_continuation,
 )
@@ -42,14 +47,25 @@ def _threads(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_scope_exactly_seven_and_five_random_seeds() -> None:
-    _, rows = load_parent_scope()
+    rows = parent_scope_for_tests()
     assert len(UNRESOLVED_SCOPE) == 7
     assert {(r["pattern_class"], None if r["pattern_seed"] == "" else int(r["pattern_seed"])) for r in rows} == set(UNRESOLVED_SCOPE)
     assert {int(seed) for kind, seed in UNRESOLVED_SCOPE if kind == "random_legal"} == {1101, 2203, 3307, 4409, 5511}
 
 
+def test_parent_evidence_manifest_freezes_exact_artifact_hashes_and_scope() -> None:
+    manifest = json.loads(PARENT_EVIDENCE_MANIFEST_PATH.read_text(encoding="utf-8"))
+    assert manifest["status"] == "immutable_parent_evidence"
+    assert {name: value["sha256"] for name, value in manifest["artifacts"].items()} == PARENT_ARTIFACT_IDENTITIES
+    assert len(manifest["unresolved_scope"]) == 7
+
+
+def test_continuation_config_identity_and_parent_artifact_binding() -> None:
+    _validate_continuation_config()
+
+
 def test_parent_v1_hash_and_series_identity_reproduce() -> None:
-    _, parent_rows = load_parent_scope()
+    parent_rows = parent_scope_for_tests()
     scene, focus, _ = _scene_for_case("Future", "near_field")
     engine = SimulationEngine()
     ris = scene.ris_surfaces[0]
@@ -69,7 +85,7 @@ def test_parent_v1_hash_and_series_identity_reproduce() -> None:
 
 
 def test_m64_gl64_directional_rules_and_parent_ownership(monkeypatch: pytest.MonkeyPatch) -> None:
-    _, parent_rows = load_parent_scope()
+    parent_rows = parent_scope_for_tests()
     calls: list[tuple[str, int]] = []
     from airmirror_future.experiments import fnd_qa_ap_reference_resolution as continuation
     original = continuation.evaluate_chunked
@@ -86,7 +102,7 @@ def test_m64_gl64_directional_rules_and_parent_ownership(monkeypatch: pytest.Mon
 
 
 def test_unresolved_after_64_is_blocking_and_no_m128(monkeypatch: pytest.MonkeyPatch) -> None:
-    _, parent_rows = load_parent_scope()
+    parent_rows = parent_scope_for_tests()
     from airmirror_future.experiments import fnd_qa_ap_reference_resolution as continuation
 
     def fake(scene, pattern, spec, *, engine, chunk_size):
@@ -115,6 +131,32 @@ def test_m8_vs_m64_production_evaluation_and_chunk_equivalence() -> None:
     assert set(result["metrics"]) >= {"a_inf_robust_rel_error", "complex_robust_rel_error_h_ris", "complex_robust_rel_error_h_total"}
 
 
+def test_streaming_m64_preserves_parent_major_order_without_full_arrays() -> None:
+    scene, _, _ = _scene_for_case("Future", "near_field")
+    ris = scene.ris_surfaces[0]
+    streamed = streaming_quadrature(ris, rule="midpoint", order_x=64)
+    assert streamed.sample_count == ris.cell_count * 64 * 64
+    coordinates, weights, parents = next(streamed.iter_chunks(37))
+    assert coordinates.shape == (37, 3)
+    assert weights.shape == (37,)
+    assert parents.shape == (37,)
+    assert parents[0] == 0
+    assert np.all(parents == 0)
+    assert streamed.sample_count > coordinates.shape[0]
+
+
+def test_parent_artifact_hash_mismatch_is_blocking(tmp_path: Path) -> None:
+    import shutil
+    from airmirror_future.experiments import fnd_qa_ap_reference_resolution as continuation
+
+    root = tmp_path / "parent"
+    root.mkdir()
+    for name in ("fnd_qa_ap_01_raw.csv", "fnd_qa_ap_01_run.json", "fnd_qa_ap_01_summary.json", "fnd_qa_ap_01_coefficients.json"):
+        (root / name).write_text("synthetic", encoding="utf-8")
+    with pytest.raises(ValueError, match="artifact hash mismatch"):
+        continuation.load_parent_scope(root)
+
+
 def test_nonfinite_and_no_overwrite(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="non-finite"):
         _convergence_metrics({"a": np.array([np.nan + 0j]), "gamma": np.array([1 + 0j]), "h_ris": 1 + 0j, "h_baseline": 1 + 0j, "h_total": 2 + 0j}, {"a": np.array([1 + 0j]), "gamma": np.array([1 + 0j]), "h_ris": 1 + 0j, "h_baseline": 1 + 0j, "h_total": 2 + 0j})
@@ -138,6 +180,7 @@ def test_continuation_output_is_no_overwrite_without_formal_physics(tmp_path: Pa
         "_values": {},
     }
     monkeypatch.setattr(continuation, "resolve_one_series", lambda *args, **kwargs: dict(fake_result))
+    monkeypatch.setattr(continuation, "load_parent_scope", lambda *_args, **_kwargs: (tmp_path, parent_scope_for_tests()))
     output = tmp_path / "continuation"
     run_continuation(output)
     with pytest.raises(FileExistsError):

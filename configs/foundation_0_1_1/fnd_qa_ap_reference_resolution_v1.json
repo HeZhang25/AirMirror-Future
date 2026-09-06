@@ -4,6 +4,15 @@
   "status": "continuation_candidate",
   "parent_run_id": "20260906T094526-de4745c3",
   "parent_config_identity": "sha256:94dd4bf50ff0a5c5246980577ef4731e2e5d8504fa44fa1f56c4282ff4113cf7",
+  "parent_evidence": {
+    "manifest": "fnd_qa_ap_reference_resolution_parent_evidence_v1.json",
+    "artifact_identities": {
+      "raw": "sha256:2bea31fe69cf7aa4ae703411b86b3bdf075f99be2b9ca4a387f4f034d1f26a78",
+      "run": "sha256:c2ced0eb1bb7f3b9592792621cd533f0c72f000fa9889f481b45e9b3eac53b8b",
+      "summary": "sha256:9627c3689a5ac547aeb7e021d7188310a9987a2d801811dee1188ee21d1679a4",
+      "coefficients": "sha256:1b3df9e155f0eb841ac44fb0086df2253214434b3e241161ed1cae53a2fc5454"
+    }
+  },
   "scope": {
     "generation": "Future",
     "geometry_case": "near_field",
@@ -60,6 +69,6 @@
         "identity"
       ]
     },
-    "config_identity": "sha256:89e1953e6f89a6b6043c29fdaab18dd777b7dd3da3c02af36947327a3f45d28a"
+    "config_identity": "sha256:f8ef11480880493695eb6d41257c74a540b74e3f6969ea3f7eab1b859d23a7a2"
   }
 }
