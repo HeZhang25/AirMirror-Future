@@ -3,7 +3,7 @@
 - 层级：L4 Task（cross-cutting QA/architecture closure）
 - Task ID：FND-QA-CC
 - Requirement IDs：AMF-RIS-012
-- 状态：Planned
+- 状态：Planned / deferred for scene-first MVP
 - 父项：Foundation 0.1.1 Final Exit Gate
 - 依赖：ADR-0011 Accepted；C1 Profile；FND-QA-AP signed production policy；FND-PHY-NB；如需要
   则先完成独立 production quadrature migration

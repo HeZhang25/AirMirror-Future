@@ -3,7 +3,7 @@
 - 层级：L4 Task（cross-cutting physics/provenance closure）
 - Task ID：FND-PHY-NB
 - Requirement IDs：AMF-PHY-007
-- 状态：Planned
+- 状态：Planned / deferred for scene-first MVP
 - 父项：Foundation 0.1.1 Final Exit Gate
 - 依赖：ADR-0010 Accepted；C2 minimum experiment provenance
 - 不属于：OFDM、frequency-selective channel、delay spread、beam squint、材料色散

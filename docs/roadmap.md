@@ -20,6 +20,8 @@
 
 ## 2. 依赖路线
 
+正式 release-gate 路线保持不变；下图保留既有 P1 research 排布：
+
 ```text
 v0.1 Smart Space (Verified)
   -> Foundation 0.1.1 model contract
@@ -29,7 +31,7 @@ v0.1 Smart Space (Verified)
        -> A/B interim human checkpoint (not Foundation Verified)
        -> 0.1.1C propagation profile boundary
        -> FND-QA-AP minimum aperture quadrature validity
-       -> conditional production migration (only if required)
+       -> M8 production migration (pending)
        -> FND-PHY-NB narrowband frequency contract
        -> FND-QA-CC controller coefficient consistency
        -> Foundation final verification
@@ -41,8 +43,20 @@ v0.1 Smart Space (Verified)
   -> P1C extended aperture/quadrature research
 ```
 
-后续场景不能越过依赖门禁。尤其 Factory 的多 RIS 和 City 的立面网络依赖统一的多 RIS
-pattern ownership；不能各自实现不兼容版本。
+其中正式 release-gate spine 仍为 Foundation → M8 production migration → FND-PHY-NB →
+FND-QA-CC → Foundation Final Verification → P1A → formal v0.2 XR。
+
+新增非正式 prototype 快线：
+
+```text
+M8 production migration
+  -> XR Dynamic Room MVP (non-release prototype / vertical slice)
+  -> resume deferred Foundation/P1 work
+```
+
+P1B/P1C 的正式范围和门禁不变。正式 release 场景不能越过依赖门禁；上方明确限定的
+non-release prototype lane 是唯一新增例外，且必须先完成 M8 production migration。尤其
+Factory 的多 RIS 和 City 的立面网络依赖统一的多 RIS pattern ownership；不能各自实现不兼容版本。
 
 ## 3. v0.1 Smart Space — Verified
 
@@ -66,6 +80,10 @@ id 错误异常待统一。这些进入 P1 tasks。
 Verified，C2 Verified，C overall In Progress，P1A gate closed；FND-QA-AP Verified（v1 formal run `20260906T094526-de4745c3` 与 reference-resolution continuation `20260906T123708-78615a33` 完成，84/84 series resolved，signed/frozen midpoint `8×8` production quadrature policy；production migration pending）；FND-PHY-NB 与 FND-QA-CC Planned。详细背景、范围、
 Requirement IDs、L3/L4 工作项、测试、兼容策略和 Exit Gate 见
 [foundation_0_1_1_plan.md](foundation_0_1_1_plan.md)。
+
+Scene-first scheduling annotation：FND-PHY-NB 与 FND-QA-CC 保持 Planned / deferred for
+scene-first MVP；Foundation overall 保持 In Progress，P1A formal gate 保持 closed。XR Dynamic
+Room MVP 仅允许作为 non-release prototype，formal v0.2 gate not satisfied。
 
 本 Capability 必须在 P1A 前完成，包含：
 
@@ -106,6 +124,17 @@ Focus、Pattern 和 GUI，但不代表 Foundation Verified；0.1.1C、最小 exp
 FND-QA-AP、已 Verified 的 FND-FIX-WALL、FND-PHY-NB 和 FND-QA-CC 均是 P1A 前置
 条件。FND-QA-AP 不重开 A2，也不
 取消 P1C；它只回答 P1A 将缓存的 `a_n` 怎样计算才满足当前声明精度。
+
+### 4.1 Scene-first MVP prototype lane
+
+[XR Dynamic Room MVP](work_items/xr_dynamic_room_mvp.md) 的 entry condition 是 M8 production
+migration 已完成。第一版只复用现有 Scene、SimulationEngine、RIS、Pattern 和 metrics，覆盖
+单室内房间、单 TX、单 RIS、确定性移动单 RX，并生成 received power(t) / SNR(t) headless CSV
+与 PNG；禁止建立第二套 propagation engine 或 coefficient system。
+
+FND-PHY-NB、FND-QA-CC、Foundation Final Verification、P1A、P1B、P1C 可在 MVP 后补回，
+统一标记为 **deferred for scene-first MVP**，不得标记 Completed/Verified。该 prototype 不关闭
+Foundation、P1A 或 formal v0.2 的任何 gate。
 
 ## 5. P1：性能与模型误差研究
 
@@ -149,6 +178,8 @@ P1C 的 refined scalar result 仍不是 full-wave/measurement truth。P1C 可以
 ## 6. v0.2：XR / Spatial Computing
 
 Entry gate：P1A Verified；动态状态和轨迹 schema ADR 完成。
+
+XR Dynamic Room MVP 不满足本 entry gate，也不替代本 release capability。
 
 Deliverables：人体吸收体、`position(t)`/head orientation、28/60 GHz preset、No/Static/Adaptive
 RIS、SNR(t)、outage probability、更新率和 heatmap cadence、headless dynamic experiment、GUI
