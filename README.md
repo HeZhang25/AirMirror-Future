@@ -20,13 +20,12 @@
 当前 `v0.1` Smart Space 已验证。进入性能缓存和新场景前，项目将先执行
 [Foundation 0.1.1 物理模型契约计划](docs/foundation_0_1_1_plan.md)，校准 Focus objective、
 RIS 网格语义、Commanded Pattern 硬件约束、优化搜索分辨率、GUI 状态和传播 Profile。
-在 Foundation final exit/P1A 缓存前还必须完成
-[FND-QA-AP 最小孔径求积有效性门禁](docs/work_items/foundation_0_1_1_qa_ap.md)，冻结待缓存
-control-level coefficient 的 quadrature policy；随后依次关闭
-[Wall 几何](docs/work_items/foundation_0_1_1_wall_geometry_closure.md)、
+在 Foundation final exit/P1A 缓存前，[FND-QA-AP 最小孔径求积有效性门禁](docs/work_items/foundation_0_1_1_qa_ap.md)
+已 Verified，signed midpoint `8×8` policy 也已独立接入 production RIS scattering；后续仍须依次关闭
 [中心频率窄带语义](docs/work_items/foundation_0_1_1_narrowband_contract.md) 和
 [Controller coefficient/Focus 一致性](docs/work_items/foundation_0_1_1_coefficient_consistency.md)。
-Foundation 当前为 In Progress：Foundation 0.1.1A、A1、A2、A3、B1/B2/B3 已 Verified；C 和上述 cross-cutting gates 尚未
+Foundation 当前为 In Progress：Foundation 0.1.1A、A1/A2/A3、FND-FIX-WALL、B1/B2/B3、
+C1/C2 与 FND-QA-AP 已 Verified；C overall、FND-PHY-NB、FND-QA-CC 和 Foundation Final 尚未
 完成。未达到
 Implemented 的计划项不得描述为当前功能。
 
@@ -94,8 +93,8 @@ Future 参数始终显示 `Future Scenario Assumption`，不表示当前产品�
 更准确地说，当前 `frequency_hz` 是中心频率 `fc`，引擎只计算 `h(fc)` 并假定其在
 `bandwidth_hz` 内平坦；带宽用于接收噪声和 flat-channel Shannon upper bound，不表示已实现
 OFDM 或频率选择性信道。当前所有场景仍使用同一固定传播编排；Foundation C1 已接入
-environment-only PropagationProfile，但 C2 experiment provenance、最终 quadrature/
-coefficient consistency 与其余 Foundation gates 尚未完成。
+environment-only PropagationProfile，C2 experiment provenance 与 FND-QA-AP 已 Verified，signed
+midpoint `8×8` 已接入 production；FND-PHY-NB、FND-QA-CC 与其余 Foundation gates 尚未完成。
 
 详细公式与适用边界见 [docs/physics_model.md](docs/physics_model.md)。
 
@@ -145,9 +144,10 @@ python -m airmirror_future.experiments.phase_bits --output results/phase_bits
 全波方向图、PIN 二极管非线性、完整 OFDM/MIMO 或 5G 协议栈。完整列表见
 [docs/limitations.md](docs/limitations.md)。
 
-当前 production RIS 孔径积分为每个 equivalent control patch 一个中心点。A2 已验证 patch
-语义，但独立 quadrature accuracy 尚未验证；三代精确 dBm 应理解为 current scalar
-center-point model 的输出，而不是 full-wave/测量真值。
+当前 production RIS 孔径积分在每个既有 equivalent control patch 内使用 signed midpoint
+`8×8` subpoints；64 个 subpoints 继承同一 parent command，normalized weights 合计为原 patch
+面积，因此不增加 control cells，也不改变 `nx/ny` 或 command vector size。三代 dBm 仍只是
+该系统级标量模型的输出，不是 full-wave/测量真值。
 
 Scene v1 Wall 已收紧为 floor-anchored/XY-only：endpoint z 仅接受 `1e-9 m` 绝对容差，Ground
 Truth 只施加刚体 XY 平移；悬空/倾斜墙仍不支持。A1 已验证现有 Focus objective，但在最终

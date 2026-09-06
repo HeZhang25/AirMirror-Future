@@ -25,7 +25,11 @@ from airmirror_future.core.units import watts_to_dbm
 from airmirror_future.physics.free_space import complex_free_space_channel
 from airmirror_future.physics.noise import noise_power_dbm, shannon_capacity_bps
 from airmirror_future.physics.reflections import single_wall_reflection_path
-from airmirror_future.physics.ris_scattering import _ris_channel_from_validated_pattern
+from airmirror_future.physics.ris_scattering import (
+    _production_quadrature_spec,
+    _ris_channel_from_validated_pattern,
+)
+from airmirror_future.ris.quadrature import QuadratureSpec
 from airmirror_future.simulation.ground_truth import ControllerModel, GroundTruthModel
 from airmirror_future.simulation.profiles import (
     IndoorDeterministicProfile,
@@ -174,6 +178,7 @@ class SimulationEngine:
         rx: Receiver,
         ris_patterns: Mapping[str, np.ndarray],
         model: Model,
+        ris_quadrature_specs: Mapping[str, QuadratureSpec] | None = None,
     ) -> tuple[complex, complex, complex, list[dict[str, object]]]:
         distance = tx.position.distance_to(rx.position)
         direct = self._environment_modifier(
@@ -231,6 +236,11 @@ class SimulationEngine:
                 scene.frequency_hz,
                 cell_phase_error_rad=model.ris_phase_offsets(ris),
                 efficiency_scale=model.ris_efficiency_scale(ris),
+                quadrature_spec=(
+                    None
+                    if ris_quadrature_specs is None
+                    else ris_quadrature_specs.get(ris.id)
+                ),
             ) * before.value * after.value
             ris_total += contribution
             details.append(
@@ -302,6 +312,16 @@ class SimulationEngine:
         y_values = np.linspace(0.05, scene.room_size.y - 0.05, config.grid_height)
         power = np.empty((config.grid_height, config.grid_width), dtype=float)
         baseline = np.empty_like(power)
+        # Reuse only within this field-map call; this is not a persistent
+        # geometry/coefficient cache and does not construct A @ Gamma.
+        quadrature_scene, _, _ = self._working_scene(
+            scene, tx, rx_template, active_model
+        )
+        ris_quadrature_specs = {
+            ris.id: _production_quadrature_spec(ris)
+            for ris in quadrature_scene.ris_surfaces
+            if ris.enabled and ris.id in patterns
+        }
         for row, y_value in enumerate(y_values):
             if cancel_check is not None and cancel_check():
                 raise SimulationCancelled("field-map calculation cancelled")
@@ -314,7 +334,12 @@ class SimulationEngine:
                     scene, tx, receiver, active_model
                 )
                 los, wall, ris, _ = self._components(
-                    working_scene, working_tx, working_rx, patterns, active_model
+                    working_scene,
+                    working_tx,
+                    working_rx,
+                    patterns,
+                    active_model,
+                    ris_quadrature_specs,
                 )
                 power[row, column] = watts_to_dbm(
                     working_tx.power_w * abs(los + wall + ris) ** 2

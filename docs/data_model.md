@@ -162,18 +162,18 @@ equivalent patch 解释。
 不得反向改写 `width_m/height_m`。A2 不公开 patch 内 phase-span；原因和未来拆网格触发条件见
 [ADR-0007](adr/0007-equivalent-controllable-aperture-patches.md)。
 
-### Planned quadrature ownership（非当前公共类型）
+### Internal quadrature ownership（非公共类型）
 
-ADR-0008 规定 Foundation final exit/P1A 前必须验证 production quadrature policy，但当前代码
-仍只有每个 control patch 一个 midpoint，尚不存在公共 `QuadratureSpec` 数据类型。未来若接入
-多点求积，至少需要：
+ADR-0008 规定 Foundation final exit/P1A 前必须验证 production quadrature policy。FND-QA-AP
+已签署 midpoint `8×8`，production 在每个 control patch 内使用 64 个 integration subpoints；
+内部已有 `QuadratureSpec`，但仍不存在公共 `QuadratureSpec` 数据类型。内部求积携带：
 
 - `rule`、`order_x/order_y`、坐标约定、normalized weights；
 - `parent_control_index`，确保多个 subpoints 继承同一个 commanded phase；
 - `policy_id/version`，进入 experiment provenance 和 cache identity；
 - 明确该 policy 不描述 physical meta-atom layout 或 spatially resolved blockage。
 
-FND-QA-AP-02 的最小内部候选接口（尚非 public API）为
+FND-QA-AP-02 引入且由 production migration 复用的内部接口（不是 public API）为
 `QuadratureSpec(rule, order_x, order_y, sample_coordinates, weights, parent_control_index)`。
 它必须验证 finite、正的 order/weights、确定性 parent-major ordering 和一一对应的
 `sample_coordinates`/`weights`/`parent_control_index` 长度；每个 subpoint 只能继承其
@@ -181,8 +181,8 @@ FND-QA-AP-02 的最小内部候选接口（尚非 public API）为
 `gauss_legendre_tensor_product`，`policy_id/version` 由 runner/config 传递。该接口不得改变
 public phase-array API 或 `ris_patterns` shape `[nx*ny]`，也不得把 subpoint 暴露为独立控制量。
 
-该内部/公共边界必须由独立 implementation Work Item 决定；本文不把 Planned 类型描述成现有
-API，也不改变 `RISSurface.nx/ny` 或 pattern shape。
+独立 production migration 已保持该内部/公共边界；`RISSurface.nx/ny`、control count、public
+phase-array API 与 pattern shape 均未改变。
 
 ## 4. `Scene`
 

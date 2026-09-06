@@ -5,8 +5,8 @@
 - Requirement IDs：AMF-RIS-012
 - 状态：Planned / deferred for scene-first MVP
 - 父项：Foundation 0.1.1 Final Exit Gate
-- 依赖：ADR-0011 Accepted；C1 Profile；FND-QA-AP signed production policy；FND-PHY-NB；如需要
-  则先完成独立 production quadrature migration
+- 依赖：ADR-0011 Accepted；C1 Profile；FND-QA-AP signed production policy；FND-PHY-NB；
+  独立 M8 production quadrature migration 已完成
 - 不属于：重开 A1/A2、缓存实现、Ground Truth-aware Focus、幅相耦合、MIMO/OFDM
 
 ## 目标与用户结果
@@ -17,10 +17,10 @@
 
 ## 状态与授权边界
 
-- 当前为 Planned；ADR 和本文不表示 coefficient builder、迁移或测试已实现；
+- 当前为 Planned；ADR 和本文不表示 coefficient builder 或 FND-QA-CC tests 已实现；
 - A1/A2 保持 Verified，AMF-RIS-008/009 和 Foundation 状态不因规划提升；
-- 本工作项不修改 production behavior。若 FND-QA-AP 决定改变 production quadrature，必须先由
-  另一个经批准的 implementation Work Item 完成迁移；
+- 本工作项不修改 production behavior；FND-QA-AP 决定的 M8 production quadrature 已由独立
+  implementation 完成迁移；
 - FND-QA-CC 负责验证最终 production 状态，不负责偷偷选择或迁移 policy；
 - 任一一致性 case 失败时 Foundation 保持 In Progress，P1A 门禁关闭。
 
@@ -32,7 +32,7 @@
 - RIS-only/Coherent Focus 与 simulation coefficient 的公共来源或等价证明；
 - Profile/Reflection Model/`Gamma_wall`/quadrature/geometry/gain/direction/blockage 的分层 identity
   依赖审计；
-- 1×1 保留路径和条件性多点 production 路径的测试策略；
+- M8 production coefficient 与现有 Focus/QA 路径的一致性测试策略；
 - Ground Truth 不泄漏和 public phase-array API 兼容回归。
 
 不包含：

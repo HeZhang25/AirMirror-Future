@@ -6,8 +6,8 @@
 | 当前 release | v0.1 |
 | release 状态 | Verified |
 | 规范基线 | [docs/README.md](docs/README.md) |
-| 当前 Capability | Foundation 0.1.1C overall In Progress：C1 Verified，C2 Verified；FND-QA-AP-01 preregistration signed/frozen，FND-QA-AP-02..06 Verified；signed M8×8 production quadrature policy（production migration pending）；Foundation overall In Progress；FND-PHY-NB/FND-QA-CC Planned；P1A gate closed |
-| Prototype lane | XR Dynamic Room MVP allowed only as a non-release prototype after M8 production migration；FND-PHY-NB / FND-QA-CC Planned / deferred for scene-first MVP；P1A formal gate closed；formal v0.2 gate not satisfied |
+| 当前 Capability | Foundation 0.1.1C overall In Progress：C1 Verified，C2 Verified；FND-QA-AP-01 preregistration signed/frozen，FND-QA-AP-02..06 Verified；signed midpoint 8×8 production quadrature policy 已接入 production RIS scattering；Foundation overall In Progress；FND-PHY-NB/FND-QA-CC Planned；P1A gate closed |
+| Prototype lane | M8 production migration 已完成，XR Dynamic Room MVP entry condition 已满足；仍只允许 non-release prototype；FND-PHY-NB / FND-QA-CC Planned / deferred for scene-first MVP；P1A formal gate closed；formal v0.2 gate not satisfied |
 
 ## Foundation FND-QA-AP-05/06 formal verification and policy closure
 
@@ -23,11 +23,10 @@ adequacy，M8 通过 84/84 series。
 > integration refinement，不增加 control cells，不改变 command vector size 或 pattern
 > semantics。
 
-该结论是 policy closure，不是 production migration。当前 production quadrature/default
-behavior 未改变；如需接入 production coefficient、Focus 或 simulator，必须另行完成独立
-migration 和审查。FND-QA-CC 必须在 production migration 完成后再最终 closure；本结论不
-单独签署 Focus/simulator/coefficient builder 一致性，不解除 FND-PHY-NB、FND-QA-CC 或 P1A
-gate。v1 与 continuation result artifacts 保持不可修改历史证据。
+该结论本身是 policy closure，不等同于 production migration。后续独立 migration 已把同一
+midpoint `8×8` policy 接入 production RIS scattering/coefficient evaluation；没有重跑或修改 v1
+与 continuation QA artifacts。FND-QA-CC 仍须后续最终 closure；本 migration 不单独签署
+Focus/simulator/coefficient builder 一致性，不解除 FND-PHY-NB、FND-QA-CC 或 P1A gate。
 
 ## Scene-first MVP prototype lane
 
@@ -35,7 +34,7 @@ gate。v1 与 continuation result artifacts 保持不可修改历史证据。
 
 ```text
 Foundation
-  → M8 production migration
+  → M8 production migration [completed]
   → FND-PHY-NB
   → FND-QA-CC
   → Foundation Final Verification
@@ -43,7 +42,7 @@ Foundation
   → formal v0.2 XR
 ```
 
-新增的非正式快线只允许在 M8 production migration 完成后进入：
+新增的非正式快线只允许在 M8 production migration 完成后进入；该 entry condition 现已满足：
 
 ```text
 M8 production migration
@@ -369,7 +368,7 @@ cross-cutting Work Items 保持 Planned。本轮不构成任何能力的 Impleme
   独立 quadrature convergence；
 - 正式顺序调整为 A3 → B → A/B checkpoint → C → FND-QA-AP → Foundation final verification
   → P1A → P1C extended research；
-- 当前 production 仍为每 control patch `1×1` midpoint。一次隔离审计观察到 default target 上
+- 该历史记录时点的 production 仍为每 control patch `1×1` midpoint。一次隔离审计观察到 default target 上
   `1×1` 相对内部 16×16 细化参考约 Current `+0.848 dB`、Advanced `+0.430 dB`、Future
   `+0.639 dB`；该结果尚非版本化 runner/正式验收证据，也不是 EM truth；
 - FND-QA-AP 将固定 aperture/control/pattern/Profile，只细化 quadrature，使用 successive
@@ -410,7 +409,7 @@ Deliverable A2（RIS aperture patch semantic contract）已完成最终人工验
 | Advanced v0.1 fast headless | `-30.1257 dBm`，RIS Gain `+25.1496 dB`，场图 `3.401 s` |
 | Future v0.1 fast headless | `-19.3118 dBm`，RIS Gain `+35.9636 dB`，场图 `8.553 s` |
 
-三代目标数值与 A1 基线一致；它们是 current scalar center-point model 的兼容回归，显示到四位
+三代目标数值与 A1 基线一致；它们是该历史记录时点 scalar center-point model 的兼容回归，显示到四位
 小数不代表具有相同物理精度。运行时间波动不构成数值变化。A2 没有修改散射核心算法、GUI、
 A3、PropagationProfile、缓存或实验逻辑。状态边界保持：A1 Verified；A2 Verified；
 Foundation 0.1.1A、AMF-RIS-009 和 Foundation 0.1.1 均为 In Progress（本历史记录时点）。
@@ -473,8 +472,8 @@ Implemented/Verified。
   P1C 保留完整 aperture/field-map/适用域研究；
 - A3 commanded hardware-state validation、B1/B2/B3 及其五个 B requirements 已 Verified；
 - C1 Profile/Reflection 接入与稳定 Profile identity 已 Verified，不代表后续 coefficient/physics gate 已签署；
-- C2 provenance/no-overwrite 已 Verified；自定义复数 Profile 不构成最终 Focus/coefficient consistency
-  签署，仍须 FND-QA-CC 与必要的独立 production migration；
+- C2 provenance/no-overwrite 已 Verified；独立 M8 production migration 已完成，但自定义复数
+  Profile 不构成最终 Focus/coefficient consistency 签署，仍须 FND-QA-CC；
 - `frequency_hz/bandwidth_hz` 的 flat-channel 语义已由 ADR-0010 冻结；具体 channel model ID
   仍由 FND-PHY-NB 签署，不能因 C2 provenance 已闭合而视为 narrowband contract 完成；
 - FND-FIX-WALL 已 Verified：floor-anchored Wall/XY-only Ground Truth 语义当前仍不支持悬空/倾斜墙；
@@ -493,10 +492,12 @@ Implemented/Verified。
 
 ## 下一阶段
 
-正式路线：完成 M8 production migration → FND-PHY-NB → FND-QA-CC → Foundation Final
-Verification → P1A → formal v0.2 XR。P1A formal gate 保持 closed，formal v0.2 gate 未满足。
+正式路线不变：M8 production migration 已完成；后续仍为 FND-PHY-NB → FND-QA-CC →
+Foundation Final Verification → P1A → formal v0.2 XR。P1A formal gate 保持 closed，formal
+v0.2 gate 未满足。
 
-prototype 快线：M8 production migration → XR Dynamic Room MVP。FND-PHY-NB、FND-QA-CC、
+prototype 快线：M8 production migration → XR Dynamic Room MVP，entry condition 现已满足。
+FND-PHY-NB、FND-QA-CC、
 Foundation Final Verification、P1A、P1B、P1C 可在 MVP 后补回，状态统一为
 **deferred for scene-first MVP**；该快线不提升任何正式 gate 状态。
 

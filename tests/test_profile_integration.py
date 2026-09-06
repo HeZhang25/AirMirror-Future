@@ -12,6 +12,7 @@ from airmirror_future.core.types import Obstacle, Scene, SimulationConfig, Vec3
 from airmirror_future.optimization.coherent_focus import generate_coherent_target_pattern
 from airmirror_future.physics import blockage, reflections
 from airmirror_future.physics.free_space import complex_free_space_channel
+from airmirror_future.physics.ris_scattering import _production_quadrature_spec
 from airmirror_future.scenarios.smart_space import create_smart_space_scene
 from airmirror_future.simulation.engine import SimulationCancelled, SimulationEngine
 from airmirror_future.simulation.ground_truth import ControllerModel, GroundTruthModel
@@ -317,8 +318,9 @@ def test_existing_kernel_and_cancellation_errors_remain() -> None:
     with pytest.raises(NotImplementedError, match="active RIS"):
         SimulationEngine().compute_channel(scene, ris_patterns=patterns)
     scene.ris_surfaces[0].active = False
-    scene.transmitter().position = Vec3(*scene.ris_surfaces[0].cell_centers()[0])
-    with pytest.raises(ValueError, match="cell centre"):
+    sample = _production_quadrature_spec(scene.ris_surfaces[0]).sample_coordinates[0]
+    scene.transmitter().position = Vec3(*sample)
+    with pytest.raises(ValueError, match="sample point"):
         SimulationEngine().compute_channel(scene, ris_patterns=patterns)
     spy = SpyProfile()
     with pytest.raises(SimulationCancelled):

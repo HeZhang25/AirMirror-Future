@@ -31,7 +31,7 @@ v0.1 Smart Space (Verified)
        -> A/B interim human checkpoint (not Foundation Verified)
        -> 0.1.1C propagation profile boundary
        -> FND-QA-AP minimum aperture quadrature validity
-       -> M8 production migration (pending)
+       -> M8 production migration (completed)
        -> FND-PHY-NB narrowband frequency contract
        -> FND-QA-CC controller coefficient consistency
        -> Foundation final verification
@@ -77,7 +77,7 @@ id 错误异常待统一。这些进入 P1 tasks。
 ## 4. Foundation 0.1.1：物理模型契约
 
 状态：In Progress；Foundation 0.1.1A、A1/A2/A3、FND-FIX-WALL、B1/B2/B3 Verified；C1
-Verified，C2 Verified，C overall In Progress，P1A gate closed；FND-QA-AP Verified（v1 formal run `20260906T094526-de4745c3` 与 reference-resolution continuation `20260906T123708-78615a33` 完成，84/84 series resolved，signed/frozen midpoint `8×8` production quadrature policy；production migration pending）；FND-PHY-NB 与 FND-QA-CC Planned。详细背景、范围、
+Verified，C2 Verified，C overall In Progress，P1A gate closed；FND-QA-AP Verified（v1 formal run `20260906T094526-de4745c3` 与 reference-resolution continuation `20260906T123708-78615a33` 完成，84/84 series resolved，signed/frozen midpoint `8×8` production quadrature policy；production migration completed）；FND-PHY-NB 与 FND-QA-CC Planned。详细背景、范围、
 Requirement IDs、L3/L4 工作项、测试、兼容策略和 Exit Gate 见
 [foundation_0_1_1_plan.md](foundation_0_1_1_plan.md)。
 
@@ -128,7 +128,7 @@ FND-QA-AP、已 Verified 的 FND-FIX-WALL、FND-PHY-NB 和 FND-QA-CC 均是 P1A 
 ### 4.1 Scene-first MVP prototype lane
 
 [XR Dynamic Room MVP](work_items/xr_dynamic_room_mvp.md) 的 entry condition 是 M8 production
-migration 已完成。第一版只复用现有 Scene、SimulationEngine、RIS、Pattern 和 metrics，覆盖
+migration 已完成；该条件现已满足。第一版只复用现有 Scene、SimulationEngine、RIS、Pattern 和 metrics，覆盖
 单室内房间、单 TX、单 RIS、确定性移动单 RX，并生成 received power(t) / SNR(t) headless CSV
 与 PNG；禁止建立第二套 propagation engine 或 coefficient system。
 

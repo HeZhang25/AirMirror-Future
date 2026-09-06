@@ -54,8 +54,8 @@ continuous nominal、相位不改变幅度时，验收关系为
 
 ### 3.3 最终 Controller coefficient 一致性（Planned）
 
-A1 当前在 `1×1` center-point scalar model 上已 Verified。ADR-0011 进一步要求：在 FND-QA-AP
-签署最终 production quadrature policy 后，RIS-only 与 Coherent Focus 必须使用 Controller
+A1 在当时的 `1×1` center-point scalar model 上已 Verified；production scattering 现已独立迁移到
+signed midpoint `8×8`。ADR-0011 进一步要求 RIS-only 与 Coherent Focus 必须使用 Controller
 simulator 同一组 `a_n^C`，或由测试证明数学/数值等价：
 
 ```text
@@ -64,8 +64,8 @@ h_RIS^C = sum_n a_n^C * sqrt(eta_n) * exp(j*phi_n)
 
 RIS-only 使用 `-arg(a_n^C)`；Coherent 使用 `arg(h_baseline^C)-arg(a_n^C)`，finite-bit 再遵守
 ADR-0006 的公共 offset/量化/tie-break 契约。Focus 不能读取 Ground Truth `a_n^GT`。该门禁由
-[FND-QA-CC](work_items/foundation_0_1_1_coefficient_consistency.md) 实施，当前尚非可用新功能；
-若 production 保持 1×1，应锁定与现有中心路径生成器的等价，不重开 A1。
+[FND-QA-CC](work_items/foundation_0_1_1_coefficient_consistency.md) 实施，当前仍为 Planned / deferred
+for scene-first MVP；M8 migration 本身不重开 A1，也不提前签署该一致性。
 
 ## 4. Algorithm B：Feedback Greedy
 

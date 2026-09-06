@@ -181,7 +181,7 @@ link_metric_key = (
 |---|---|
 | frequency | 所有传播相位和波长相关项 |
 | TX/RX/评价网格位置 | 相应距离、方向图、阻挡和反射 |
-| RIS 几何/朝向/网格 | cell centers、d1/d2、方向图、patterns |
+| RIS 几何/朝向/网格 | control patches、M8 sample coordinates、d1/d2、方向图、patterns |
 | quadrature rule/order/policy version | control-level `a_n`、几何 A 和对应 benchmark reference |
 | wall geometry / Reflection Model / `Gamma_wall` / effective wall truth state | 反射点、wall channel 和依赖它的 baseline；不得只失效 Profile identity |
 | obstacles / Profile parameters | 对应 LOS、反射路径段和 RIS legs 的 environment modifier |
@@ -194,7 +194,7 @@ P1A 不得把“每个 control patch 一个中心点”作为无版本的永久�
 FND-QA-AP 已签署并冻结 `quadrature_policy_id/version`；P1A 缓存的是该 policy 积分得到的
 control-level `a_n`。若 policy 改变，cache 必须失效，旧实验必须通过 model/policy version 保留。
 
-若 QA 需要多点求积，候选内部数据流为：
+signed M8 production policy 的内部数据流为：
 
 ```text
 Gamma_control[N_control]
@@ -209,10 +209,10 @@ parent-major、row-major 的稳定顺序排列。每个 subpoint 继承 parent c
 command coefficient，quadrature order 变化不得触发 Focus、量化、搜索或 pattern/hash 重建。
 这是内部 QA/implementation 边界，不改变 public phase-array API 或 `ris_patterns` shape。
 
-控制维度保持 `N_control=nx*ny`，quadrature samples 不获得独立 commanded phase。当前尚无公共
-`QuadratureSpec` 类型；rule/order/weights/version 和 blockage sampling ownership 必须由后续
-implementation Work Item 冻结。不得构造不可控的 `N_points×N_control×N_subpoints` 全量张量；
-优先分块/streaming reduction。
+控制维度保持 `N_control=nx*ny`，quadrature samples 不获得独立 commanded phase。内部
+`QuadratureSpec` 已由 QA 与 production 共用，但仍无公共 `QuadratureSpec` 类型；blockage 仍是
+RIS-center scalar ownership。不得构造不可控的 `N_points×N_control×N_subpoints` 全量张量；
+production 使用有界分块 reduction。
 
 ### 6.1 Planned Profile 与 coefficient 数据流
 
@@ -242,8 +242,8 @@ Wall/Reflection Model 拥有；后者是 RIS control patch 状态，由 RIS Mode
 
 RIS-only/Coherent Focus、SimulationEngine、FND-QA-AP 与未来 P1A 必须共享同一 Controller
 coefficient builder 或有等价证明。`a^GT` 只能留在 Ground Truth/oracle 路径。FND-QA-CC 在
-production quadrature policy 签署后执行；若 QAP 要求多点生产求积，应先创建独立迁移工作项，
-不得把迁移夹进缓存实现。
+production quadrature policy 签署后执行；M8 多点 production migration 已作为独立变更完成，
+未夹进缓存实现。FND-QA-CC 仍未关闭。
 
 ## 7. 错误与数值策略
 

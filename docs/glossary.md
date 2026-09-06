@@ -28,7 +28,7 @@
 | Effective Pitch | 实体宽高除以对应 equivalent patch 数所得的派生尺寸/中心间距 | 不当作制造间距或 `lambda/2` 合规结论 |
 | Physical Meta-atom | 需要器件布局、材料、互耦等模型支持的真实结构 | 当前模型尚未实现 |
 | Control Grid | `nx×ny` equivalent patches 及其 commanded phase 自由度 | 不与 quadrature grid 或 physical layout 混用 |
-| Quadrature Grid | 每个 control patch 内为数值积分生成的采样点与权重 | 当前 production 模型仍为每 patch `1×1` midpoint；不增加命令自由度 |
+| Quadrature Grid | 每个 control patch 内为数值积分生成的采样点与权重 | 当前 production 为每 patch midpoint `8×8`；64 个 subpoints 不增加命令自由度 |
 | Quadrature Policy | 求积规则、阶数、坐标/权重约定和版本的稳定身份 | 不只写“high quality”或省略版本 |
 | Control-level RIS Coefficient (`a_n`) | 在指定 Controller/GT、Profile 与 quadrature policy 下，一个 control patch 对单位反射状态的复响应 | 不与 commanded phase、measurement 或缓存对象混用 |
 | Reflection State (`Gamma_n`) | patch 的复反射状态；命令态含 nominal efficiency/phase，真实态可含效率和相位误差 | 不把 Ground Truth 状态反馈给 nominal Focus |

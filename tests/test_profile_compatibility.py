@@ -3,6 +3,8 @@
 The reference was captured before modifying production code, after checking
 that src/ at 9fad9b0 was identical to d9ab04a. Never regenerate it to bless a
 different physical model. These are test fixtures, not experiment provenance.
+The signed M8 migration intentionally changes RIS and total components, while
+the historical fixture continues to lock the unaffected LOS/wall/Profile data.
 """
 
 from dataclasses import asdict
@@ -78,7 +80,10 @@ def component_snapshot(name: str, truth: bool) -> dict:
 
 @pytest.mark.parametrize("name", ("Current", "Advanced", "Future", "reflection"))
 @pytest.mark.parametrize("truth", (False, True))
-def test_default_profile_components_match_v01_reference(name: str, truth: bool) -> None:
+def test_default_profile_preserves_unaffected_v01_reference_contract(
+    name: str,
+    truth: bool,
+) -> None:
     reference = json.loads(REFERENCE.read_text(encoding="utf-8"))
     assert reference["baseline"] == BASELINE
     expected = reference[f"{name}-{'truth' if truth else 'nominal'}"]
@@ -88,14 +93,26 @@ def test_default_profile_components_match_v01_reference(name: str, truth: bool) 
         array = np.asarray(values)
         return array[..., 0] + 1j * array[..., 1]
 
-    np.testing.assert_allclose(complexes(actual["components"]), complexes(expected["components"]),
-                               rtol=1e-12, atol=1e-15)
+    actual_components = complexes(actual["components"])
+    expected_components = complexes(expected["components"])
+    np.testing.assert_allclose(
+        actual_components[:2], expected_components[:2], rtol=1e-12, atol=1e-15
+    )
+    if name == "reflection":
+        np.testing.assert_allclose(
+            actual_components, expected_components, rtol=1e-12, atol=1e-15
+        )
+    else:
+        assert actual_components[2] != pytest.approx(expected_components[2])
+        assert actual_components[3] == pytest.approx(np.sum(actual_components[:3]))
     assert len(actual["paths"]) == len(expected["paths"])
     for actual_path, expected_path in zip(actual["paths"], expected["paths"], strict=True):
         assert actual_path.keys() == expected_path.keys()
         for key in actual_path:
-            if key == "channel":
+            if key == "channel" and actual_path["kind"] != "RIS":
                 np.testing.assert_allclose(complex(*actual_path[key]), complex(*expected_path[key]),
                                            rtol=1e-12, atol=1e-15)
+            elif key == "channel":
+                assert complex(*actual_path[key]) == pytest.approx(actual_components[2])
             else:
                 assert actual_path[key] == expected_path[key]

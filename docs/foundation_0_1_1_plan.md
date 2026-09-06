@@ -5,7 +5,7 @@
 | 文档状态 | Operational / Normative for sequencing |
 | 当前实现基线 | v0.1 Verified，commit `edfa43c` |
 | 目标版本 | v0.1.1 Foundation |
-| 当前计划状态 | Foundation 0.1.1 In Progress；Foundation 0.1.1A、A1/A2/A3、FND-FIX-WALL、B1/B2/B3 Verified；C1/C2 Verified，C overall In Progress；FND-QA-AP Verified（v1 formal run 与 reference-resolution continuation 完成，signed/frozen midpoint 8×8 policy；production migration pending）；FND-PHY-NB、FND-QA-CC Planned；P1A gate closed |
+| 当前计划状态 | Foundation 0.1.1 In Progress；Foundation 0.1.1A、A1/A2/A3、FND-FIX-WALL、B1/B2/B3 Verified；C1/C2 Verified，C overall In Progress；FND-QA-AP Verified（v1 formal run 与 reference-resolution continuation 完成，signed/frozen midpoint 8×8 policy；production migration completed）；FND-PHY-NB、FND-QA-CC Planned；P1A gate closed |
 | Prototype lane | M8 production migration → XR Dynamic Room MVP；non-release prototype only；FND-PHY-NB / FND-QA-CC Planned / deferred for scene-first MVP；P1A formal gate closed；formal v0.2 gate not satisfied |
 | 父级路线 | v0.1 Smart Space → Foundation 0.1.1 → P1A |
 | 主要责任 | 项目维护者、物理仿真负责人、GUI/测试负责人 |
@@ -81,17 +81,16 @@ Foundation 前置有八个直接原因：
    只检查长度，不能阻止非法离散命令进入 1-bit/2-bit RIS。
 4. **传播模型没有 Profile 身份**：未来不同场景若都进入同一引擎，缓存无法区分环境模型
    或参数版本；先稳定 Profile 契约才能定义可信的缓存失效规则。
-5. **待缓存的孔径系数尚无独立求积有效性证据**：当前每个 control patch 只取一个中心点；
-   一次隔离审计已观察到默认目标链路存在约 `0.430–0.848 dB` 的幅度差，但该结果尚未经过
-   版本化 runner、代表性矩阵和正式 provenance。P1A 前必须通过 FND-QA-AP 冻结 `a_n` 的
-   production quadrature policy，不能先缓存再验证。
+5. **待缓存的孔径系数曾缺少独立求积有效性证据（已由 FND-QA-AP/M8 migration 关闭）**：
+   QA 已完成版本化代表性矩阵并签署 midpoint `8×8`，随后独立迁移已接入 production；P1A
+   仍须等待其余 Foundation gates，不能先缓存再验证。
 6. **墙体 z 语义与误差维度冲突（已由 FND-FIX-WALL 实现闭环）**：实现前墙面求交按绝对
    `[0,height]` 处理而忽略端点 z，Ground Truth 却对墙应用三维 position delta。默认 z=0 场景
    可运行，但这种偶然兼容不能描述成已定义的三维墙模型。
 7. **中心频率/带宽语义未形成稳定身份**：当前只计算 `h(fc)`，带宽只进入 noise 和 Shannon
    公式；若不显式冻结 flat-channel 近似，100 MHz 容易被误读为已完成宽带/OFDM 仿真。
-8. **Focus 与待缓存 coefficient 可能在未来分叉**：当前 1×1 实数 modifier 下中心路径 Focus 与
-   复系数相位共轭等价；复杂 Profile 或多点 quadrature 后不必然等价，必须在 P1A 前证明
+8. **Focus 与待缓存 coefficient 可能分叉**：A1 验证时的 1×1 实数 modifier 下中心路径 Focus 与
+   复系数相位共轭等价；production 迁移到 M8 后不自动等价，必须在 P1A 前证明
    Controller simulator 和 Focus 共享同一 `a_n^C`。
 
 审计备注：commit `edfa43c` 的默认 Smart Room 中，1-bit pattern 加入公共相位 offset 后，
@@ -108,7 +107,7 @@ v0.1 Verified
   → A/B Interim Checkpoint
   → Foundation 0.1.1C：PropagationProfile 接口
   → FND-QA-AP：Minimum Aperture Quadrature Validity
-  → M8 production quadrature migration（pending）
+  → M8 production quadrature migration（completed）
   → FND-PHY-NB：Narrowband Frequency Contract
   → FND-QA-CC：Controller Coefficient Consistency
   → Foundation Final Exit Gate
@@ -290,10 +289,9 @@ A2 已新增公共纯派生 helper，B 阶段可将其接入只读显示：
 full-wave 或 measurement。求积细化时禁止重新生成 Focus；否则会重新混合控制自由度与数值积分
 精度。完整决定见 [ADR-0008](adr/0008-minimum-aperture-quadrature-validity-gate.md)。
 
-当前 production 仍是每 patch `1×1` midpoint。本计划不依据一次审计立即改成 `16×16`；正式
-QA 根据预注册容差决定保留 1×1、采用某个低阶固定 policy、建立适用域相关 policy，或阻断
-Foundation。partial-aperture blockage 不属于该门禁；当前 RIS center scalar attenuation 不能
-因 quadrature refinement 被描述为空间分辨遮挡。
+正式 QA 已按预注册容差签署每 patch midpoint `8×8`，独立 migration 已接入 production；没有
+采用 `16×16`，也没有重跑 M16/M32/M64 formal matrix。partial-aperture blockage 不属于该门禁；
+当前 RIS center scalar attenuation 不能因 quadrature refinement 被描述为空间分辨遮挡。
 
 `design_frequency_hz` 在 Foundation 0.1.1 明确 **Deferred**：Scene v1 不新增该字段。当前
 operating `frequency_hz` 继续决定 `k`、波长和 `pitch/wavelength` 展示，但不自动缩放实体孔径。
@@ -481,10 +479,10 @@ RIS-only Focus 使用 `-arg(a_n^C)`，Coherent Focus 使用
 `a_n^GT/Gamma_actual`，只能通过 oracle 反馈，不能进入 model-based Focus。
 
 该分解首先是内部所有权契约，不改变 public phase-array API，不授权改变 efficiency/area 数值。
-FND-QA-AP 先决定 quadrature policy：若保持 1×1，则用测试证明当前中心路径实现等价；若采用
-多点或复相位 modifier，则必须先完成独立 production migration，让 simulator 与 Focus 共享同一
-coefficient builder。最后由 [FND-QA-CC](work_items/foundation_0_1_1_coefficient_consistency.md)
-签署一致性。该门禁不重开 A1/A2，也不实现 P1A cache。
+FND-QA-AP 已决定 midpoint `8×8` policy，独立 production migration 已让 simulator 使用该求积；
+现有 Focus 路径未在 migration 中改变。最后由
+[FND-QA-CC](work_items/foundation_0_1_1_coefficient_consistency.md) 签署 Focus/simulator 一致性。
+该门禁不重开 A1/A2，也不实现 P1A cache。
 
 ## 6. Requirement 映射
 
@@ -655,9 +653,9 @@ Implemented/Verified，也不签署 FND-PHY-NB 或 FND-QA-CC；FND-QA-AP 已在 
   reference-resolution continuation `20260906T123708-78615a33` 已完成并通过独立审查；84/84
   preregistered series resolved，M1/M2 rejected，M4 未达到全局 adequacy，M8 通过 84/84。
   signed/frozen production quadrature policy 为每个既有 RIS control patch 内 midpoint `8×8`
-  integration subpoints；`8×8` 不增加 control cells 或 command vector size。production
-  migration 尚未实施，当前 production default behavior 不变；FND-QA-CC 必须在 migration
-  完成后再最终 closure；
+  integration subpoints；`8×8` 不增加 control cells 或 command vector size。后续独立 production
+  migration 已把该 policy 接入 RIS scattering/coefficient evaluation；FND-QA-CC 仍须后续最终
+  closure；
 - Requirement：`AMF-RIS-011`；
 - 依赖：A2 Verified、ADR-0008 Accepted；正式执行依赖 A3/B/C Implemented 和 C2 provenance；
 - 输入：固定 aperture/control grid/commanded pattern/Profile/geometry，候选 quadrature
@@ -701,7 +699,7 @@ Implemented/Verified，也不签署 FND-PHY-NB 或 FND-QA-CC；FND-QA-AP 已在 
 #### FND-QA-CC：Controller Coefficient Consistency
 
 - 状态：**Planned / deferred for scene-first MVP**；Requirement `AMF-RIS-012`；
-- 依赖：C1 Profile、FND-QA-AP signed policy、FND-PHY-NB、必要时先完成独立 production migration；
+- 依赖：C1 Profile、FND-QA-AP signed policy、FND-PHY-NB、已完成的独立 production migration；
 - 输入：最终 `a_n^C`、`Gamma_cmd`、baseline、两种 Focus、Controller/GT boundary；
 - 输出：Focus/simulator/QAP 一致性证据和分层 coefficient identity；
 - 验收：FND-T21/T22、Ground Truth 不泄漏、identity mutation matrix、三代回归；
@@ -729,7 +727,7 @@ Implemented/Verified，也不签署 FND-PHY-NB 或 FND-QA-CC；FND-QA-AP 已在 
 | 11 | `FND-QA-AB` A/B 中期验收与人工复核 | Verified | 三代 headless、GUI、临时隔离实验和独立审查记录；§14.4 checkpoint PASS |
 | 12 | `FND-ARCH-01` 接入 environment-only PropagationProfile | Verified | C Work Item C1 verification evidence；FND-T13..14、三代 headless；三轮外部独立审查最终 PASS、blocking issues 0 |
 | 13 | `FND-EXP-01` 加入最小实验 provenance | Verified | C Work Item 01A..01C；schema v1、partial/pending、legacy 和 no-overwrite；C2 independent review PASS |
-| 14 | `FND-QA-AP` 最小孔径求积有效性门禁 | Verified | FND-QA-AP-01..06 signed/frozen contract、v1 formal run 与 reference-resolution continuation；M8×8 policy signed，production migration remains separate |
+| 14 | `FND-QA-AP` 最小孔径求积有效性门禁 | Verified | FND-QA-AP-01..06 signed/frozen contract、v1 formal run 与 reference-resolution continuation；M8×8 policy signed and migrated to production separately |
 | 15 | `FND-PHY-NB` 冻结 center-frequency flat-channel contract | Planned / deferred for scene-first MVP | FND-T20、model ID 与准确标签 |
 | 16 | `FND-QA-CC` 验证 Controller coefficient/Focus 一致性 | Planned / deferred for scene-first MVP | FND-T21..22、identity/boundary review |
 | 17 | `FND-QA-01` Foundation Final Verification | Planned / deferred for scene-first MVP | 全量回归、headless、GUI 和 Foundation final exit evidence |
@@ -801,18 +799,17 @@ python -m airmirror_future --headless --scene scenes/smart_room.json --generatio
 实验迁移完成后在新目录运行 Phase Resolution；不得覆盖 v0.1 legacy 输出。GUI 变更按
 [gui_spec.md](gui_spec.md) 的人工清单验收，并记录未执行项。
 
-现有 `test_fixed_aperture_subdivision_converges_without_cell_gain` 继续作为面积归一化和 control-grid
-细分不发散保护，不把它升级成“粗 control patch 已达到物理收敛”的证据。FND-QA-AP 必须新增
-独立 quadrature grid，在固定 control grid/pattern 下逐级细化，并同时报告 absolute、robust
-normalized complex error、幅度/功率差和有保护的 phase/RIS Gain。reference convergence 和
-production adequacy 容差必须在正式结果前预注册；不得在失败后放宽。最小 QA 避开 partial
-blockage boundary；P1C 再扩大 frequency/angle/near-field、field-map 和遮挡边缘适用域。
+现有 `test_fixed_aperture_uniform_pattern_converges_without_cell_gain` 继续作为面积归一化和
+control-grid 细分不发散保护，不把它升级成“粗 control patch 已达到物理收敛”的证据。
+FND-QA-AP 已在固定 control grid/pattern 下完成独立 quadrature refinement，正式容差未在失败后
+放宽。最小 QA 避开 partial blockage boundary；P1C 再扩大 frequency/angle/near-field、field-map
+和遮挡边缘适用域。
 
 FND-T19 已独立关闭并验证 wall 几何语义，不把 z delta 映射成 wall height。FND-T20 只验证当前
 center-frequency flat-channel 合同，不借机加入频率轴。
-FND-T21/T22 必须在 FND-QA-AP 签署 production policy 后执行；若 QAP 要求多点 production，先
-完成独立 migration，再验证 Focus、simulator 和 QA runner 共用 coefficient。FND-T20..22 仍为
-Planned，不因文档测试设计而提前通过。
+FND-T21/T22 必须在 FND-QA-AP 签署 production policy 后执行；M8 独立 migration 已完成，下一步
+仍须验证 Focus、simulator 和 QA runner 共用 coefficient。FND-T20..22 仍为 Planned，不因
+production migration 或文档测试设计而提前通过。
 
 ## 11. 实验、兼容和版本策略
 
@@ -865,7 +862,7 @@ Foundation 不向 Scene v1 写入 `design_frequency_hz`；该问题已 Deferred�
 | Profile 与 RIS 公式重复计算距离损耗/相位 | path-response 契约测试和分量对照 | ADR 明确 full transfer 或 environment modifier，禁止混用 |
 | Wall endpoint z 被接受后计算忽略 | loader/geometry/FND-T19 | 收紧 v1 为 floor anchor，墙只用刚体 XY delta |
 | 100 MHz 被误称已做宽带/OFDM | 标签、FND-T20、provenance review | 固定 flat-channel model ID，不做无来源自动有效性判定 |
-| quadrature/Profile 升级后 Focus 仍用中心路径 | FND-T21/T22 coefficient comparison | 独立 production migration；未闭环则阻断 Foundation/P1A |
+| quadrature/Profile 升级后 Focus 仍用中心路径 | FND-T21/T22 coefficient comparison | 独立 production migration 已完成；FND-QA-CC 未闭环仍阻断 Foundation/P1A |
 | coefficient identity 漏掉 gain/direction/world model | mutation matrix / cache design review | 分层补齐 canonical identity，未完成前不启用 cache |
 | 新实验覆盖旧结果 | 输出目录存在检查、metadata test | 默认拒绝覆盖或创建新 run 目录 |
 | Foundation 扩展到新场景/衰落/MIMO | Work Item scope review | 移回 roadmap，不在当前分支实现 |
@@ -907,12 +904,12 @@ Commanded validation、search levels 和 GUI dirty state 如果不改变层依�
 7. `refactor: introduce environment-only default propagation profile`
 8. `experiment: add minimum foundation provenance`
 9. `qa: establish minimum aperture quadrature validity and freeze coefficient policy`（已 Verified）
-10. 建立并完成独立 M8 production quadrature migration（pending）
+10. 建立并完成独立 M8 production quadrature migration（completed）
 11. `physics/docs: close narrowband frequency/model identity contract`（FND-PHY-NB）
 12. `qa: prove Controller coefficient and Focus consistency`（FND-QA-CC）
 13. `docs/qa: close foundation evidence and status`
 
-scene-first prototype 可在第 10 项完成后分支进入 XR Dynamic Room MVP；第 11–13 项及
+scene-first prototype 的第 10 项 entry condition 已满足，可分支进入 XR Dynamic Room MVP；第 11–13 项及
 P1A/P1B/P1C 可在 MVP 后补回，状态统一为 **deferred for scene-first MVP**。这不改变上述正式
 依赖顺序，也不打开 P1A 或 formal v0.2 gate。
 
@@ -946,8 +943,8 @@ P1A/P1B/P1C 可在 MVP 后补回，状态统一为 **deferred for scene-first MV
 - 旧行为差异有 ADR 和版本记录。
 
 Foundation A exit 后、B 开始前的 FND-FIX-WALL 已完成独立验收并达到 Verified；A1/A2/A3 的
-Verified 状态不受该独立 closure 影响。Foundation final gate 仍受 FND-PHY-NB、FND-QA-AP、
-FND-QA-CC 及其他既有门禁阻断。
+Verified 状态不受该独立 closure 影响。FND-QA-AP 已 Verified 且 M8 migration 已完成；Foundation
+final gate 仍受 FND-PHY-NB、FND-QA-CC 及其他既有门禁阻断。
 
 ### 14.3 Foundation 0.1.1B Exit Gate
 
@@ -993,8 +990,8 @@ visualization 均 PASS，blocking issues 0；上述五个 requirements 与 B Del
 - 三代、四类代表性几何、两个 Focus 和不少于 5 个固定 random seeds 的最小矩阵可重放；
 - FND-T16..18、深相消数值保护、runtime/memory 和无静默跳过检查通过；
 - reference/production tolerance 在正式结果前登记，结果失败后未通过放宽阈值取得 PASS；
-- production `quadrature_policy_id/version` 已签署；若需要改变散射实现，独立 implementation
-  Work Item 已完成并重新运行三代回归；
+- production `quadrature_policy_id/version` 已签署；独立 M8 scattering implementation 已完成并
+  重新运行三代回归；
 - FND-FIX-WALL/FND-T19 已关闭 wall endpoint z、height 和 Ground Truth XY perturbation 歧义；
 - FND-PHY-NB/FND-T20 已冻结 `narrowband_center_frequency_flat_v1`，标签/provenance 不把
   `h(fc)` 平坦上界误称宽带或真实吞吐；
@@ -1024,7 +1021,8 @@ Foundation 之后的正式路线与以下既有 P1/场景范围保持不变：
 6. **v0.4 City/Low-Altitude**：城市几何、NLoS、车辆/UAV 和独立传播 Profile；
 7. 后续再考虑 fading、MIMO、OFDM、active/STAR RIS 和全波/测量校准。
 
-scene-first 快线只在 M8 production migration 后进入 XR Dynamic Room MVP。FND-PHY-NB、
+scene-first 快线只在 M8 production migration 后进入 XR Dynamic Room MVP；该 entry condition
+现已满足。FND-PHY-NB、
 FND-QA-CC、Foundation Final Verification、P1A、P1B、P1C 均为 **deferred for scene-first
 MVP**，可在 MVP 后补回；它们没有因此 Completed/Verified。P1A formal gate 仍 closed，formal
 v0.2 gate not satisfied。
@@ -1085,7 +1083,7 @@ v0.2 gate not satisfied。
 以下问题在正式实现前不得由单个开发者静默选择：
 
 1. FND-QA-AP 的预注册 reference/production tolerance、最终 fixed/adaptive policy 和是否需要
-   production migration；这些必须在 Work Item 进入 Ready/查看正式结果前关闭，不能静默选择。
+   production migration 已由 signed/frozen M8 policy 与独立 migration 关闭；不得静默改选。
 2. FND-QA-CC coefficient builder 的具体内部模块/类型；公共 phase-array API 和因子所有权已关闭。
 
 未决项存在不表示计划阻塞；它们是对应 ADR/Work Item 进入 Ready 前必须关闭的选择。
