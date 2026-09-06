@@ -54,7 +54,7 @@ from airmirror_future.simulation.profiles import PropagationPathContext
 CONTINUATION_SCHEMA_ID = "airmirror_fnd_qa_ap_reference_resolution"
 CONTINUATION_SCHEMA_VERSION = 1
 CONTINUATION_CONFIG_PATH = _REPOSITORY_ROOT / "configs" / "foundation_0_1_1" / "fnd_qa_ap_reference_resolution_v1.json"
-CONTINUATION_CONFIG_IDENTITY = "sha256:f8ef11480880493695eb6d41257c74a540b74e3f6969ea3f7eab1b859d23a7a2"
+CONTINUATION_CONFIG_IDENTITY = "sha256:0e3bd17e97d4e7042c963b2451ce1a91665f56f5669363c9582a30b278b97bc9"
 PARENT_EVIDENCE_MANIFEST_PATH = _REPOSITORY_ROOT / "configs" / "foundation_0_1_1" / "fnd_qa_ap_reference_resolution_parent_evidence_v1.json"
 PARENT_RUN_ID = "20260906T094526-de4745c3"
 PARENT_CONFIG_IDENTITY = "sha256:94dd4bf50ff0a5c5246980577ef4731e2e5d8504fa44fa1f56c4282ff4113cf7"
