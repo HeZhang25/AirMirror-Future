@@ -101,6 +101,16 @@ class MVPArtifacts:
     runtime_s: float
 
 
+@dataclass(frozen=True, slots=True)
+class MVPComputation:
+    """One complete in-memory result reused by headless and GUI frontends."""
+
+    scene: Scene
+    trajectory: tuple[TrajectorySample, ...]
+    static_pattern: np.ndarray
+    samples: tuple[DynamicLinkSample, ...]
+
+
 def build_trajectory() -> tuple[TrajectorySample, ...]:
     """Return ``p(t) = p0 + v*t`` for the fixed MVP sampling clock."""
     sample_count = int(round(TRAJECTORY_DURATION_S / TRAJECTORY_SAMPLE_INTERVAL_S)) + 1
@@ -307,36 +317,47 @@ def _write_plot(path: Path, samples: tuple[DynamicLinkSample, ...]) -> None:
     figure.savefig(path, dpi=160)
 
 
-def run(output: Path | None = None) -> MVPArtifacts:
-    """Run the deterministic No RIS versus Static RIS MVP comparison."""
-    started = time.perf_counter()
-    output_directory = _create_output_directory(output)
+def compute_mvp(
+    *,
+    engine: SimulationEngine | None = None,
+    model: ControllerModel | None = None,
+) -> MVPComputation:
+    """Compute the frozen-pattern MVP once without writing artifacts."""
+    active_engine = engine or SimulationEngine()
+    active_model = model or ControllerModel()
     scene = create_mvp_scene()
     trajectory = build_trajectory()
-    engine = SimulationEngine()
-    model = ControllerModel()
     static_pattern = generate_static_pattern(
         scene,
         trajectory[0].position,
-        engine=engine,
-        model=model,
+        engine=active_engine,
+        model=active_model,
     )
     samples = evaluate_trajectory(
         scene,
         trajectory,
         static_pattern,
-        engine=engine,
-        model=model,
+        engine=active_engine,
+        model=active_model,
     )
+    return MVPComputation(scene, trajectory, static_pattern, samples)
+
+
+def run(output: Path | None = None) -> MVPArtifacts:
+    """Run the deterministic No RIS versus Static RIS MVP comparison."""
+    started = time.perf_counter()
+    output_directory = _create_output_directory(output)
+    engine = SimulationEngine()
+    computation = compute_mvp(engine=engine)
 
     csv_path = output_directory / "xr_dynamic_room_mvp.csv"
     png_path = output_directory / "xr_dynamic_room_mvp.png"
-    _write_csv(csv_path, samples, scene=scene, engine=engine)
-    _write_plot(png_path, samples)
+    _write_csv(csv_path, computation.samples, scene=computation.scene, engine=engine)
+    _write_plot(png_path, computation.samples)
     return MVPArtifacts(
         csv_path=csv_path,
         png_path=png_path,
-        static_pattern_hash=_pattern_hash(static_pattern),
+        static_pattern_hash=_pattern_hash(computation.static_pattern),
         runtime_s=time.perf_counter() - started,
     )
 

@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QProgressBar,
     QScrollArea,
+    QSlider,
     QSpinBox,
     QSplitter,
     QStatusBar,
@@ -38,7 +39,20 @@ from airmirror_future.core.types import FieldMapResult, Scene, SimulationConfig,
 from airmirror_future.core.units import dbm_to_watts, watts_to_dbm
 from airmirror_future.gui.pattern_view import PhasePatternView
 from airmirror_future.gui.scene_view import SceneView
-from airmirror_future.gui.workers import MapWorker, OptimizationWorker
+from airmirror_future.gui.workers import (
+    MapWorker,
+    OptimizationWorker,
+    XRDynamicRoomWorker,
+)
+from airmirror_future.experiments.xr_dynamic_room_mvp import (
+    DynamicLinkSample,
+    MVPComputation,
+    MVP_MODES,
+    NO_RIS_MODE,
+    STATIC_RIS_MODE,
+    build_trajectory,
+    create_mvp_scene,
+)
 from airmirror_future.ris.generations import generation_preset
 from airmirror_future.ris.aperture import equivalent_patch_diagnostics
 from airmirror_future.ris.phase import generate_focus_pattern
@@ -67,10 +81,18 @@ class MainWindow(QMainWindow):
         self._updating_controls = False
         self._pending = False
         self._pattern_source = "Coherent Target Focus"
+        self._xr_demo_active = False
+        self._xr_result: MVPComputation | None = None
+        self._xr_sample_index = 0
+        self._xr_sample_lookup: dict[tuple[int, str], DynamicLinkSample] = {}
+        self._smart_metric_texts: tuple[str, ...] = ()
         self._debounce = QTimer(self)
         self._debounce.setSingleShot(True)
         self._debounce.setInterval(450)
         self._debounce.timeout.connect(self.start_field_map)
+        self._xr_playback_timer = QTimer(self)
+        self._xr_playback_timer.setInterval(500)
+        self._xr_playback_timer.timeout.connect(self._advance_xr_sample)
 
         self.scene_view = SceneView()
         self.scene_view.on_entity_moved = self._entity_moved
@@ -83,9 +105,11 @@ class MainWindow(QMainWindow):
 
     def _build_ui(self) -> None:
         splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.addWidget(self._build_left_panel())
+        self.left_panel = self._build_left_panel()
+        splitter.addWidget(self.left_panel)
         splitter.addWidget(self.scene_view)
-        splitter.addWidget(self._build_right_panel())
+        self.right_panel = self._build_right_panel()
+        splitter.addWidget(self.right_panel)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
         splitter.setStretchFactor(2, 0)
@@ -112,26 +136,64 @@ class MainWindow(QMainWindow):
         panel.setMinimumWidth(220)
         layout = QVBoxLayout(panel)
         layout.addWidget(QLabel("<b>场景 / Scenario</b>"))
-        scenario = QComboBox()
-        scenario.addItem("Future Smart Space")
-        layout.addWidget(scenario)
-        roadmap = QLabel("路线图：XR · Smart Factory · Future City\n尚未实现，不提供假功能入口。")
+        self.scenario_combo = QComboBox()
+        self.scenario_combo.addItem("Future Smart Space", "smart_space")
+        self.scenario_combo.addItem(
+            "XR Dynamic Room MVP · Prototype",
+            "xr_dynamic_room_mvp",
+        )
+        self.scenario_combo.currentIndexChanged.connect(self._scenario_changed)
+        layout.addWidget(self.scenario_combo)
+        roadmap = QLabel(
+            "XR Dynamic Room MVP：non-release result playback\n"
+            "Smart Factory · Future City：尚未实现"
+        )
         roadmap.setWordWrap(True)
         roadmap.setStyleSheet("color:#64748b")
         layout.addWidget(roadmap)
 
-        files = QGroupBox("场景文件")
-        files_layout = QVBoxLayout(files)
+        self.xr_controls = QGroupBox("XR MVP Playback")
+        xr_layout = QVBoxLayout(self.xr_controls)
+        self.xr_mode_combo = QComboBox()
+        self.xr_mode_combo.addItems(MVP_MODES)
+        self.xr_mode_combo.currentTextChanged.connect(self._xr_mode_changed)
+        xr_layout.addWidget(self.xr_mode_combo)
+        buttons = QHBoxLayout()
+        self.xr_play_button = QPushButton("Play")
+        self.xr_pause_button = QPushButton("Pause")
+        self.xr_reset_button = QPushButton("Reset")
+        self.xr_play_button.clicked.connect(self._play_xr_demo)
+        self.xr_pause_button.clicked.connect(self._pause_xr_demo)
+        self.xr_reset_button.clicked.connect(self._reset_xr_demo)
+        for button in (
+            self.xr_play_button,
+            self.xr_pause_button,
+            self.xr_reset_button,
+        ):
+            buttons.addWidget(button)
+        xr_layout.addLayout(buttons)
+        self.xr_timeline = QSlider(Qt.Orientation.Horizontal)
+        self.xr_timeline.setRange(0, len(build_trajectory()) - 1)
+        self.xr_timeline.valueChanged.connect(self._set_xr_sample)
+        xr_layout.addWidget(self.xr_timeline)
+        self.xr_sample_label = QLabel("Sample: —")
+        xr_layout.addWidget(self.xr_sample_label)
+        self.xr_controls.setVisible(False)
+        self._set_xr_controls_ready(False)
+        layout.addWidget(self.xr_controls)
+
+        self.files_group = QGroupBox("场景文件")
+        files_layout = QVBoxLayout(self.files_group)
         load_button = QPushButton("加载场景 / Load")
         save_button = QPushButton("保存场景 / Save")
         load_button.clicked.connect(self._load_scene)
         save_button.clicked.connect(self._save_scene)
         files_layout.addWidget(load_button)
         files_layout.addWidget(save_button)
-        layout.addWidget(files)
+        layout.addWidget(self.files_group)
 
-        layers = QGroupBox("显示层")
-        layers_layout = QVBoxLayout(layers)
+        self.layers_group = QGroupBox("显示层")
+        layers_layout = QVBoxLayout(self.layers_group)
         self.show_field = QCheckBox("Show Field")
         self.show_field.setChecked(True)
         self.show_rays = QCheckBox("Show Rays")
@@ -155,7 +217,7 @@ class MainWindow(QMainWindow):
         self.show_labels.toggled.connect(self._display_options_changed)
         self.show_pattern.toggled.connect(self.pattern_view.setVisible)
         self.show_coverage.toggled.connect(self._coverage_visibility_changed)
-        layout.addWidget(layers)
+        layout.addWidget(self.layers_group)
 
         info = QPushButton("模型说明 / Model Info")
         info.clicked.connect(self._show_model_info)
@@ -397,6 +459,255 @@ class MainWindow(QMainWindow):
             layout.addWidget(widget)
         return panel
 
+    def _set_xr_controls_ready(self, ready: bool) -> None:
+        self.xr_mode_combo.setEnabled(ready)
+        self.xr_play_button.setEnabled(ready and not self._xr_playback_timer.isActive())
+        self.xr_pause_button.setEnabled(ready and self._xr_playback_timer.isActive())
+        self.xr_reset_button.setEnabled(ready)
+        self.xr_timeline.setEnabled(ready)
+
+    def _set_smart_space_widgets_enabled(self, enabled: bool) -> None:
+        self.files_group.setEnabled(enabled)
+        self.layers_group.setEnabled(enabled)
+        self.right_panel.setEnabled(enabled)
+
+    def _scenario_changed(self, index: int) -> None:
+        mode = self.scenario_combo.itemData(index)
+        if mode == "xr_dynamic_room_mvp":
+            self._enter_xr_demo()
+        else:
+            self._leave_xr_demo()
+
+    def _enter_xr_demo(self) -> None:
+        if self._xr_demo_active:
+            return
+        self._xr_demo_active = True
+        self._smart_metric_texts = tuple(
+            widget.text()
+            for widget in (
+                self.power_metric,
+                self.snr_metric,
+                self.gain_metric,
+                self.coverage_metric,
+                self.dead_zone_metric,
+                self.runtime_metric,
+            )
+        )
+        self._xr_result = None
+        self._xr_sample_lookup = {}
+        self._xr_sample_index = 0
+        self.xr_mode_combo.blockSignals(True)
+        self.xr_mode_combo.setCurrentText(NO_RIS_MODE)
+        self.xr_mode_combo.blockSignals(False)
+        self.xr_timeline.setValue(0)
+        self._xr_playback_timer.stop()
+        self._debounce.stop()
+        self._version += 1
+        self._cancel_active()
+        self._set_smart_space_widgets_enabled(False)
+        self.xr_controls.setVisible(True)
+        self._set_xr_controls_ready(False)
+        self.future_badge.setText("Non-release XR Prototype")
+
+        demo_scene = create_mvp_scene()
+        trajectory = build_trajectory()
+        self.scene_view.set_options(
+            show_labels=self.show_labels.isChecked(),
+            show_rays=False,
+        )
+        self.scene_view.load_scene(demo_scene)
+        self.scene_view.set_entities_draggable(False)
+        self.scene_view.show_trajectory([sample.position for sample in trajectory])
+        self.pattern_view.set_patterns(
+            np.zeros(demo_scene.ris_surfaces[0].cell_count),
+            np.zeros(demo_scene.ris_surfaces[0].cell_count),
+            demo_scene.ris_surfaces[0].ny,
+            demo_scene.ris_surfaces[0].nx,
+            phase_bits=demo_scene.ris_surfaces[0].phase_bits,
+            pattern_source="XR MVP · calculating",
+            diagnostics=self._pattern_diagnostics(
+                demo_scene.ris_surfaces[0],
+                scene=demo_scene,
+            ),
+        )
+        self.power_metric.setText("Power: calculating…")
+        self.snr_metric.setText("SNR: calculating…")
+        self.gain_metric.setText("Mode: —")
+        self.coverage_metric.setText("Time: 0.0 s")
+        self.dead_zone_metric.setText("RX: (8.50, 4.00, 1.20) m")
+        self.runtime_metric.setText("Sample: 1/11")
+        self.xr_sample_label.setText("Precomputing 11 × 2 production link states…")
+        self.progress.setRange(0, 0)
+        self.statusBar().showMessage("正在后台计算 XR Dynamic Room MVP…")
+
+        worker = XRDynamicRoomWorker(self._version)
+        worker.signals.finished.connect(self._xr_demo_ready)
+        worker.signals.failed.connect(self._worker_failed)
+        self._active_worker = worker
+        self._workers.append(worker)
+        self.thread_pool.start(worker)
+
+    def _xr_demo_ready(self, version: int, result: MVPComputation) -> None:
+        if version != self._version or not self._xr_demo_active:
+            return
+        self._active_worker = None
+        self._xr_result = result
+        self._xr_sample_lookup = {
+            (sample.trajectory.sample_index, sample.mode): sample
+            for sample in result.samples
+        }
+        self.scene_view.load_scene(result.scene)
+        self.scene_view.set_entities_draggable(False)
+        self.scene_view.show_trajectory(
+            [sample.position for sample in result.trajectory]
+        )
+        self.xr_timeline.setRange(0, len(result.trajectory) - 1)
+        self._set_xr_controls_ready(True)
+        self.progress.setRange(0, 100)
+        self.progress.setValue(100)
+        self._set_xr_sample(0)
+        self.statusBar().showMessage(
+            "XR MVP ready · production results cached for playback"
+        )
+
+    def _xr_mode_changed(self, _mode: str) -> None:
+        self._set_xr_sample(self._xr_sample_index)
+
+    def _set_xr_sample(self, index: int) -> None:
+        if not self._xr_demo_active or self._xr_result is None:
+            return
+        index = max(0, min(int(index), len(self._xr_result.trajectory) - 1))
+        mode = self.xr_mode_combo.currentText()
+        sample = self._xr_sample_lookup[(index, mode)]
+        self._xr_sample_index = index
+        self.xr_timeline.blockSignals(True)
+        self.xr_timeline.setValue(index)
+        self.xr_timeline.blockSignals(False)
+        self.scene_view.set_trajectory_index(index)
+        self.scene_view.set_entity_visual_position(
+            self._xr_result.scene.receiver().id,
+            sample.trajectory.position,
+        )
+
+        ris = self._xr_result.scene.ris_surfaces[0]
+        if mode == STATIC_RIS_MODE:
+            commanded = self._xr_result.static_pattern
+            pattern_source = "XR MVP Static RIS · frozen at t=0"
+        else:
+            commanded = np.zeros(ris.cell_count)
+            pattern_source = "XR MVP No RIS · contribution disabled"
+        self.pattern_view.set_patterns(
+            commanded,
+            commanded,
+            ris.ny,
+            ris.nx,
+            phase_bits=ris.phase_bits,
+            pattern_source=pattern_source,
+            diagnostics=self._pattern_diagnostics(ris, scene=self._xr_result.scene),
+        )
+
+        point = sample.trajectory.position
+        self.power_metric.setText(
+            f"Power: {sample.received_power_dbm:.2f} dBm"
+        )
+        self.snr_metric.setText(f"SNR: {sample.snr_db:.2f} dB")
+        self.gain_metric.setText(f"Mode: {mode}")
+        self.coverage_metric.setText(f"Time: {sample.trajectory.time_s:.1f} s")
+        self.dead_zone_metric.setText(
+            f"RX: ({point.x:.2f}, {point.y:.2f}, {point.z:.2f}) m"
+        )
+        self.runtime_metric.setText(
+            f"Sample: {index + 1}/{len(self._xr_result.trajectory)}"
+        )
+        self.xr_sample_label.setText(
+            f"t={sample.trajectory.time_s:.1f} s · "
+            f"RX=({point.x:.2f}, {point.y:.2f}, {point.z:.2f}) m"
+        )
+
+    def _play_xr_demo(self) -> None:
+        if not self._xr_demo_active or self._xr_result is None:
+            return
+        if self._xr_sample_index >= len(self._xr_result.trajectory) - 1:
+            self._set_xr_sample(0)
+        self._xr_playback_timer.start()
+        self._set_xr_controls_ready(True)
+        self.statusBar().showMessage("XR MVP playback running")
+
+    def _pause_xr_demo(self) -> None:
+        self._xr_playback_timer.stop()
+        self._set_xr_controls_ready(self._xr_result is not None)
+        if self._xr_demo_active and self._xr_result is not None:
+            self.statusBar().showMessage("XR MVP playback paused")
+
+    def _reset_xr_demo(self) -> None:
+        self._pause_xr_demo()
+        self._set_xr_sample(0)
+        if self._xr_demo_active and self._xr_result is not None:
+            self.statusBar().showMessage("XR MVP reset to sample 1/11")
+
+    def _advance_xr_sample(self) -> None:
+        if not self._xr_demo_active or self._xr_result is None:
+            self._xr_playback_timer.stop()
+            return
+        next_index = self._xr_sample_index + 1
+        if next_index >= len(self._xr_result.trajectory):
+            self._pause_xr_demo()
+            self.statusBar().showMessage("XR MVP playback complete")
+            return
+        self._set_xr_sample(next_index)
+
+    def _leave_xr_demo(self) -> None:
+        if not self._xr_demo_active:
+            return
+        self._xr_playback_timer.stop()
+        self._version += 1
+        self._cancel_active()
+        self._xr_demo_active = False
+        self._xr_result = None
+        self._xr_sample_lookup = {}
+        self._xr_sample_index = 0
+        self.xr_controls.setVisible(False)
+        self._set_smart_space_widgets_enabled(True)
+        self.scene_view.set_options(
+            show_labels=self.show_labels.isChecked(),
+            show_rays=self.show_rays.isChecked(),
+        )
+        self.scene_view.load_scene(self.scene_model)
+        self.scene_view.set_entities_draggable(True)
+        if self.latest_field is not None:
+            if self.show_field.isChecked():
+                self.scene_view.set_field_map(
+                    self.latest_field,
+                    self.quantity.currentText(),
+                )
+            self.scene_view.set_coverage_map(
+                self.latest_field,
+                self.scene_model.coverage_threshold_db,
+                self.show_coverage.isChecked(),
+            )
+        self._refresh_pattern()
+        if self._smart_metric_texts:
+            for widget, text in zip(
+                (
+                    self.power_metric,
+                    self.snr_metric,
+                    self.gain_metric,
+                    self.coverage_metric,
+                    self.dead_zone_metric,
+                    self.runtime_metric,
+                ),
+                self._smart_metric_texts,
+                strict=True,
+            ):
+                widget.setText(text)
+        generation = self.scene_model.ris_surfaces[0].generation
+        self.future_badge.setText(
+            "Future Scenario Assumption" if generation == "Future" else ""
+        )
+        self.progress.setRange(0, 100)
+        self.progress.setValue(0)
+        self.statusBar().showMessage("Smart Space mode restored")
+
     def _set_focus_pattern(self) -> None:
         ris = self.scene_model.ris_surfaces[0]
         self.patterns = {
@@ -461,8 +772,9 @@ class MainWindow(QMainWindow):
             diagnostics=self._pattern_diagnostics(ris),
         )
 
-    def _pattern_diagnostics(self, ris: object) -> str:
-        diagnostics = equivalent_patch_diagnostics(ris, self.scene_model.frequency_hz)
+    def _pattern_diagnostics(self, ris: object, *, scene: Scene | None = None) -> str:
+        active_scene = self.scene_model if scene is None else scene
+        diagnostics = equivalent_patch_diagnostics(ris, active_scene.frequency_hz)
         return (
             f"Equivalent patch pitch: {diagnostics.effective_pitch_x_m:.4g}×"
             f"{diagnostics.effective_pitch_y_m:.4g} m; "
@@ -500,6 +812,8 @@ class MainWindow(QMainWindow):
         self.generation_status.setText(f"{ris.generation}{suffix}")
 
     def _entity_moved(self, identifier: str, position: Vec3) -> None:
+        if self._xr_demo_active:
+            return
         self.scene_model.transmitters = [
             replace(item, position=position) if item.id == identifier else item
             for item in self.scene_model.transmitters
@@ -519,6 +833,8 @@ class MainWindow(QMainWindow):
 
     def _schedule_field_map(self) -> None:
         """Invalidate any running result immediately, then debounce a replacement."""
+        if self._xr_demo_active:
+            return
         self._version += 1
         self._cancel_active()
         self._debounce.start()
@@ -623,6 +939,8 @@ class MainWindow(QMainWindow):
         return SimulationConfig(preset.grid_width, preset.grid_height, quantity)
 
     def start_field_map(self) -> None:
+        if self._xr_demo_active:
+            return
         self._cancel_active()
         self._version += 1
         version = self._version
@@ -742,6 +1060,9 @@ class MainWindow(QMainWindow):
         self._active_worker = None
         self.cancel_button.setEnabled(False)
         self.progress.setRange(0, 100)
+        if self._xr_demo_active:
+            self._set_xr_controls_ready(False)
+            self.xr_sample_label.setText("XR MVP calculation failed")
         self.statusBar().showMessage("计算失败")
         QMessageBox.critical(self, "计算失败", details)
 
@@ -821,7 +1142,7 @@ class MainWindow(QMainWindow):
             "RIS：孔径面积归一化、有限效率、有限相位精度、前向余弦方向图。\n"
             "噪声：-174 dBm/Hz + 带宽 + Noise Figure。\n"
             "容量：平坦信道 Shannon 理论上界，不代表真实吞吐量。\n"
-            "当前孔径积分：每个等效可控 patch 使用 1×1 midpoint；结果是 scalar center-point model。\n"
+            "当前孔径积分：每个等效可控 patch 使用 signed midpoint 8×8 subpoints。\n"
             "A2 的 pitch/波长仅作透明度信息，不表示 lambda/2 通过或数值收敛；partial-aperture blockage 未实现。\n"
             "固定 commanded pattern 用于整张场图，不是逐像素重新聚焦的最优包络。\n"
             "Geometry Position Error：TX/RX/RIS/obstacle 按各自三维模型；v1 floor-anchored wall 仅使用同一个刚体 XY 偏移。\n"
@@ -830,6 +1151,7 @@ class MainWindow(QMainWindow):
         )
 
     def closeEvent(self, event: object) -> None:
+        self._xr_playback_timer.stop()
         self._cancel_active()
         super().closeEvent(event)
 

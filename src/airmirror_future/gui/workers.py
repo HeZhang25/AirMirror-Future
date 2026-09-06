@@ -8,6 +8,7 @@ import traceback
 from PySide6.QtCore import QObject, QRunnable, Signal, Slot
 
 from airmirror_future.core.types import Scene, SimulationConfig
+from airmirror_future.experiments.xr_dynamic_room_mvp import compute_mvp
 from airmirror_future.optimization.greedy import FeedbackGreedyOptimizer
 from airmirror_future.optimization.measurement import MeasurementOracle
 from airmirror_future.optimization.physics_guided import PhysicsGuidedFeedbackOptimizer
@@ -61,6 +62,37 @@ class MapWorker(QRunnable):
                 self.signals.failed.emit(self.version, traceback.format_exc())
             except RuntimeError:
                 pass
+            return
+        try:
+            self.signals.finished.emit(self.version, result)
+        except RuntimeError:
+            pass
+
+
+class XRDynamicRoomWorker(QRunnable):
+    """Compute the complete XR MVP result once for deterministic playback."""
+
+    def __init__(self, version: int) -> None:
+        super().__init__()
+        self.version = version
+        self.signals = WorkerSignals()
+        self._cancelled = threading.Event()
+
+    def cancel(self) -> None:
+        self._cancelled.set()
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            result = compute_mvp()
+        except Exception:
+            if not self._cancelled.is_set():
+                try:
+                    self.signals.failed.emit(self.version, traceback.format_exc())
+                except RuntimeError:
+                    pass
+            return
+        if self._cancelled.is_set():
             return
         try:
             self.signals.finished.emit(self.version, result)
