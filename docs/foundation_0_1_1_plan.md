@@ -6,6 +6,7 @@
 | 当前实现基线 | v0.1 Verified，commit `edfa43c` |
 | 目标版本 | v0.1.1 Foundation |
 | 当前计划状态 | Foundation 0.1.1 In Progress；Foundation 0.1.1A、A1/A2/A3、FND-FIX-WALL、B1/B2/B3 Verified；C1/C2 Verified，C overall In Progress；FND-QA-AP Verified（v1 formal run 与 reference-resolution continuation 完成，signed/frozen midpoint 8×8 policy；production migration pending）；FND-PHY-NB、FND-QA-CC Planned；P1A gate closed |
+| Prototype lane | M8 production migration → XR Dynamic Room MVP；non-release prototype only；FND-PHY-NB / FND-QA-CC Planned / deferred for scene-first MVP；P1A formal gate closed；formal v0.2 gate not satisfied |
 | 父级路线 | v0.1 Smart Space → Foundation 0.1.1 → P1A |
 | 主要责任 | 项目维护者、物理仿真负责人、GUI/测试负责人 |
 | 最后复核 | 2026-09-04（C1 implementation handoff；Profile ownership 仍以 ADR-0012 为准） |
@@ -107,7 +108,7 @@ v0.1 Verified
   → A/B Interim Checkpoint
   → Foundation 0.1.1C：PropagationProfile 接口
   → FND-QA-AP：Minimum Aperture Quadrature Validity
-  → conditional production quadrature migration（仅当 QA 要求）
+  → M8 production quadrature migration（pending）
   → FND-PHY-NB：Narrowband Frequency Contract
   → FND-QA-CC：Controller Coefficient Consistency
   → Foundation Final Exit Gate
@@ -118,6 +119,19 @@ v0.1 Verified
 
 不得用“缓存只改性能”为理由跳过本阶段，因为 cache identity、invalidation 和数值参考都
 依赖这里要冻结的契约。
+
+正式 release-gate spine 保持 Foundation → M8 production migration → FND-PHY-NB → FND-QA-CC
+→ Foundation Final Verification → P1A → formal v0.2 XR。新增的非正式快线仅为：
+
+```text
+M8 production migration
+  → XR Dynamic Room MVP（non-release prototype / vertical slice）
+```
+
+MVP 完成后再补回 FND-PHY-NB、FND-QA-CC、Foundation Final Verification、P1A、P1B、P1C；
+这些阶段统一标记为 **deferred for scene-first MVP**，不得标记 Completed/Verified。该快线不使
+Foundation 或 P1A gate 闭合，也不满足 formal v0.2 entry gate。prototype 详细范围见
+[XR Dynamic Room MVP Work Item](work_items/xr_dynamic_room_mvp.md)。
 
 ## 4. 本阶段目标、非目标和成功定义
 
@@ -675,7 +689,7 @@ Implemented/Verified，也不签署 FND-PHY-NB 或 FND-QA-CC；FND-QA-AP 已在 
 
 #### FND-PHY-NB：Narrowband Frequency Contract
 
-- 状态：**Planned**；Requirement `AMF-PHY-007`；
+- 状态：**Planned / deferred for scene-first MVP**；Requirement `AMF-PHY-007`；
 - 依赖：ADR-0010 Accepted、C2 provenance 可用；
 - 输入：`fc`、`B`、noise figure、center-frequency channel；
 - 输出：flat-channel capacity 标签、`channel_frequency_model_id`、legacy 规则；
@@ -686,7 +700,7 @@ Implemented/Verified，也不签署 FND-PHY-NB 或 FND-QA-CC；FND-QA-AP 已在 
 
 #### FND-QA-CC：Controller Coefficient Consistency
 
-- 状态：**Planned**；Requirement `AMF-RIS-012`；
+- 状态：**Planned / deferred for scene-first MVP**；Requirement `AMF-RIS-012`；
 - 依赖：C1 Profile、FND-QA-AP signed policy、FND-PHY-NB、必要时先完成独立 production migration；
 - 输入：最终 `a_n^C`、`Gamma_cmd`、baseline、两种 Focus、Controller/GT boundary；
 - 输出：Focus/simulator/QAP 一致性证据和分层 coefficient identity；
@@ -716,9 +730,9 @@ Implemented/Verified，也不签署 FND-PHY-NB 或 FND-QA-CC；FND-QA-AP 已在 
 | 12 | `FND-ARCH-01` 接入 environment-only PropagationProfile | Verified | C Work Item C1 verification evidence；FND-T13..14、三代 headless；三轮外部独立审查最终 PASS、blocking issues 0 |
 | 13 | `FND-EXP-01` 加入最小实验 provenance | Verified | C Work Item 01A..01C；schema v1、partial/pending、legacy 和 no-overwrite；C2 independent review PASS |
 | 14 | `FND-QA-AP` 最小孔径求积有效性门禁 | Verified | FND-QA-AP-01..06 signed/frozen contract、v1 formal run 与 reference-resolution continuation；M8×8 policy signed，production migration remains separate |
-| 15 | `FND-PHY-NB` 冻结 center-frequency flat-channel contract | Planned | FND-T20、model ID 与准确标签 |
-| 16 | `FND-QA-CC` 验证 Controller coefficient/Focus 一致性 | Planned | FND-T21..22、identity/boundary review |
-| 17 | `FND-QA-01` 全量回归、headless、GUI 和实验验收 | Planned | Foundation final exit evidence |
+| 15 | `FND-PHY-NB` 冻结 center-frequency flat-channel contract | Planned / deferred for scene-first MVP | FND-T20、model ID 与准确标签 |
+| 16 | `FND-QA-CC` 验证 Controller coefficient/Focus 一致性 | Planned / deferred for scene-first MVP | FND-T21..22、identity/boundary review |
+| 17 | `FND-QA-01` Foundation Final Verification | Planned / deferred for scene-first MVP | 全量回归、headless、GUI 和 Foundation final exit evidence |
 
 若任务实际超过两天，应继续拆分；不得把“完成 ChannelProfile”与“实现城市传播模型”合并。
 
@@ -892,11 +906,15 @@ Commanded validation、search levels 和 GUI dirty state 如果不改变层依�
 6. **A/B checkpoint：暂停功能扩展并完成人工复核**
 7. `refactor: introduce environment-only default propagation profile`
 8. `experiment: add minimum foundation provenance`
-9. `qa: establish minimum aperture quadrature validity and freeze coefficient policy`
-10. 若 QA 要求，先建立并完成独立 production quadrature migration；若保留 1×1 则跳过迁移
+9. `qa: establish minimum aperture quadrature validity and freeze coefficient policy`（已 Verified）
+10. 建立并完成独立 M8 production quadrature migration（pending）
 11. `physics/docs: close narrowband frequency/model identity contract`（FND-PHY-NB）
 12. `qa: prove Controller coefficient and Focus consistency`（FND-QA-CC）
 13. `docs/qa: close foundation evidence and status`
+
+scene-first prototype 可在第 10 项完成后分支进入 XR Dynamic Room MVP；第 11–13 项及
+P1A/P1B/P1C 可在 MVP 后补回，状态统一为 **deferred for scene-first MVP**。这不改变上述正式
+依赖顺序，也不打开 P1A 或 formal v0.2 gate。
 
 可以在本地 TDD 过程中先看到红灯，但不得把“只有失败测试”的提交作为可交付历史推送或合并；
 测试应与最小实现组成绿色提交，或在合并前 squash。每个交付提交必须可评审、测试通过并更新
@@ -992,7 +1010,7 @@ visualization 均 PASS，blocking issues 0；上述五个 requirements 与 B Del
 
 ## 15. 后续路线
 
-Foundation 之后按以下顺序推进：
+Foundation 之后的正式路线与以下既有 P1/场景范围保持不变：
 
 1. **P1A Geometry Cache and Matrix Evaluation**：在稳定 Profile/geometry/pattern/quadrature
    policy contract 上做数值等价的性能优化；
@@ -1005,6 +1023,11 @@ Foundation 之后按以下顺序推进：
 5. **v0.3 Factory**：多 RX、多 RIS、objective 和 pattern ownership；
 6. **v0.4 City/Low-Altitude**：城市几何、NLoS、车辆/UAV 和独立传播 Profile；
 7. 后续再考虑 fading、MIMO、OFDM、active/STAR RIS 和全波/测量校准。
+
+scene-first 快线只在 M8 production migration 后进入 XR Dynamic Room MVP。FND-PHY-NB、
+FND-QA-CC、Foundation Final Verification、P1A、P1B、P1C 均为 **deferred for scene-first
+MVP**，可在 MVP 后补回；它们没有因此 Completed/Verified。P1A formal gate 仍 closed，formal
+v0.2 gate not satisfied。
 
 一个 Profile 接口的存在不表示这些场景模型已经实现；每个新场景仍必须先完成有来源、可测试
 的 headless 物理纵向切片。

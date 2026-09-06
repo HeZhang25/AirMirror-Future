@@ -7,6 +7,7 @@
 | release 状态 | Verified |
 | 规范基线 | [docs/README.md](docs/README.md) |
 | 当前 Capability | Foundation 0.1.1C overall In Progress：C1 Verified，C2 Verified；FND-QA-AP-01 preregistration signed/frozen，FND-QA-AP-02..06 Verified；signed M8×8 production quadrature policy（production migration pending）；Foundation overall In Progress；FND-PHY-NB/FND-QA-CC Planned；P1A gate closed |
+| Prototype lane | XR Dynamic Room MVP allowed only as a non-release prototype after M8 production migration；FND-PHY-NB / FND-QA-CC Planned / deferred for scene-first MVP；P1A formal gate closed；formal v0.2 gate not satisfied |
 
 ## Foundation FND-QA-AP-05/06 formal verification and policy closure
 
@@ -27,6 +28,38 @@ behavior 未改变；如需接入 production coefficient、Focus 或 simulator�
 migration 和审查。FND-QA-CC 必须在 production migration 完成后再最终 closure；本结论不
 单独签署 Focus/simulator/coefficient builder 一致性，不解除 FND-PHY-NB、FND-QA-CC 或 P1A
 gate。v1 与 continuation result artifacts 保持不可修改历史证据。
+
+## Scene-first MVP prototype lane
+
+正式 release-gate 路线保持不变：
+
+```text
+Foundation
+  → M8 production migration
+  → FND-PHY-NB
+  → FND-QA-CC
+  → Foundation Final Verification
+  → P1A
+  → formal v0.2 XR
+```
+
+新增的非正式快线只允许在 M8 production migration 完成后进入：
+
+```text
+M8 production migration
+  → XR Dynamic Room MVP (non-release prototype / vertical slice)
+```
+
+XR Dynamic Room MVP 不代表 Foundation、P1A 或 formal v0.2 entry gate 已满足，不修改正式
+release gate，也不跳过后续 Foundation/P1 工作。以下阶段可在 prototype 之后补回，统一标记为
+**deferred for scene-first MVP**，不得标记 Completed/Verified：FND-PHY-NB、FND-QA-CC、
+Foundation Final Verification、P1A、P1B、P1C。P1A formal gate 继续 **closed**。
+
+第一版仅覆盖 1 indoor room、1 TX、1 RIS、1 moving RX/user、deterministic `position(t)`、
+No RIS / Static RIS；Adaptive RIS 仅在可直接复用当前接口时纳入。输出为 received power(t)、
+SNR(t)、headless CSV 与 PNG。实现必须复用现有 Scene / SimulationEngine / RIS / Pattern /
+metrics，不得建立第二套 propagation engine 或 coefficient system。范围与退出条件见
+[XR Dynamic Room MVP Work Item](docs/work_items/xr_dynamic_room_mvp.md)。
 
 ## Foundation FND-QA-AP-01 preregistration final closure（历史记录）
 
@@ -453,17 +486,19 @@ Implemented/Verified。
 
 ## 尚未实现
 
-- XR、Factory、City 场景；
+- XR、Factory、City 场景；XR Dynamic Room MVP 目前仅已规划为 non-release prototype，尚未实现；
 - 多 RIS 联合优化和 max-min 用户目标；
 - 衍射、双 RIS 连续反射、宽带、active/STAR/space-time RIS；
 - Aperture、Phase Error、RIS Count、Dynamic User 四组批量实验。
 
 ## 下一阶段
 
-1. 如需将 signed M8×8 policy 接入 production，先完成独立、可审查的 production migration；
-2. 完成 FND-PHY-NB 和 FND-QA-CC，冻结 frequency/coefficient/cache identity；QA-CC 须在 production migration 后最终 closure；
-3. Foundation final verification 通过后再进入 P1A 几何系数缓存与矩阵求值；
-4. 随后完成相位误差和 P1C 扩展孔径研究，再扩展 XR/Factory/City。
+正式路线：完成 M8 production migration → FND-PHY-NB → FND-QA-CC → Foundation Final
+Verification → P1A → formal v0.2 XR。P1A formal gate 保持 closed，formal v0.2 gate 未满足。
+
+prototype 快线：M8 production migration → XR Dynamic Room MVP。FND-PHY-NB、FND-QA-CC、
+Foundation Final Verification、P1A、P1B、P1C 可在 MVP 后补回，状态统一为
+**deferred for scene-first MVP**；该快线不提升任何正式 gate 状态。
 
 阶段顺序、entry/exit gate 和工作颗粒度以 [docs/roadmap.md](docs/roadmap.md) 为准。本页只
 记录状态，不新增需求或改变优先级。
