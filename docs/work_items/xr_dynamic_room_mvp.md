@@ -16,8 +16,13 @@ release gate，不表示 Foundation、P1A 或 formal v0.2 entry gate 已满足�
 
 - 1 indoor room、1 TX、1 RIS、1 moving RX/user；
 - deterministic `position(t)`；
-- No RIS / Static RIS；
-- Adaptive RIS 仅在容易复用当前接口时纳入，不作为第一版必需项；
+- No RIS：在对照计算中禁用 RIS contribution；
+- Static RIS：在轨迹第一个 sample / initial RX position，通过现有默认 model-based Focus path
+  生成一次 legal commanded pattern，并在整条轨迹中原样保持该 pattern，不重新计算；
+- Adaptive RIS 仅在容易复用当前接口时纳入，不作为第一版必需项；如后续纳入，必须与 Static
+  RIS 明确区分，并随 RX position 变化通过现有接口重新计算 commanded pattern；
+- 使用当前 center-frequency narrowband channel behavior；不作 wideband / OFDM claim，
+  FND-PHY-NB formal closure 保持 **deferred for scene-first MVP**；
 - 复用现有 Scene / SimulationEngine / RIS / Pattern / metrics。
 
 ## Deferred items
