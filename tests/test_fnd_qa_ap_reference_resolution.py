@@ -64,7 +64,7 @@ def test_continuation_config_identity_and_parent_artifact_binding() -> None:
     _validate_continuation_config()
 
 
-def test_parent_v1_hash_and_series_identity_reproduce() -> None:
+def test_parent_v1_hash_and_series_identity_remain_valid_after_m8_migration() -> None:
     parent_rows = parent_scope_for_tests()
     scene, focus, _ = _scene_for_case("Future", "near_field")
     engine = SimulationEngine()
@@ -80,6 +80,19 @@ def test_parent_v1_hash_and_series_identity_reproduce() -> None:
             "aperture_identity": [ris.width_m, ris.height_m], "control_grid_identity": [ris.nx, ris.ny],
         })
         matches = [r for r in parent_rows if r["pattern_class"] == pattern_class and (None if r["pattern_seed"] == "" else int(r["pattern_seed"])) == pattern_seed]
+        if pattern_class == "coherent_target_focus":
+            # Coherent Target Focus evaluates the current production engine.  Its
+            # command therefore changes under M8, while the signed parent evidence
+            # remains an immutable snapshot of the pre-migration production path.
+            assert {r["pattern_hash"] for r in matches} == {
+                "sha256:856a800d43b8238c1034803b4359a81d368801a30452241a30fd019a23ff90c0"
+            }
+            assert {r["series_identity"] for r in matches} == {
+                "sha256:91e8c6ba2f6db3cc963d2c510edca2766de2a24a1af23e620fa99fe0be9672e7"
+            }
+            assert pattern_hash not in {r["pattern_hash"] for r in matches}
+            assert identity not in {r["series_identity"] for r in matches}
+            continue
         assert {r["pattern_hash"] for r in matches} == {pattern_hash}
         assert {r["series_identity"] for r in matches} == {identity}
 
