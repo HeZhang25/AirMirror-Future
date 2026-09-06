@@ -131,7 +131,7 @@ def evaluate_chunked(
     """Streaming coefficient evaluation preserving the v1 quadrature math."""
     if chunk_size <= 0:
         raise ValueError("chunk_size must be positive")
-    if spec.sample_count <= chunk_size:
+    if spec.sample_count < chunk_size:
         return evaluate_quadrature(scene, pattern, spec, engine=engine)
     ris = scene.ris_surfaces[0]
     tx = scene.transmitter()
