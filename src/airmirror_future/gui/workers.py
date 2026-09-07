@@ -39,6 +39,25 @@ class WorkerSignals(QObject):
     failed = Signal(int, str)
     progress = Signal(int, int, int, float)
     partial = Signal(int, object)
+    terminated = Signal(int, object)
+
+
+class _XRPhysicsWorker(QRunnable):
+    """Report when one XR runnable has actually left the thread pool."""
+
+    @property
+    def cancel_requested(self) -> bool:
+        return self._cancelled.is_set()
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            self._run()
+        finally:
+            try:
+                self.signals.terminated.emit(self.version, self)
+            except RuntimeError:
+                pass
 
 
 @dataclass(frozen=True, slots=True)
@@ -273,7 +292,7 @@ class SmartSpaceRefreshWorker(QRunnable):
             pass
 
 
-class XRDynamicRoomWorker(QRunnable):
+class XRDynamicRoomWorker(_XRPhysicsWorker):
     """Cache three-mode XR links, then one Static-RIS Fast field map."""
 
     def __init__(self, version: int) -> None:
@@ -286,7 +305,7 @@ class XRDynamicRoomWorker(QRunnable):
         self._cancelled.set()
 
     @Slot()
-    def run(self) -> None:
+    def _run(self) -> None:
         try:
             if self._cancelled.is_set():
                 return
@@ -356,7 +375,7 @@ class XRDynamicRoomWorker(QRunnable):
             pass
 
 
-class XRAdaptiveFieldWorker(QRunnable):
+class XRAdaptiveFieldWorker(_XRPhysicsWorker):
     """Compute one requested Adaptive field without concurrent XR physics."""
 
     def __init__(
@@ -386,7 +405,7 @@ class XRAdaptiveFieldWorker(QRunnable):
         self._cancelled.set()
 
     @Slot()
-    def run(self) -> None:
+    def _run(self) -> None:
         try:
             if self._cancelled.is_set():
                 return

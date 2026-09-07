@@ -88,6 +88,9 @@ class MainWindow(QMainWindow):
         self._workers: list[object] = []
         self._version = 0
         self._active_worker: object | None = None
+        self._xr_active_worker: (
+            XRDynamicRoomWorker | XRAdaptiveFieldWorker | None
+        ) = None
         self._updating_controls = False
         self._pending = False
         self._pattern_source = "Coherent Target Focus"
@@ -103,6 +106,8 @@ class MainWindow(QMainWindow):
         ) = None
         self._xr_field_inflight_key: XRFieldCacheKey | None = None
         self._xr_field_cache_limit = len(build_trajectory()) + 1
+        self._xr_demo_start_pending = False
+        self._closing = False
         self._xr_sample_index = 0
         self._xr_sample_lookup: dict[tuple[int, str], DynamicLinkSample] = {}
         self._smart_metric_texts: tuple[str, ...] = ()
@@ -590,11 +595,22 @@ class MainWindow(QMainWindow):
         self.progress.setRange(0, 0)
         self.statusBar().showMessage("正在后台计算 XR Dynamic Room MVP…")
 
+        self._xr_demo_start_pending = True
+        self._start_xr_demo_worker()
+
+    def _start_xr_demo_worker(self) -> None:
+        if not self._xr_demo_active or not self._xr_demo_start_pending:
+            return
+        if self._xr_active_worker is not None:
+            return
+        self._xr_demo_start_pending = False
         worker = XRDynamicRoomWorker(self._version)
         worker.signals.progress.connect(self._xr_link_progress)
         worker.signals.partial.connect(self._xr_links_ready)
         worker.signals.finished.connect(self._xr_demo_ready)
         worker.signals.failed.connect(self._worker_failed)
+        worker.signals.terminated.connect(self._xr_worker_terminated)
+        self._xr_active_worker = worker
         self._active_worker = worker
         self._workers.append(worker)
         self.thread_pool.start(worker)
@@ -641,7 +657,6 @@ class MainWindow(QMainWindow):
             return
         if self._xr_result is not result.mvp:
             self._xr_links_ready(version, result.mvp)
-        self._active_worker = None
         self._xr_static_field = result.field_map
         field_key = result.field_key
         if field_key is None:
@@ -713,8 +728,16 @@ class MainWindow(QMainWindow):
         key: XRFieldCacheKey,
     ) -> None:
         if key in self._xr_field_cache:
+            self._xr_field_debounce.stop()
+            self._xr_pending_field_request = None
             return
-        if key == self._xr_field_inflight_key:
+        active_field_worker = self._xr_active_worker
+        if (
+            key == self._xr_field_inflight_key
+            and isinstance(active_field_worker, XRAdaptiveFieldWorker)
+            and not active_field_worker.cancel_requested
+        ):
+            self._xr_field_debounce.stop()
             self._xr_pending_field_request = None
             self.xr_field_status.setText(
                 f"Adaptive field calculating… · sample {sample.trajectory.sample_index + 1}/11"
@@ -737,7 +760,7 @@ class MainWindow(QMainWindow):
             or self._xr_pending_field_request is None
         ):
             return
-        if self._active_worker is not None:
+        if self._xr_active_worker is not None:
             return
         sample_index, sample, key = self._xr_pending_field_request
         if key in self._xr_field_cache:
@@ -759,6 +782,8 @@ class MainWindow(QMainWindow):
         )
         worker.signals.finished.connect(self._xr_adaptive_field_ready)
         worker.signals.failed.connect(self._worker_failed)
+        worker.signals.terminated.connect(self._xr_worker_terminated)
+        self._xr_active_worker = worker
         self._active_worker = worker
         self._xr_field_inflight_key = key
         self._workers.append(worker)
@@ -775,8 +800,6 @@ class MainWindow(QMainWindow):
     ) -> None:
         if version != self._version or not self._xr_demo_active:
             return
-        self._active_worker = None
-        self._xr_field_inflight_key = None
         self._xr_cache_field(result.key, result.field_map)
         self.progress.setRange(0, 100)
         self.progress.setValue(100)
@@ -792,6 +815,31 @@ class MainWindow(QMainWindow):
             )
         if (
             self._xr_pending_field_request is not None
+            and not self._xr_field_debounce.isActive()
+        ):
+            self._start_pending_xr_field()
+
+    def _xr_worker_terminated(self, _version: int, worker: object) -> None:
+        """Release an XR worker only after its runnable has actually returned."""
+        try:
+            self._workers.remove(worker)
+        except ValueError:
+            pass
+        if self._xr_active_worker is not worker:
+            return
+        self._xr_active_worker = None
+        if self._active_worker is worker:
+            self._active_worker = None
+        if isinstance(worker, XRAdaptiveFieldWorker):
+            self._xr_field_inflight_key = None
+        if self._closing:
+            return
+        if self._xr_demo_start_pending:
+            self._start_xr_demo_worker()
+            return
+        if (
+            self._xr_demo_active
+            and self._xr_pending_field_request is not None
             and not self._xr_field_debounce.isActive()
         ):
             self._start_pending_xr_field()
@@ -855,6 +903,8 @@ class MainWindow(QMainWindow):
                 self.scene_view.set_field_visible(False)
                 self._queue_xr_adaptive_field(sample, key)
                 return
+            self._xr_field_debounce.stop()
+            self._xr_pending_field_request = None
         else:
             self._xr_field_debounce.stop()
             self._xr_pending_field_request = None
@@ -991,6 +1041,8 @@ class MainWindow(QMainWindow):
         self._xr_field_debounce.stop()
         self._version += 1
         self._cancel_active()
+        if self._active_worker is self._xr_active_worker:
+            self._active_worker = None
         self._xr_demo_active = False
         self._xr_result = None
         self._xr_static_field = None
@@ -998,6 +1050,7 @@ class MainWindow(QMainWindow):
         self._xr_field_scales = {}
         self._xr_field_cache = {}
         self._xr_static_field_key = None
+        self._xr_demo_start_pending = False
         self._xr_pending_field_request = None
         self._xr_field_inflight_key = None
         self._xr_sample_lookup = {}
@@ -1502,11 +1555,9 @@ class MainWindow(QMainWindow):
         if version != self._version:
             return
         active_worker = self._active_worker
-        self._active_worker = None
-        if isinstance(active_worker, SmartSpaceRefreshWorker):
+        if not isinstance(active_worker, (XRDynamicRoomWorker, XRAdaptiveFieldWorker)):
             self._smart_space_refresh_pending = False
-        if isinstance(active_worker, XRAdaptiveFieldWorker):
-            self._xr_field_inflight_key = None
+            self._active_worker = None
         self.cancel_button.setEnabled(False)
         self.progress.setRange(0, 100)
         if self._xr_demo_active:
@@ -1524,14 +1575,19 @@ class MainWindow(QMainWindow):
         worker = self._active_worker
         if worker is not None and hasattr(worker, "cancel"):
             worker.cancel()
-        self._active_worker = None
+        xr_worker = self._xr_active_worker
+        if xr_worker is not None and xr_worker is not worker:
+            xr_worker.cancel()
+        if not isinstance(worker, (XRDynamicRoomWorker, XRAdaptiveFieldWorker)):
+            self._active_worker = None
 
     def _cancel_work(self) -> None:
         self._debounce.stop()
         self._xr_field_debounce.stop()
         self._debounced_action = None
         self._xr_pending_field_request = None
-        self._xr_field_inflight_key = None
+        if self._xr_active_worker is None:
+            self._xr_field_inflight_key = None
         self._smart_space_refresh_pending = False
         self._version += 1
         self._cancel_active()
@@ -1610,8 +1666,12 @@ class MainWindow(QMainWindow):
         )
 
     def closeEvent(self, event: object) -> None:
+        self._closing = True
+        self._version += 1
+        self._xr_demo_active = False
         self._xr_playback_timer.stop()
         self._xr_field_debounce.stop()
+        self._xr_pending_field_request = None
         self._cancel_active()
         super().closeEvent(event)
 
