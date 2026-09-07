@@ -734,7 +734,7 @@ class MainWindow(QMainWindow):
         active_field_worker = self._xr_active_worker
         if (
             key == self._xr_field_inflight_key
-            and isinstance(active_field_worker, XRAdaptiveFieldWorker)
+            and active_field_worker is not None
             and not active_field_worker.cancel_requested
         ):
             self._xr_field_debounce.stop()
