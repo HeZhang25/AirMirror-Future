@@ -295,11 +295,14 @@ python -m airmirror_future --headless [--scene PATH]
 
 质量固定映射：Fast `80×60`、Balanced `120×90`、High `200×160`。Headless stdout 是
 UTF-8 JSON，字段为 model、generation、future_assumption、baseline/focused power、
-target gain、SNR、coverage/dead-zone、runtime 和 grid。错误写 stderr 并返回非零状态。
+target gain、SNR、`shannon_capacity_bps`、`capacity_semantics`、
+`channel_frequency_model_id`、coverage/dead-zone、runtime 和 grid。这里的容量字段严格是
+`h(fc)` 在 `B` 内平坦假设下的 Center-frequency flat-channel Shannon upper bound；不是
+OFDM sum-rate、频率积分容量、调制编码吞吐量、协议吞吐量或实测速率。错误写 stderr 并返回非零状态。
 
-当前 `shannon_capacity_bps` 采用 `h(fc)` 在 `B` 内平坦的上界语义；Foundation provenance
-计划使用 `channel_frequency_model_id=narrowband_center_frequency_flat_v1`。在 FND-PHY-NB
-完成前，不得声称现有 CLI 已输出该新字段。
+`channel_frequency_model_id` 使用 C2 canonical provenance 的稳定值
+`narrowband_center_frequency_flat_v1`；它属于运行/结果元数据，不写入 Scene v1。
+CLI 不负责生成 Foundation CSV provenance；实验 runner 仍通过 C2 builder 写入该字段。
 
 实验入口：
 

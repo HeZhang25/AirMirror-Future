@@ -28,7 +28,11 @@ from airmirror_future.simulation.profiles import (
 
 PROVENANCE_SCHEMA_ID = "airmirror_experiment_provenance"
 PROVENANCE_SCHEMA_VERSION = 1
-DEFAULT_PENDING_CONTRACTS = ("FND-PHY-NB", "FND-QA-AP", "FND-QA-CC")
+CHANNEL_FREQUENCY_MODEL_ID = "narrowband_center_frequency_flat_v1"
+# The canonical narrowband model value is wired for new runs, but the Work Item
+# remains pending its independent closure review. Keep that owner visible until
+# the maintainer records formal verification.
+DEFAULT_PENDING_CONTRACTS = ("FND-PHY-NB", "FND-QA-CC")
 
 _RUN_ID_SAFE = re.compile(r"^[^\\/\x00]+$")
 _FOCUS_MODES: dict[object, tuple[str, str]] = {
@@ -138,7 +142,15 @@ def _validate_optional_owner_fields(
     quadrature_policy_version: object,
     coefficient_model_identity: object,
 ) -> tuple[str, str, str, str]:
-    channel = _optional_string(channel_frequency_model_id, "channel_frequency_model_id")
+    if channel_frequency_model_id is None:
+        channel = CHANNEL_FREQUENCY_MODEL_ID
+    else:
+        channel = _optional_string(channel_frequency_model_id, "channel_frequency_model_id")
+        if channel != CHANNEL_FREQUENCY_MODEL_ID:
+            raise ValueError(
+                "channel_frequency_model_id must equal "
+                f"{CHANNEL_FREQUENCY_MODEL_ID!r}"
+            )
     quadrature_id = _optional_string(quadrature_policy_id, "quadrature_policy_id")
     quadrature_version = _optional_string(
         quadrature_policy_version, "quadrature_policy_version"
@@ -199,9 +211,9 @@ def _build_provenance_fields(
         quadrature_policy_version=quadrature_policy_version,
         coefficient_model_identity=coefficient_model_identity,
     )
-    # C2 is intentionally partial until the three future owner Work Items sign
-    # their contracts.  Candidate IDs may be recorded above, but callers cannot
-    # remove these mandatory pending owners or manufacture a complete result.
+    # C2 remains partial until the remaining owner Work Items sign their
+    # contracts. Callers cannot remove mandatory pending owners or manufacture
+    # a complete result.
     pending = DEFAULT_PENDING_CONTRACTS
 
     return {
@@ -236,6 +248,7 @@ def _build_provenance_fields(
 
 
 __all__ = [
+    "CHANNEL_FREQUENCY_MODEL_ID",
     "DEFAULT_PENDING_CONTRACTS",
     "PROVENANCE_SCHEMA_ID",
     "PROVENANCE_SCHEMA_VERSION",

@@ -50,9 +50,9 @@ phase resolution，纵轴为 target RIS gain dB，用于观察收益递减。
 | `software_version` | str | 实际 package version，不从目标 release 猜测 |
 | `timestamp` | ISO-8601 UTC | 行生成时间 |
 | `scenario` | str | 场景名 |
-| `frequency_hz` | Hz | 载频 |
-| `bandwidth_hz` | Hz | 等效占用/接收噪声带宽 |
-| `channel_frequency_model_id` | str/empty | 由 FND-PHY-NB 拥有；未接入时不得从 ADR 目标值回填 |
+| `frequency_hz` | Hz | 中心频率 `fc`；复信道只在该频点评价 |
+| `bandwidth_hz` | Hz | 等效占用/接收噪声带宽 `B`；不生成频率轴 |
+| `channel_frequency_model_id` | str | C2 canonical 稳定值 `narrowband_center_frequency_flat_v1` |
 | `profile_id`,`profile_version` | str | 实际注入的 Foundation 环境传播身份 |
 | `profile_parameters_json`,`profile_identity` | canonical JSON / str | C1 tagged parameter array 与 helper 计算的 SHA-256 identity |
 | `reflection_model_id`,`reflection_model_version` | str | 墙反射几何/系数模型身份；与 Profile 身份分离，legacy 可缺失且不得回填 |
@@ -99,8 +99,12 @@ provenance_schema_id = airmirror_experiment_provenance
 provenance_schema_version = 1
 ```
 
-C2 初次实现时，FND-PHY-NB、FND-QA-AP、FND-QA-CC 仍未签署，必须列入
-`pending_contracts_json`；其 owner 字段保持空。若某后续 QA runner 正在评价显式 candidate，
+C2 新运行必须把尚未签署或尚未完成独立 closure 的 owner 列入 `pending_contracts_json`；当前
+FND-PHY-NB 已接入 canonical frequency model 但仍等待本 Work Item 的独立审查/维护者 closure，
+FND-QA-AP 已有 signed policy，FND-QA-CC 仍 pending。NB owner 不能自行移除自身 pending 项，
+也不能把结果写成 `complete` 或 `Verified`。NB Verified 后，由 C2/Integration 或 Status Owner
+依据该 Work Item 的独立审查通过记录和维护者签署事实，统一更新 builder 的 pending 常量及相关
+事实源；不能由入口调用者或本地实验结果推断。若某后续 QA runner 正在评价显式 candidate，
 可以记录 candidate ID/version，但 owner 仍留在 pending list，结果仍为 `partial`。只有 pending
 为空且本 run 必需 identity 均由 owner closure 签署并非空时才能写 `complete`。不得用 `default`、
 类名、ADR 目标值、0 或当前行为猜测 future identity/Verified provenance。
@@ -200,9 +204,20 @@ null/ill-conditioned 原因及 pass/fail。完整 Future `a_n` 向量如需保�
 不得塞入普通 summary CSV/JSON 单元格。
 
 输出复用 `airmirror_experiment_provenance/1` 的字段与 no-overwrite 规则。签署后的 QA policy
-identity 可写入 `quadrature_policy_id/version`；`provenance_status` 必须为 `partial`，且
-`pending_contracts_json` 必须继续包含 `FND-PHY-NB`、`FND-QA-AP`、`FND-QA-CC`；coefficient
+identity 可写入 `quadrature_policy_id/version`；在 FND-QA-CC 尚未完成前，`provenance_status`
+仍为 `partial`，且新 C2 builder 的 pending owner 至少包含 `FND-PHY-NB`、`FND-QA-CC`。QA-AP runner 的历史
+preregistration/summary 字段由 QA-AP owner 维护，不能在本 Work Item 中越权重写；coefficient
 identity 仍由 FND-QA-CC 拥有，不能伪造成 production default。
+
+当前已签署并迁入 production 的事实是每个 control patch 使用 midpoint `8×8`；实现位置是
+`physics/ris_scattering.py` 的 `PRODUCTION_QUADRATURE_ORDER` 与 `_production_quadrature_spec()`。
+仓库尚未冻结与该 production policy 一一对应的 canonical `quadrature_policy_id/version`，普通
+Foundation `phase_bits.py` runner 因此继续写空值；空值表示“本 run 未记录已签署的 policy identity”，
+不表示 midpoint `8×8` 未执行，也不能在下游推断或回填。QA-AP/C2 Integration Owner 必须先依据
+已签署 policy 冻结唯一 ID/version，再从实际 production 配置向普通新 runner 接线，并通过 C2
+provenance/production-policy 一致性测试验收。QA-AP 历史 runner 的
+`fnd_qa_ap_candidate/1` 只标识当时的候选评价，不能复用为 production canonical identity；legacy
+结果保持不变。
 
 主 gating world 仅为 `ControllerModel`。`random_seed` 是 C2 scene/world seed；random legal
 pattern 使用独立 `pattern_seed`，固定候选列表由 preregistration 提供。off-focus pattern
