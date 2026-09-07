@@ -35,6 +35,7 @@ from PySide6.QtWidgets import (
 )
 
 from airmirror_future.core.config import FIELD_QUALITY_PRESETS, field_quality_preset
+from airmirror_future.core.pattern_contract import validate_commanded_pattern
 from airmirror_future.core.types import FieldMapResult, Scene, SimulationConfig, Vec3
 from airmirror_future.core.units import dbm_to_watts, watts_to_dbm
 from airmirror_future.gui.pattern_view import PhasePatternView
@@ -88,12 +89,16 @@ class MainWindow(QMainWindow):
         self._workers: list[object] = []
         self._version = 0
         self._active_worker: object | None = None
+        self._smart_space_active_worker: (
+            MapWorker | OptimizationWorker | SmartSpaceRefreshWorker | None
+        ) = None
         self._xr_active_worker: (
             XRDynamicRoomWorker | XRAdaptiveFieldWorker | None
         ) = None
         self._updating_controls = False
         self._pending = False
         self._pattern_source = "Coherent Target Focus"
+        self._pattern_context: tuple[object, ...] | None = None
         self._xr_demo_active = False
         self._xr_result: MVPComputation | None = None
         self._xr_static_field: FieldMapResult | None = None
@@ -601,7 +606,10 @@ class MainWindow(QMainWindow):
     def _start_xr_demo_worker(self) -> None:
         if not self._xr_demo_active or not self._xr_demo_start_pending:
             return
-        if self._xr_active_worker is not None:
+        if (
+            self._xr_active_worker is not None
+            or self._smart_space_active_worker is not None
+        ):
             return
         self._xr_demo_start_pending = False
         worker = XRDynamicRoomWorker(self._version)
@@ -843,6 +851,12 @@ class MainWindow(QMainWindow):
             and not self._xr_field_debounce.isActive()
         ):
             self._start_pending_xr_field()
+        elif (
+            not self._xr_demo_active
+            and self._debounced_action == "smart_space_refresh"
+            and self._smart_space_active_worker is None
+        ):
+            self.start_smart_space_refresh()
 
     @staticmethod
     def _derive_no_ris_field(
@@ -1111,6 +1125,7 @@ class MainWindow(QMainWindow):
             )
         }
         self._pattern_source = "Coherent Target Focus"
+        self._record_pattern_context()
 
     def _set_ris_only_pattern(self) -> None:
         ris = self.scene_model.ris_surfaces[0]
@@ -1123,6 +1138,111 @@ class MainWindow(QMainWindow):
             )
         }
         self._pattern_source = "RIS-only Physics Focus"
+        self._record_pattern_context()
+
+    @staticmethod
+    def _position_key(position: Vec3) -> tuple[float, float, float]:
+        return (position.x, position.y, position.z)
+
+    def _command_context(
+        self,
+        scene: Scene,
+        source: str,
+        ground_truth: GroundTruthModel | None = None,
+    ) -> tuple[object, ...]:
+        """Identify scene inputs that determine one commanded-pattern meaning."""
+        ris = scene.ris_surfaces[0]
+        tx = scene.transmitter()
+        rx = scene.receiver()
+        ris_geometry = (
+            scene.frequency_hz,
+            (tx.id, self._position_key(tx.position)),
+            (rx.id, self._position_key(rx.position)),
+            (
+                ris.id,
+                self._position_key(ris.position),
+                ris.yaw_rad,
+                ris.width_m,
+                ris.height_m,
+                ris.nx,
+                ris.ny,
+                ris.phase_bits,
+                ris.enabled,
+                ris.active,
+                ris.direction_exponent,
+            ),
+        )
+        if source == "RIS-only Physics Focus":
+            return (source, ris_geometry)
+        geometry = ris_geometry
+        if source.startswith(("Feedback Greedy", "Physics-Guided Feedback")):
+            geometry = (
+                geometry[0],
+                geometry[1],
+                (*geometry[2], ris.reflection_efficiency),
+            )
+        environment = (
+            tuple(
+                (
+                    wall.id,
+                    self._position_key(wall.start),
+                    self._position_key(wall.end),
+                    wall.height_m,
+                    wall.attenuation_db,
+                    wall.reflection_magnitude,
+                    wall.reflection_phase_rad,
+                    wall.blocks_los,
+                )
+                for wall in scene.walls
+            ),
+            tuple(
+                (
+                    obstacle.id,
+                    self._position_key(obstacle.min_corner),
+                    self._position_key(obstacle.max_corner),
+                    obstacle.attenuation_db,
+                    obstacle.fully_blocking,
+                )
+                for obstacle in scene.obstacles
+            ),
+        )
+        truth_key: tuple[object, ...] = ()
+        if source.startswith(("Feedback Greedy", "Physics-Guided Feedback")):
+            truth = self.ground_truth if ground_truth is None else ground_truth
+            truth_key = (
+                truth.seed,
+                truth.ris_phase_error_sigma_rad,
+                truth.ris_efficiency_sigma_fraction,
+                truth.wall_amplitude_error_sigma_fraction,
+                truth.wall_phase_error_sigma_rad,
+                truth.position_error_sigma_m,
+                truth.measurement_noise_sigma_db,
+            )
+        return (source, geometry, environment, truth_key)
+
+    def _record_pattern_context(self) -> None:
+        self._pattern_context = self._command_context(
+            self.scene_model,
+            self._pattern_source,
+        )
+
+    def _current_patterns(self) -> dict[str, np.ndarray] | None:
+        """Return a legal current-scene command snapshot, or no reusable command."""
+        if self._pattern_context != self._command_context(
+            self.scene_model,
+            self._pattern_source,
+        ):
+            return None
+        if len(self.scene_model.ris_surfaces) != 1:
+            return None
+        ris = self.scene_model.ris_surfaces[0]
+        if set(self.patterns) != {ris.id}:
+            return None
+        try:
+            pattern = validate_commanded_pattern(ris, self.patterns[ris.id])
+        except (TypeError, ValueError):
+            return None
+        return {ris.id: pattern}
 
     def _refresh_all(self, *, recompute_map: bool = True) -> None:
         self._smart_space_refresh_pending = False
@@ -1153,7 +1273,16 @@ class MainWindow(QMainWindow):
 
     def _refresh_pattern(self) -> None:
         ris = self.scene_model.ris_surfaces[0]
-        commanded = self.patterns.get(ris.id, np.zeros(ris.cell_count))
+        current = self._current_patterns()
+        if current is None:
+            self.patterns = {}
+            self._pattern_context = None
+            self.pattern_view.set_status(
+                "Pattern 待生成",
+                "当前已应用 Scene 尚无兼容命令；请等待刷新或重新 Optimize。",
+            )
+            return
+        commanded = current[ris.id]
         actual = commanded + self.ground_truth.ris_phase_offsets(ris)
         self.pattern_view.set_patterns(
             commanded,
@@ -1223,11 +1352,25 @@ class MainWindow(QMainWindow):
         self._schedule_smart_space_refresh()
 
     def _mark_smart_space_results_pending(self) -> None:
-        """Hide invalidated outputs while the latest scene snapshot is pending."""
+        """Show that outputs are invalid until the latest snapshot completes."""
         self._smart_space_refresh_pending = True
         self.latest_field = None
         self.scene_view.clear_field_overlays()
-        self.pattern_view.setVisible(False)
+        current = self._current_patterns()
+        if current is None:
+            self.patterns = {}
+            self._pattern_context = None
+            self.pattern_view.set_status(
+                "Pattern 生成中…",
+                "当前 Scene 的合法命令正在后台生成；旧 Scene Pattern 不会作为当前结果显示。",
+            )
+        else:
+            self._refresh_pattern()
+            self.pattern_view.metadata.setText(
+                self.pattern_view.metadata.text()
+                + "\n当前命令仍与已应用 Scene 兼容；场图与指标正在刷新。"
+            )
+        self.pattern_view.setVisible(self.show_pattern.isChecked())
         self.power_metric.setText("Power: calculating…")
         self.snr_metric.setText("SNR: calculating…")
         self.gain_metric.setText("RIS Gain: calculating…")
@@ -1239,10 +1382,15 @@ class MainWindow(QMainWindow):
         self.cancel_button.setEnabled(False)
         self.statusBar().showMessage("场景已更新 · 等待拖动停止后后台计算…")
 
-    def _schedule_smart_space_refresh(self) -> None:
+    def _schedule_smart_space_refresh(
+        self, *, regenerate_pattern: bool = False
+    ) -> None:
         """Invalidate immediately and debounce one coherent latest-scene solve."""
         self._version += 1
         self._cancel_active()
+        if regenerate_pattern:
+            self.patterns = {}
+            self._pattern_context = None
         self._debounced_action = "smart_space_refresh"
         self._mark_smart_space_results_pending()
         self._debounce.start()
@@ -1264,6 +1412,8 @@ class MainWindow(QMainWindow):
             self.start_smart_space_refresh()
         elif action == "field_map":
             self.start_field_map()
+        elif action == "optimization":
+            self._optimize()
 
     def _schedule_field_map(self) -> None:
         """Invalidate any running result immediately, then debounce a replacement."""
@@ -1374,6 +1524,22 @@ class MainWindow(QMainWindow):
     def start_field_map(self) -> None:
         if self._xr_demo_active:
             return
+        if self._pending:
+            self.statusBar().showMessage("请先 Apply 待应用参数，再重新计算场图")
+            return
+        patterns = self._current_patterns()
+        if self._smart_space_refresh_pending or patterns is None:
+            self._debounce.stop()
+            self._debounced_action = "smart_space_refresh"
+            self._mark_smart_space_results_pending()
+            self.start_smart_space_refresh()
+            return
+        active_worker = self._smart_space_active_worker
+        if active_worker is not None:
+            self._version += 1
+            active_worker.cancel()
+            self._debounced_action = "field_map"
+            return
         self._debounced_action = None
         self._cancel_active()
         self._version += 1
@@ -1383,11 +1549,13 @@ class MainWindow(QMainWindow):
             SimulationEngine(),
             copy.deepcopy(self.scene_model),
             self._quality_config(),
-            copy.deepcopy(self.patterns),
+            copy.deepcopy(patterns),
             copy.deepcopy(self.ground_truth),
         )
         worker.signals.finished.connect(self._field_ready)
         worker.signals.failed.connect(self._worker_failed)
+        worker.signals.terminated.connect(self._smart_space_worker_terminated)
+        self._smart_space_active_worker = worker
         self._active_worker = worker
         self._workers.append(worker)
         self.progress.setRange(0, 0)
@@ -1400,7 +1568,40 @@ class MainWindow(QMainWindow):
         if self._xr_demo_active:
             return
         self._debounced_action = None
-        self._cancel_active()
+        active_worker = self._smart_space_active_worker
+        if active_worker is not None:
+            self._version += 1
+            active_worker.cancel()
+            self._debounced_action = "smart_space_refresh"
+            return
+        if self._xr_active_worker is not None:
+            self._version += 1
+            self._xr_active_worker.cancel()
+            self._debounced_action = "smart_space_refresh"
+            return
+        reusable_patterns = self._current_patterns()
+        if reusable_patterns is None and self._pattern_source.startswith(
+            ("Feedback Greedy", "Physics-Guided Feedback")
+        ):
+            self._smart_space_refresh_pending = False
+            self.pattern_view.set_status(
+                "Pattern 需要重新 Optimize",
+                "Scene 已改变，原反馈优化命令不能合法迁移；请选择当前算法重新 Optimize。",
+            )
+            self.pattern_view.setVisible(self.show_pattern.isChecked())
+            self.statusBar().showMessage(
+                "Scene 已应用；反馈优化 Pattern 已失效，请重新 Optimize"
+            )
+            for widget, label in (
+                (self.power_metric, "Power"),
+                (self.snr_metric, "SNR"),
+                (self.gain_metric, "RIS Gain"),
+                (self.coverage_metric, "Coverage"),
+                (self.dead_zone_metric, "Dead Zone"),
+                (self.runtime_metric, "Runtime"),
+            ):
+                widget.setText(f"{label}: — (re-optimize)")
+            return
         self._version += 1
         version = self._version
         worker = SmartSpaceRefreshWorker(
@@ -1408,9 +1609,13 @@ class MainWindow(QMainWindow):
             copy.deepcopy(self.scene_model),
             self._quality_config(),
             copy.deepcopy(self.ground_truth),
+            copy.deepcopy(reusable_patterns),
+            self._pattern_source,
         )
         worker.signals.finished.connect(self._smart_space_refresh_ready)
         worker.signals.failed.connect(self._worker_failed)
+        worker.signals.terminated.connect(self._smart_space_worker_terminated)
+        self._smart_space_active_worker = worker
         self._active_worker = worker
         self._workers.append(worker)
         self.progress.setRange(0, 0)
@@ -1425,9 +1630,12 @@ class MainWindow(QMainWindow):
     ) -> None:
         if version != self._version or self._xr_demo_active:
             return
+        if result.scene != self.scene_model:
+            return
         self._smart_space_refresh_pending = False
         self.patterns = result.patterns
         self._pattern_source = result.pattern_source
+        self._record_pattern_context()
         self.latest_field = result.field_map
         self.scene_view.load_scene(self.scene_model)
         self._refresh_pattern()
@@ -1457,10 +1665,11 @@ class MainWindow(QMainWindow):
         self.progress.setValue(100)
         self.cancel_button.setEnabled(False)
         self.statusBar().showMessage("最新场景的 Focus、指标与场图计算完成")
-        self._active_worker = None
 
     def _field_ready(self, version: int, result: FieldMapResult) -> None:
         if version != self._version:
+            return
+        if self._smart_space_refresh_pending:
             return
         self.latest_field = result
         self._redraw_latest_map()
@@ -1476,7 +1685,6 @@ class MainWindow(QMainWindow):
         self.progress.setValue(100)
         self.cancel_button.setEnabled(False)
         self.statusBar().showMessage("场图计算完成")
-        self._active_worker = None
 
     def _redraw_latest_map(self) -> None:
         if self.latest_field is not None and self.show_field.isChecked():
@@ -1501,7 +1709,7 @@ class MainWindow(QMainWindow):
             return
         algorithm = self.algorithm.currentText()
         if algorithm == "Coherent Target Focus":
-            self._schedule_smart_space_refresh()
+            self._schedule_smart_space_refresh(regenerate_pattern=True)
             return
         if algorithm == "RIS-only Physics Focus":
             self._set_ris_only_pattern()
@@ -1510,6 +1718,10 @@ class MainWindow(QMainWindow):
             return
         self._smart_space_refresh_pending = False
         self._cancel_active()
+        if self._smart_space_active_worker is not None:
+            self._version += 1
+            self._debounced_action = "optimization"
+            return
         self._version += 1
         worker = OptimizationWorker(
             self._version,
@@ -1521,6 +1733,8 @@ class MainWindow(QMainWindow):
         worker.signals.finished.connect(self._optimization_ready)
         worker.signals.failed.connect(self._worker_failed)
         worker.signals.progress.connect(self._optimization_progress)
+        worker.signals.terminated.connect(self._smart_space_worker_terminated)
+        self._smart_space_active_worker = worker
         self._active_worker = worker
         self._workers.append(worker)
         self.progress.setRange(0, 100)
@@ -1543,7 +1757,7 @@ class MainWindow(QMainWindow):
         levels = getattr(result, "search_levels", None)
         if levels is not None and self.scene_model.ris_surfaces[0].phase_bits is None:
             self._pattern_source += f" · Search Levels: {levels}"
-        self._active_worker = None
+        self._record_pattern_context()
         self.cancel_button.setEnabled(False)
         self.progress.setValue(100)
         self._refresh_all()
@@ -1557,7 +1771,19 @@ class MainWindow(QMainWindow):
         active_worker = self._active_worker
         if not isinstance(active_worker, (XRDynamicRoomWorker, XRAdaptiveFieldWorker)):
             self._smart_space_refresh_pending = False
-            self._active_worker = None
+            if isinstance(active_worker, SmartSpaceRefreshWorker):
+                if self._current_patterns() is None:
+                    self.pattern_view.set_status(
+                        "Pattern 生成失败",
+                        "当前 Scene 未生成合法命令。请重试刷新或重新 Optimize。",
+                    )
+                else:
+                    self._refresh_pattern()
+                    self.pattern_view.metadata.setText(
+                        self.pattern_view.metadata.text()
+                        + "\n场图与指标刷新失败；可重试，当前合法命令仍保留。"
+                    )
+                self.pattern_view.setVisible(self.show_pattern.isChecked())
         self.cancel_button.setEnabled(False)
         self.progress.setRange(0, 100)
         if self._xr_demo_active:
@@ -1571,6 +1797,31 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("计算失败")
         QMessageBox.critical(self, "计算失败", details)
 
+    def _smart_space_worker_terminated(self, _version: int, worker: object) -> None:
+        """Release Smart Space work only after its runnable has returned."""
+        try:
+            self._workers.remove(worker)
+        except ValueError:
+            pass
+        if self._smart_space_active_worker is not worker:
+            return
+        self._smart_space_active_worker = None
+        if self._active_worker is worker:
+            self._active_worker = None
+        if self._closing:
+            return
+        if self._xr_demo_start_pending:
+            self._start_xr_demo_worker()
+            return
+        if self._debounce.isActive():
+            return
+        if self._debounced_action == "smart_space_refresh":
+            self.start_smart_space_refresh()
+        elif self._debounced_action == "field_map":
+            self.start_field_map()
+        elif self._debounced_action == "optimization":
+            self._optimize()
+
     def _cancel_active(self) -> None:
         worker = self._active_worker
         if worker is not None and hasattr(worker, "cancel"):
@@ -1578,8 +1829,9 @@ class MainWindow(QMainWindow):
         xr_worker = self._xr_active_worker
         if xr_worker is not None and xr_worker is not worker:
             xr_worker.cancel()
-        if not isinstance(worker, (XRDynamicRoomWorker, XRAdaptiveFieldWorker)):
-            self._active_worker = None
+        smart_worker = self._smart_space_active_worker
+        if smart_worker is not None and smart_worker is not worker:
+            smart_worker.cancel()
 
     def _cancel_work(self) -> None:
         self._debounce.stop()
@@ -1595,6 +1847,14 @@ class MainWindow(QMainWindow):
         self.progress.setRange(0, 100)
         self.progress.setValue(0)
         self.statusBar().showMessage("已请求取消")
+        if self._current_patterns() is None:
+            self.pattern_view.set_status(
+                "Pattern 已取消",
+                "当前 Scene 尚无合法命令。可点击重新计算场图或重新 Optimize。",
+            )
+        else:
+            self._refresh_pattern()
+        self.pattern_view.setVisible(self.show_pattern.isChecked())
 
     def _display_options_changed(self) -> None:
         self.scene_view.set_options(

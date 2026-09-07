@@ -87,3 +87,10 @@ class PhasePatternView(QWidget):
         )
         if diagnostics:
             self.metadata.setText(self.metadata.text() + "\n" + diagnostics)
+
+    def set_status(self, title: str, details: str) -> None:
+        """Show an explicit non-result state without retaining a stale grid."""
+        for label in (self.commanded, self.actual):
+            label.clear()
+            label.setText(title)
+        self.metadata.setText(details)

@@ -9,6 +9,7 @@ import pytest
 
 PySide6 = pytest.importorskip("PySide6")
 from PySide6.QtCore import QCoreApplication, QEvent, QPointF, QThreadPool
+from PySide6.QtWidgets import QMessageBox
 
 from airmirror_future.core.types import (
     ChannelResult,
@@ -20,9 +21,11 @@ from airmirror_future.gui import main_window as gui_main
 from airmirror_future.gui import workers as gui_workers
 from airmirror_future.gui.main_window import MainWindow
 from airmirror_future.gui.workers import (
+    MapWorker,
     SmartSpaceRefreshResult,
     SmartSpaceRefreshWorker,
 )
+from airmirror_future.core.pattern_contract import validate_commanded_pattern
 from airmirror_future.scenarios.smart_space import create_smart_space_scene
 from airmirror_future.simulation.engine import SimulationEngine
 from airmirror_future.simulation.ground_truth import ControllerModel, GroundTruthModel
@@ -54,6 +57,19 @@ def _field() -> FieldMapResult:
         coverage_percent=75.0,
         dead_zone_percent=25.0,
         runtime_s=0.25,
+    )
+
+
+def _refresh_result(scene, *, power_dbm: float = -60.0) -> SmartSpaceRefreshResult:
+    ris = scene.ris_surfaces[0]
+    pattern = np.zeros(ris.cell_count)
+    return SmartSpaceRefreshResult(
+        scene=scene,
+        patterns={ris.id: pattern},
+        pattern_source="Coherent Target Focus",
+        focused=_channel(power_dbm),
+        baseline=_channel(power_dbm - 5.0),
+        field_map=_field(),
     )
 
 
@@ -145,7 +161,8 @@ def test_drag_burst_updates_all_entities_without_synchronous_physics(
     assert window.latest_field is None
     assert window.scene_view._heatmap_item is None
     assert window.scene_view._coverage_item is None
-    assert window.pattern_view.isHidden()
+    assert window.pattern_view.isHidden() is False
+    assert "Pattern 生成中" in window.pattern_view.commanded.text()
     assert "calculating" in window.power_metric.text()
     actual_positions = {
         window.scene_model.transmitter().id: window.scene_model.transmitter().position,
@@ -223,6 +240,7 @@ def test_applied_input_changes_and_explicit_coherent_focus_stay_off_thread(
 
     window.algorithm.setCurrentText("Coherent Target Focus")
     window._optimize()
+    assert window.patterns == {}
     assert window._debounced_action == "smart_space_refresh"
     assert calls == {"focus": 0, "channel": 0, "field": 0}
 
@@ -404,3 +422,209 @@ def test_xr_round_trip_resumes_an_interrupted_smart_refresh(
     assert window._xr_resume_smart_space_refresh is False
     assert window._smart_space_refresh_pending is True
     assert window._debounced_action == "smart_space_refresh"
+
+
+def test_generation_change_then_immediate_field_request_uses_new_legal_command(
+    light_window: MainWindow,
+) -> None:
+    window = light_window
+    started = []
+
+    class Pool:
+        def start(self, worker) -> None:
+            started.append(worker)
+
+    window.thread_pool = Pool()
+    window.generation_combo.setCurrentText("Advanced")
+    window.start_field_map()
+
+    assert len(started) == 1
+    worker = started[0]
+    assert isinstance(worker, SmartSpaceRefreshWorker)
+    assert worker.scene.ris_surfaces[0].cell_count == 576
+    assert worker.patterns is None
+    assert not any(isinstance(item, MapWorker) for item in started)
+
+    result = _refresh_result(worker.scene)
+    worker.signals.finished.emit(worker.version, result)
+    worker.signals.terminated.emit(worker.version, worker)
+
+    ris = window.scene_model.ris_surfaces[0]
+    assert ris.nx == ris.ny == 24 and ris.phase_bits == 3
+    assert window.patterns[ris.id].size == 576
+    assert np.array_equal(
+        validate_commanded_pattern(ris, window.patterns[ris.id]),
+        window.patterns[ris.id],
+    )
+    assert "Grid: 24×24" in window.pattern_view.metadata.text()
+
+
+def test_rapid_generation_changes_apply_only_latest_scene_result(
+    light_window: MainWindow,
+) -> None:
+    window = light_window
+    started = []
+
+    class Pool:
+        def start(self, worker) -> None:
+            started.append(worker)
+
+    window.thread_pool = Pool()
+    window.generation_combo.setCurrentText("Advanced")
+    advanced_version = window._version
+    advanced_result = _refresh_result(create_smart_space_scene("Advanced"))
+    window.generation_combo.setCurrentText("Future")
+    future_version = window._version
+    future_result = _refresh_result(create_smart_space_scene("Future"))
+    window.generation_combo.setCurrentText("Current")
+    window._debounce.stop()
+    window._run_debounced_action()
+
+    assert len(started) == 1
+    current_worker = started[0]
+    assert current_worker.scene.ris_surfaces[0].generation == "Current"
+    window._smart_space_refresh_ready(advanced_version, advanced_result)
+    window._smart_space_refresh_ready(future_version, future_result)
+    assert window.scene_model.ris_surfaces[0].generation == "Current"
+    assert window.latest_field is None
+
+    current_worker.signals.finished.emit(
+        current_worker.version,
+        _refresh_result(current_worker.scene),
+    )
+    assert window.patterns["ris-1"].size == 64
+    assert "Grid: 8×8" in window.pattern_view.metadata.text()
+
+
+def test_apply_grid_and_phase_bits_never_reuses_incompatible_command(
+    light_window: MainWindow,
+) -> None:
+    window = light_window
+    started = []
+
+    class Pool:
+        def start(self, worker) -> None:
+            started.append(worker)
+
+    old_pattern = window.patterns["ris-1"].copy()
+    window.thread_pool = Pool()
+    window.ris_nx.setValue(12)
+    window.ris_ny.setValue(10)
+    window.phase_bits.setCurrentIndex(window.phase_bits.findData(3))
+    window._apply_parameters()
+    window.start_field_map()
+
+    worker = started[-1]
+    assert isinstance(worker, SmartSpaceRefreshWorker)
+    assert worker.scene.ris_surfaces[0].cell_count == 120
+    assert worker.scene.ris_surfaces[0].phase_bits == 3
+    assert worker.patterns is None
+    assert old_pattern.size == 64
+
+
+def test_pending_full_refresh_absorbs_manual_field_request(
+    light_window: MainWindow,
+) -> None:
+    window = light_window
+    started = []
+
+    class Pool:
+        def start(self, worker) -> None:
+            started.append(worker)
+
+    window.thread_pool = Pool()
+    rx = window.scene_model.receiver()
+    window._entity_moved(
+        rx.id,
+        Vec3(rx.position.x + 0.25, rx.position.y, rx.position.z),
+    )
+    window.start_field_map()
+
+    assert len(started) == 1
+    assert isinstance(started[0], SmartSpaceRefreshWorker)
+    assert not any(isinstance(item, MapWorker) for item in started)
+    assert started[0].patterns is None
+
+
+def test_refresh_failure_cancel_retry_preserves_pattern_visibility_preference(
+    light_window: MainWindow,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    window = light_window
+    started = []
+
+    class Pool:
+        def start(self, worker) -> None:
+            started.append(worker)
+
+    monkeypatch.setattr(QMessageBox, "critical", lambda *_args: None)
+    window.thread_pool = Pool()
+    window.generation_combo.setCurrentText("Advanced")
+    window.start_field_map()
+    failed = started[-1]
+    window._worker_failed(failed.version, "boom")
+
+    assert window.show_pattern.isChecked() is True
+    assert window.pattern_view.isHidden() is False
+    assert "失败" in window.pattern_view.commanded.text()
+
+    window.start_field_map()
+    assert failed.cancel_requested is True
+    assert len(started) == 1
+    failed.signals.terminated.emit(failed.version, failed)
+    assert len(started) == 2
+    retry = started[-1]
+    assert isinstance(retry, SmartSpaceRefreshWorker)
+
+    window._cancel_work()
+    assert retry.cancel_requested is True
+    assert window.pattern_view.isHidden() is False
+    assert "取消" in window.pattern_view.commanded.text()
+
+    window.show_pattern.setChecked(False)
+    window.start_field_map()
+    retry.signals.terminated.emit(retry.version, retry)
+    assert window.pattern_view.isHidden() is True
+
+
+def test_old_worker_callbacks_cannot_overwrite_new_generation(
+    light_window: MainWindow,
+) -> None:
+    window = light_window
+    old_version = window._version
+    old_result = _refresh_result(create_smart_space_scene("Current"), power_dbm=-20.0)
+    window.generation_combo.setCurrentText("Advanced")
+    pending_text = window.pattern_view.metadata.text()
+
+    window._smart_space_refresh_ready(old_version, old_result)
+    window._field_ready(old_version, _field())
+
+    assert window.scene_model.ris_surfaces[0].generation == "Advanced"
+    assert window.latest_field is None
+    assert window.pattern_view.metadata.text() == pending_text
+    assert window.patterns.get("ris-1", np.empty(0)).size != 576
+
+
+def test_scene_change_that_preserves_command_semantics_reuses_legal_pattern(
+    light_window: MainWindow,
+) -> None:
+    window = light_window
+    started = []
+
+    class Pool:
+        def start(self, worker) -> None:
+            started.append(worker)
+
+    original = window.patterns["ris-1"].copy()
+    window.thread_pool = Pool()
+    window.tx_power.setValue(window.tx_power.value() + 3.0)
+    window.bandwidth.setValue(window.bandwidth.value() + 5.0)
+    window._apply_parameters()
+    window.start_field_map()
+
+    worker = started[-1]
+    assert isinstance(worker, SmartSpaceRefreshWorker)
+    assert worker.patterns is not None
+    assert np.array_equal(worker.patterns["ris-1"], original)
+    assert window.pattern_view.isHidden() is False
+    assert "仍与已应用 Scene 兼容" in window.pattern_view.metadata.text()

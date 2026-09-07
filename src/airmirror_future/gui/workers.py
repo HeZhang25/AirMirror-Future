@@ -30,6 +30,7 @@ from airmirror_future.physics.ris_scattering import PRODUCTION_QUADRATURE_ORDER
 from airmirror_future.optimization.greedy import FeedbackGreedyOptimizer
 from airmirror_future.optimization.measurement import MeasurementOracle
 from airmirror_future.optimization.physics_guided import PhysicsGuidedFeedbackOptimizer
+from airmirror_future.ris.phase import generate_focus_pattern
 from airmirror_future.simulation.engine import SimulationCancelled, SimulationEngine
 from airmirror_future.simulation.ground_truth import ControllerModel, GroundTruthModel
 
@@ -44,6 +45,24 @@ class WorkerSignals(QObject):
 
 class _XRPhysicsWorker(QRunnable):
     """Report when one XR runnable has actually left the thread pool."""
+
+    @property
+    def cancel_requested(self) -> bool:
+        return self._cancelled.is_set()
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            self._run()
+        finally:
+            try:
+                self.signals.terminated.emit(self.version, self)
+            except RuntimeError:
+                pass
+
+
+class _SmartSpacePhysicsWorker(QRunnable):
+    """Report when one Smart Space runnable has actually left the pool."""
 
     @property
     def cancel_requested(self) -> bool:
@@ -161,7 +180,7 @@ def build_xr_field_cache_key(
     )
 
 
-class MapWorker(QRunnable):
+class MapWorker(_SmartSpacePhysicsWorker):
     def __init__(
         self,
         version: int,
@@ -185,7 +204,7 @@ class MapWorker(QRunnable):
         self._cancelled.set()
 
     @Slot()
-    def run(self) -> None:
+    def _run(self) -> None:
         try:
             result = self.engine.compute_field_map(
                 self.scene,
@@ -208,7 +227,7 @@ class MapWorker(QRunnable):
             pass
 
 
-class SmartSpaceRefreshWorker(QRunnable):
+class SmartSpaceRefreshWorker(_SmartSpacePhysicsWorker):
     """Compute one latest-scene Focus, link metrics, and field map in order."""
 
     def __init__(
@@ -217,12 +236,16 @@ class SmartSpaceRefreshWorker(QRunnable):
         scene: Scene,
         config: SimulationConfig,
         ground_truth: GroundTruthModel,
+        patterns: dict[str, np.ndarray] | None = None,
+        pattern_source: str = "Coherent Target Focus",
     ) -> None:
         super().__init__()
         self.version = version
         self.scene = scene
         self.config = config
         self.ground_truth = ground_truth
+        self.patterns = patterns
+        self.pattern_source = pattern_source
         self.signals = WorkerSignals()
         self._cancelled = threading.Event()
 
@@ -230,20 +253,46 @@ class SmartSpaceRefreshWorker(QRunnable):
         self._cancelled.set()
 
     @Slot()
-    def run(self) -> None:
+    def _run(self) -> None:
         try:
             if self._cancelled.is_set():
                 return
             engine = _CancelableSimulationEngine(self._cancelled.is_set)
             model = ControllerModel()
             ris = self.scene.ris_surfaces[0]
-            pattern = generate_coherent_target_pattern(
-                self.scene,
-                model,
-                engine=engine,
-                ris=ris,
-            )
-            patterns = {ris.id: pattern}
+            if self.patterns is not None:
+                if set(self.patterns) != {ris.id}:
+                    raise ValueError(
+                        "Smart Space refresh requires one current RIS command"
+                    )
+                patterns = {
+                    identifier: validate_commanded_pattern(ris, pattern)
+                    for identifier, pattern in self.patterns.items()
+                    if identifier == ris.id
+                }
+                if set(patterns) != {ris.id}:
+                    raise ValueError(
+                        "Smart Space refresh requires one current RIS command"
+                    )
+                pattern_source = self.pattern_source
+            elif self.pattern_source == "RIS-only Physics Focus":
+                pattern = generate_focus_pattern(
+                    ris,
+                    self.scene.transmitter(),
+                    self.scene.receiver(),
+                    self.scene.frequency_hz,
+                )
+                patterns = {ris.id: pattern}
+                pattern_source = self.pattern_source
+            else:
+                pattern = generate_coherent_target_pattern(
+                    self.scene,
+                    model,
+                    engine=engine,
+                    ris=ris,
+                )
+                patterns = {ris.id: pattern}
+                pattern_source = "Coherent Target Focus"
             if self._cancelled.is_set():
                 return
             focused = engine.compute_channel(
@@ -270,7 +319,7 @@ class SmartSpaceRefreshWorker(QRunnable):
             result = SmartSpaceRefreshResult(
                 scene=self.scene,
                 patterns=patterns,
-                pattern_source="Coherent Target Focus",
+                pattern_source=pattern_source,
                 focused=focused,
                 baseline=baseline,
                 field_map=field_map,
@@ -453,7 +502,7 @@ class XRAdaptiveFieldWorker(_XRPhysicsWorker):
             pass
 
 
-class OptimizationWorker(QRunnable):
+class OptimizationWorker(_SmartSpacePhysicsWorker):
     def __init__(
         self,
         version: int,
@@ -475,7 +524,7 @@ class OptimizationWorker(QRunnable):
         self._cancelled.set()
 
     @Slot()
-    def run(self) -> None:
+    def _run(self) -> None:
         try:
             engine = SimulationEngine()
             oracle = MeasurementOracle(self.scene, engine, self.ground_truth)
