@@ -32,6 +32,9 @@
    分别见 [FND-FIX-WALL](work_items/foundation_0_1_1_wall_geometry_closure.md)、
    [FND-PHY-NB](work_items/foundation_0_1_1_narrowband_contract.md) 和
    [FND-QA-CC](work_items/foundation_0_1_1_coefficient_consistency.md)；
+   non-release XR vertical slice 及其 provisional Adaptive 扩展分别见
+   [XR MVP](work_items/xr_dynamic_room_mvp.md) 与
+   [XR-ADAPT-01](work_items/xr_dynamic_room_adaptive_prototype.md)；
 4. [requirements.md](requirements.md)：带稳定编号的需求与验收映射；
 5. [architecture.md](architecture.md)：模块边界、依赖方向和数据流；
 6. [data_model.md](data_model.md) 与 [public_api.md](public_api.md)：代码契约；

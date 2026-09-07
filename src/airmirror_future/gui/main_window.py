@@ -44,15 +44,21 @@ from airmirror_future.gui.workers import (
     OptimizationWorker,
     SmartSpaceRefreshResult,
     SmartSpaceRefreshWorker,
+    XRAdaptiveFieldResult,
+    XRAdaptiveFieldWorker,
     XRDynamicRoomWorker,
     XRDynamicRoomResult,
+    XRFieldCacheKey,
+    build_xr_field_cache_key,
 )
 from airmirror_future.experiments.xr_dynamic_room_mvp import (
+    ADAPTIVE_MVP_MODES,
+    ADAPTIVE_RIS_MODE,
     DynamicLinkSample,
     MVPComputation,
-    MVP_MODES,
     NO_RIS_MODE,
     STATIC_RIS_MODE,
+    _pattern_hash,
     build_trajectory,
     create_mvp_scene,
 )
@@ -90,6 +96,13 @@ class MainWindow(QMainWindow):
         self._xr_static_field: FieldMapResult | None = None
         self._xr_no_ris_field: FieldMapResult | None = None
         self._xr_field_scales: dict[str, tuple[float, float]] = {}
+        self._xr_field_cache: dict[XRFieldCacheKey, FieldMapResult] = {}
+        self._xr_static_field_key: XRFieldCacheKey | None = None
+        self._xr_pending_field_request: (
+            tuple[int, DynamicLinkSample, XRFieldCacheKey] | None
+        ) = None
+        self._xr_field_inflight_key: XRFieldCacheKey | None = None
+        self._xr_field_cache_limit = len(build_trajectory()) + 1
         self._xr_sample_index = 0
         self._xr_sample_lookup: dict[tuple[int, str], DynamicLinkSample] = {}
         self._smart_metric_texts: tuple[str, ...] = ()
@@ -103,6 +116,10 @@ class MainWindow(QMainWindow):
         self._xr_playback_timer = QTimer(self)
         self._xr_playback_timer.setInterval(500)
         self._xr_playback_timer.timeout.connect(self._advance_xr_sample)
+        self._xr_field_debounce = QTimer(self)
+        self._xr_field_debounce.setSingleShot(True)
+        self._xr_field_debounce.setInterval(650)
+        self._xr_field_debounce.timeout.connect(self._start_pending_xr_field)
 
         self.scene_view = SceneView()
         self.scene_view.on_entity_moved = self._entity_moved
@@ -165,7 +182,7 @@ class MainWindow(QMainWindow):
         self.xr_controls = QGroupBox("XR MVP Playback")
         xr_layout = QVBoxLayout(self.xr_controls)
         self.xr_mode_combo = QComboBox()
-        self.xr_mode_combo.addItems(MVP_MODES)
+        self.xr_mode_combo.addItems(ADAPTIVE_MVP_MODES)
         self.xr_mode_combo.currentTextChanged.connect(self._xr_mode_changed)
         xr_layout.addWidget(self.xr_mode_combo)
         self.xr_quantity_combo = QComboBox()
@@ -517,6 +534,10 @@ class MainWindow(QMainWindow):
         self._xr_static_field = None
         self._xr_no_ris_field = None
         self._xr_field_scales = {}
+        self._xr_field_cache = {}
+        self._xr_static_field_key = None
+        self._xr_pending_field_request = None
+        self._xr_field_inflight_key = None
         self._xr_sample_lookup = {}
         self._xr_sample_index = 0
         self.xr_mode_combo.blockSignals(True)
@@ -527,6 +548,7 @@ class MainWindow(QMainWindow):
         self.xr_quantity_combo.blockSignals(False)
         self.xr_timeline.setValue(0)
         self._xr_playback_timer.stop()
+        self._xr_field_debounce.stop()
         self._debounce.stop()
         self._debounced_action = None
         self._version += 1
@@ -534,7 +556,7 @@ class MainWindow(QMainWindow):
         self._set_smart_space_widgets_enabled(False)
         self.xr_controls.setVisible(True)
         self._set_xr_controls_ready(False)
-        self.future_badge.setText("Non-release XR Prototype")
+        self.future_badge.setText("Non-release XR Prototype · Adaptive provisional")
 
         demo_scene = create_mvp_scene()
         trajectory = build_trajectory()
@@ -551,7 +573,7 @@ class MainWindow(QMainWindow):
             demo_scene.ris_surfaces[0].ny,
             demo_scene.ris_surfaces[0].nx,
             phase_bits=demo_scene.ris_surfaces[0].phase_bits,
-            pattern_source="XR MVP · calculating",
+            pattern_source="XR MVP Adaptive · calculating",
             diagnostics=self._pattern_diagnostics(
                 demo_scene.ris_surfaces[0],
                 scene=demo_scene,
@@ -563,18 +585,34 @@ class MainWindow(QMainWindow):
         self.coverage_metric.setText("Time: 0.0 s")
         self.dead_zone_metric.setText("RX: (8.50, 4.00, 1.20) m")
         self.runtime_metric.setText("Sample: 1/11")
-        self.xr_sample_label.setText("Precomputing 11 × 2 production link states…")
+        self.xr_sample_label.setText("Precomputing 11 × 3 production link states…")
         self.xr_field_status.setText("Field map calculating… · Fast 80×60")
         self.progress.setRange(0, 0)
         self.statusBar().showMessage("正在后台计算 XR Dynamic Room MVP…")
 
         worker = XRDynamicRoomWorker(self._version)
+        worker.signals.progress.connect(self._xr_link_progress)
         worker.signals.partial.connect(self._xr_links_ready)
         worker.signals.finished.connect(self._xr_demo_ready)
         worker.signals.failed.connect(self._worker_failed)
         self._active_worker = worker
         self._workers.append(worker)
         self.thread_pool.start(worker)
+
+    def _xr_link_progress(
+        self,
+        version: int,
+        done: int,
+        total: int,
+        _fraction: float,
+    ) -> None:
+        if version != self._version or not self._xr_demo_active:
+            return
+        self.progress.setRange(0, 100)
+        self.progress.setValue(int(done * 25 / max(total, 1)))
+        self.xr_sample_label.setText(
+            f"Precomputing three-mode links… {done}/{total} trajectory samples"
+        )
 
     def _xr_links_ready(self, version: int, result: MVPComputation) -> None:
         if version != self._version or not self._xr_demo_active:
@@ -605,6 +643,17 @@ class MainWindow(QMainWindow):
             self._xr_links_ready(version, result.mvp)
         self._active_worker = None
         self._xr_static_field = result.field_map
+        field_key = result.field_key
+        if field_key is None:
+            field_key = build_xr_field_cache_key(
+                result.mvp.scene,
+                SimulationEngine(),
+                ControllerModel(),
+                self._xr_fast_config(),
+                _pattern_hash(result.mvp.static_pattern),
+            )
+        self._xr_static_field_key = field_key
+        self._xr_cache_field(field_key, result.field_map)
         self._xr_no_ris_field = self._derive_no_ris_field(
             result.field_map,
             result.mvp.scene,
@@ -624,11 +673,128 @@ class MainWindow(QMainWindow):
         self.progress.setValue(100)
         self.xr_field_status.setText(
             "Field map cached · Fast 80×60 · "
-            f"{result.field_map.runtime_s:.2f} s"
+            f"{result.field_map.runtime_s:.2f} s · Adaptive fields on demand"
         )
         self.statusBar().showMessage(
-            "XR MVP ready · link states and one Static-RIS field map cached"
+            "XR Adaptive prototype ready · Static field cached; Adaptive fields on demand"
         )
+        if self._xr_pending_field_request is not None:
+            self._start_pending_xr_field()
+
+    @staticmethod
+    def _xr_fast_config() -> SimulationConfig:
+        fast = field_quality_preset("fast")
+        return SimulationConfig(fast.grid_width, fast.grid_height, "power")
+
+    def _xr_cache_field(
+        self,
+        key: XRFieldCacheKey,
+        field: FieldMapResult,
+    ) -> None:
+        """Store one complete field in the bounded prototype result cache."""
+        if (
+            key not in self._xr_field_cache
+            and len(self._xr_field_cache) >= self._xr_field_cache_limit
+        ):
+            raise RuntimeError("XR prototype field cache limit exceeded")
+        self._xr_field_cache[key] = field
+
+    def _xr_field_key_for_sample(
+        self,
+        sample: DynamicLinkSample,
+    ) -> XRFieldCacheKey | None:
+        if self._xr_static_field_key is None or not sample.command_hash:
+            return None
+        return replace(self._xr_static_field_key, command_hash=sample.command_hash)
+
+    def _queue_xr_adaptive_field(
+        self,
+        sample: DynamicLinkSample,
+        key: XRFieldCacheKey,
+    ) -> None:
+        if key in self._xr_field_cache:
+            return
+        if key == self._xr_field_inflight_key:
+            self._xr_pending_field_request = None
+            self.xr_field_status.setText(
+                f"Adaptive field calculating… · sample {sample.trajectory.sample_index + 1}/11"
+            )
+            return
+        self._xr_pending_field_request = (
+            sample.trajectory.sample_index,
+            sample,
+            key,
+        )
+        self._xr_field_debounce.start()
+        self.xr_field_status.setText(
+            "Adaptive field queued… · Fast 80×60 · playback remains result-only"
+        )
+
+    def _start_pending_xr_field(self) -> None:
+        if (
+            not self._xr_demo_active
+            or self._xr_result is None
+            or self._xr_pending_field_request is None
+        ):
+            return
+        if self._active_worker is not None:
+            return
+        sample_index, sample, key = self._xr_pending_field_request
+        if key in self._xr_field_cache:
+            self._xr_pending_field_request = None
+            self._redraw_xr_field()
+            return
+        commanded = sample.commanded_pattern
+        if commanded is None or sample.command_hash != key.command_hash:
+            raise RuntimeError("XR Adaptive field request lacks its exact command snapshot")
+        self._xr_pending_field_request = None
+        worker = XRAdaptiveFieldWorker(
+            self._version,
+            sample_index,
+            copy.deepcopy(self._xr_result.scene),
+            self._xr_fast_config(),
+            commanded,
+            sample.command_hash,
+            key,
+        )
+        worker.signals.finished.connect(self._xr_adaptive_field_ready)
+        worker.signals.failed.connect(self._worker_failed)
+        self._active_worker = worker
+        self._xr_field_inflight_key = key
+        self._workers.append(worker)
+        self.progress.setRange(0, 0)
+        self.xr_field_status.setText(
+            f"Adaptive field calculating… · sample {sample_index + 1}/11 · Fast 80×60"
+        )
+        self.thread_pool.start(worker)
+
+    def _xr_adaptive_field_ready(
+        self,
+        version: int,
+        result: XRAdaptiveFieldResult,
+    ) -> None:
+        if version != self._version or not self._xr_demo_active:
+            return
+        self._active_worker = None
+        self._xr_field_inflight_key = None
+        self._xr_cache_field(result.key, result.field_map)
+        self.progress.setRange(0, 100)
+        self.progress.setValue(100)
+        current = self._xr_sample_lookup.get(
+            (self._xr_sample_index, ADAPTIVE_RIS_MODE)
+        )
+        current_key = None if current is None else self._xr_field_key_for_sample(current)
+        if self.xr_mode_combo.currentText() == ADAPTIVE_RIS_MODE and current_key == result.key:
+            self._redraw_xr_field()
+        else:
+            self.statusBar().showMessage(
+                f"Adaptive field cached for sample {result.sample_index + 1}/11; current snapshot unchanged"
+            )
+        if (
+            self._xr_pending_field_request is not None
+            and not self._xr_field_debounce.isActive()
+        ):
+            self._start_pending_xr_field()
 
     @staticmethod
     def _derive_no_ris_field(
@@ -655,39 +821,68 @@ class MainWindow(QMainWindow):
         )
 
     def _redraw_xr_field(self, *_args: object) -> None:
-        if (
-            not self._xr_demo_active
-            or self._xr_static_field is None
-            or self._xr_no_ris_field is None
-        ):
+        if not self._xr_demo_active:
             return
         mode = self.xr_mode_combo.currentText()
         quantity = self.xr_quantity_combo.currentText()
+        if self._xr_static_field is None or self._xr_no_ris_field is None:
+            self.scene_view.set_field_visible(False)
+            self.xr_field_status.setText(
+                "Field map calculating… · Fast 80×60 · links remain playable when ready"
+            )
+            return
         if mode == NO_RIS_MODE and quantity == "RIS 增益":
+            self._xr_field_debounce.stop()
+            self._xr_pending_field_request = None
             self.scene_view.set_field_visible(False)
             self.xr_field_status.setText(
                 "RIS Gain: N/A for No RIS · cached field remains unchanged"
             )
             return
-        field = (
-            self._xr_static_field
-            if mode == STATIC_RIS_MODE
-            else self._xr_no_ris_field
-        )
+        if mode == ADAPTIVE_RIS_MODE:
+            sample = self._xr_sample_lookup.get(
+                (self._xr_sample_index, ADAPTIVE_RIS_MODE)
+            )
+            key = None if sample is None else self._xr_field_key_for_sample(sample)
+            field = None if key is None else self._xr_field_cache.get(key)
+            if sample is None or key is None:
+                self.scene_view.set_field_visible(False)
+                self.xr_field_status.setText(
+                    "Adaptive field waits for the initial Static field identity"
+                )
+                return
+            if field is None:
+                self.scene_view.set_field_visible(False)
+                self._queue_xr_adaptive_field(sample, key)
+                return
+        else:
+            self._xr_field_debounce.stop()
+            self._xr_pending_field_request = None
+            field = (
+                self._xr_static_field
+                if mode == STATIC_RIS_MODE
+                else self._xr_no_ris_field
+            )
         self.scene_view.set_field_map(
             field,
             quantity,
             value_range=self._xr_field_scales.get(quantity),
         )
         self.scene_view.set_field_visible(True)
-        self.xr_field_status.setText(
-            "Field map cached · Fast 80×60 · "
-            f"{self._xr_static_field.runtime_s:.2f} s"
-        )
+        if mode == ADAPTIVE_RIS_MODE:
+            self.xr_field_status.setText(
+                "Adaptive field cached · exact sample command · Fast 80×60 · "
+                f"{field.runtime_s:.2f} s · cache {len(self._xr_field_cache)}/"
+                f"{self._xr_field_cache_limit}"
+            )
+        else:
+            self.xr_field_status.setText(
+                "Field map cached · Fast 80×60 · "
+                f"{self._xr_static_field.runtime_s:.2f} s · Adaptive fields on demand"
+            )
 
     def _xr_mode_changed(self, _mode: str) -> None:
         self._set_xr_sample(self._xr_sample_index)
-        self._redraw_xr_field()
 
     def _set_xr_sample(self, index: int) -> None:
         if not self._xr_demo_active or self._xr_result is None:
@@ -709,6 +904,13 @@ class MainWindow(QMainWindow):
         if mode == STATIC_RIS_MODE:
             commanded = self._xr_result.static_pattern
             pattern_source = "XR MVP Static RIS · frozen at t=0"
+        elif mode == ADAPTIVE_RIS_MODE:
+            commanded = sample.commanded_pattern
+            if commanded is None:
+                raise RuntimeError("XR Adaptive sample is missing its command snapshot")
+            pattern_source = (
+                "XR Adaptive RIS · per-sample Controller Focus · provisional"
+            )
         else:
             commanded = np.zeros(ris.cell_count)
             pattern_source = "XR MVP No RIS · contribution disabled"
@@ -727,7 +929,7 @@ class MainWindow(QMainWindow):
             f"Power: {sample.received_power_dbm:.2f} dBm"
         )
         self.snr_metric.setText(f"SNR: {sample.snr_db:.2f} dB")
-        if mode == STATIC_RIS_MODE:
+        if mode in (STATIC_RIS_MODE, ADAPTIVE_RIS_MODE):
             baseline = self._xr_sample_lookup[(index, NO_RIS_MODE)]
             self.gain_metric.setText(
                 "RIS Gain: "
@@ -745,8 +947,10 @@ class MainWindow(QMainWindow):
         )
         self.xr_sample_label.setText(
             f"t={sample.trajectory.time_s:.1f} s · "
-            f"RX=({point.x:.2f}, {point.y:.2f}, {point.z:.2f}) m"
+            f"RX=({point.x:.2f}, {point.y:.2f}, {point.z:.2f}) m · "
+            f"{mode}{' · provisional' if mode == ADAPTIVE_RIS_MODE else ''}"
         )
+        self._redraw_xr_field()
 
     def _play_xr_demo(self) -> None:
         if not self._xr_demo_active or self._xr_result is None:
@@ -784,6 +988,7 @@ class MainWindow(QMainWindow):
         if not self._xr_demo_active:
             return
         self._xr_playback_timer.stop()
+        self._xr_field_debounce.stop()
         self._version += 1
         self._cancel_active()
         self._xr_demo_active = False
@@ -791,6 +996,10 @@ class MainWindow(QMainWindow):
         self._xr_static_field = None
         self._xr_no_ris_field = None
         self._xr_field_scales = {}
+        self._xr_field_cache = {}
+        self._xr_static_field_key = None
+        self._xr_pending_field_request = None
+        self._xr_field_inflight_key = None
         self._xr_sample_lookup = {}
         self._xr_sample_index = 0
         self.xr_controls.setVisible(False)
@@ -1296,6 +1505,8 @@ class MainWindow(QMainWindow):
         self._active_worker = None
         if isinstance(active_worker, SmartSpaceRefreshWorker):
             self._smart_space_refresh_pending = False
+        if isinstance(active_worker, XRAdaptiveFieldWorker):
+            self._xr_field_inflight_key = None
         self.cancel_button.setEnabled(False)
         self.progress.setRange(0, 100)
         if self._xr_demo_active:
@@ -1303,7 +1514,9 @@ class MainWindow(QMainWindow):
             if self._xr_result is None:
                 self.xr_sample_label.setText("XR MVP calculation failed")
             else:
-                self.xr_field_status.setText("Field map calculation failed")
+                self.xr_field_status.setText(
+                    "Field map calculation failed · no stale field applied"
+                )
         self.statusBar().showMessage("计算失败")
         QMessageBox.critical(self, "计算失败", details)
 
@@ -1315,7 +1528,10 @@ class MainWindow(QMainWindow):
 
     def _cancel_work(self) -> None:
         self._debounce.stop()
+        self._xr_field_debounce.stop()
         self._debounced_action = None
+        self._xr_pending_field_request = None
+        self._xr_field_inflight_key = None
         self._smart_space_refresh_pending = False
         self._version += 1
         self._cancel_active()
@@ -1395,6 +1611,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event: object) -> None:
         self._xr_playback_timer.stop()
+        self._xr_field_debounce.stop()
         self._cancel_active()
         super().closeEvent(event)
 
