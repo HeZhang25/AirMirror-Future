@@ -1175,7 +1175,16 @@ class MainWindow(QMainWindow):
         if source == "RIS-only Physics Focus":
             return (source, ris_geometry)
         geometry = ris_geometry
-        if source.startswith(("Feedback Greedy", "Physics-Guided Feedback")):
+        feedback_source = source.startswith(("Feedback Greedy", "Physics-Guided Feedback"))
+        # Finite-bit Coherent Target Focus chooses among common phase offsets
+        # by comparing nominal received power.  Efficiency scales the RIS
+        # contribution and can therefore change the winning legal command.
+        # Continuous Coherent Focus derives only a phase alignment, while
+        # RIS-only Focus is intentionally efficiency-independent at command
+        # generation time; both remain reusable when efficiency changes.
+        if feedback_source or (
+            source == "Coherent Target Focus" and ris.phase_bits is not None
+        ):
             geometry = (
                 geometry[0],
                 geometry[1],
@@ -1207,7 +1216,7 @@ class MainWindow(QMainWindow):
             ),
         )
         truth_key: tuple[object, ...] = ()
-        if source.startswith(("Feedback Greedy", "Physics-Guided Feedback")):
+        if feedback_source:
             truth = self.ground_truth if ground_truth is None else ground_truth
             truth_key = (
                 truth.seed,

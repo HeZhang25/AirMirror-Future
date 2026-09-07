@@ -628,3 +628,50 @@ def test_scene_change_that_preserves_command_semantics_reuses_legal_pattern(
     assert np.array_equal(worker.patterns["ris-1"], original)
     assert window.pattern_view.isHidden() is False
     assert "仍与已应用 Scene 兼容" in window.pattern_view.metadata.text()
+
+
+def test_apply_efficiency_invalidates_finite_bit_coherent_command(
+    light_window: MainWindow,
+) -> None:
+    window = light_window
+    started = []
+
+    class Pool:
+        def start(self, worker) -> None:
+            started.append(worker)
+
+    window.thread_pool = Pool()
+    old_pattern = window.patterns["ris-1"].copy()
+    window.efficiency.setValue(window.efficiency.value() + 0.05)
+    window._apply_parameters()
+    window.start_field_map()
+
+    worker = started[-1]
+    assert isinstance(worker, SmartSpaceRefreshWorker)
+    assert worker.patterns is None
+    assert old_pattern.size == 64
+    assert window._current_patterns() is None
+
+
+def test_apply_link_metric_changes_reuses_finite_bit_coherent_command(
+    light_window: MainWindow,
+) -> None:
+    window = light_window
+    started = []
+
+    class Pool:
+        def start(self, worker) -> None:
+            started.append(worker)
+
+    window.thread_pool = Pool()
+    original = window.patterns["ris-1"].copy()
+    window.bandwidth.setValue(window.bandwidth.value() + 5.0)
+    window.noise_figure.setValue(window.noise_figure.value() + 1.0)
+    window._apply_parameters()
+    window.start_field_map()
+
+    worker = started[-1]
+    assert isinstance(worker, SmartSpaceRefreshWorker)
+    assert worker.patterns is not None
+    assert np.array_equal(worker.patterns["ris-1"], original)
+    assert window._current_patterns() is not None
