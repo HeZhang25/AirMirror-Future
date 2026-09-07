@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 PySide6 = pytest.importorskip("PySide6")
-from PySide6.QtCore import QCoreApplication, QEvent, QObject, QThreadPool, Qt, Signal
+from PySide6.QtCore import QCoreApplication, QEvent, QThreadPool, Qt
 from PySide6.QtWidgets import QMessageBox
 
 from airmirror_future.core.types import FieldMapResult, SimulationConfig
@@ -29,10 +29,23 @@ from airmirror_future.simulation.engine import SimulationCancelled, SimulationEn
 from airmirror_future.simulation.ground_truth import ControllerModel
 
 
-class _ManualWorkerSignals(QObject):
-    finished = Signal(int, object)
-    failed = Signal(int, str)
-    terminated = Signal(int, object)
+class _ManualSignal:
+    def __init__(self) -> None:
+        self._callbacks = []
+
+    def connect(self, callback) -> None:
+        self._callbacks.append(callback)
+
+    def emit(self, *args) -> None:
+        for callback in tuple(self._callbacks):
+            callback(*args)
+
+
+class _ManualWorkerSignals:
+    def __init__(self) -> None:
+        self.finished = _ManualSignal()
+        self.failed = _ManualSignal()
+        self.terminated = _ManualSignal()
 
 
 class _ManualAdaptiveFieldWorker:
