@@ -461,9 +461,9 @@ class SceneView(QGraphicsView):
 
         unit = "dBm" if quantity == "接收功率" else "dB"
         title = (
-            "Power · shared No RIS / Static RIS scale"
+            "Power · shared No RIS / Static RIS scale · Adaptive uses same bounds"
             if quantity == "接收功率"
-            else "SNR · shared No RIS / Static RIS scale"
+            else "SNR · shared No RIS / Static RIS scale · Adaptive uses same bounds"
         )
         numeric_labels = (f"{low:.2f} {unit}", f"{high:.2f} {unit}")
         for text in (title, *numeric_labels):

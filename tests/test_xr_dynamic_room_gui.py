@@ -9,16 +9,71 @@ import pytest
 
 PySide6 = pytest.importorskip("PySide6")
 from PySide6.QtCore import QCoreApplication, QEvent, QThreadPool, Qt
+from PySide6.QtWidgets import QMessageBox
 
-from airmirror_future.core.types import FieldMapResult
+from airmirror_future.core.types import FieldMapResult, SimulationConfig
 from airmirror_future.experiments import xr_dynamic_room_mvp as mvp
+from airmirror_future.gui import main_window as gui_main
 from airmirror_future.gui import workers as gui_workers
 from airmirror_future.gui.main_window import MainWindow
-from airmirror_future.gui.workers import XRDynamicRoomResult, XRDynamicRoomWorker
+from airmirror_future.gui.workers import (
+    XRAdaptiveFieldResult,
+    XRAdaptiveFieldWorker,
+    XRDynamicRoomResult,
+    XRDynamicRoomWorker,
+    build_xr_field_cache_key,
+)
 from airmirror_future.physics.noise import noise_power_dbm
 from airmirror_future.scenarios.smart_space import create_smart_space_scene
 from airmirror_future.simulation.engine import SimulationCancelled, SimulationEngine
 from airmirror_future.simulation.ground_truth import ControllerModel
+
+
+class _ManualSignal:
+    def __init__(self) -> None:
+        self._callbacks = []
+
+    def connect(self, callback) -> None:
+        self._callbacks.append(callback)
+
+    def emit(self, *args) -> None:
+        for callback in tuple(self._callbacks):
+            callback(*args)
+
+
+class _ManualWorkerSignals:
+    def __init__(self) -> None:
+        self.finished = _ManualSignal()
+        self.failed = _ManualSignal()
+        self.terminated = _ManualSignal()
+
+
+class _ManualAdaptiveFieldWorker:
+    started = []
+
+    def __init__(
+        self,
+        version,
+        sample_index,
+        _scene,
+        _config,
+        _commanded,
+        _hash,
+        key,
+    ):
+        self.version = version
+        self.sample_index = sample_index
+        self.expected_key = key
+        self.signals = _ManualWorkerSignals()
+        self.cancel_requested = False
+
+    def cancel(self) -> None:
+        self.cancel_requested = True
+
+
+class _ManualPool:
+    def start(self, worker) -> None:
+        _ManualAdaptiveFieldWorker.started.append(worker)
 
 
 @pytest.fixture
@@ -63,7 +118,12 @@ def xr_field_calls(monkeypatch: pytest.MonkeyPatch):
 
 
 @pytest.fixture
-def xr_window(qapp, xr_field_calls):
+def xr_window(qapp, xr_field_calls, xr_adaptive_computation, monkeypatch):
+    monkeypatch.setattr(
+        gui_workers,
+        "compute_adaptive_mvp",
+        lambda **_kwargs: xr_adaptive_computation,
+    )
     window = MainWindow(create_smart_space_scene("Current"))
     yield window
     window._debounce.stop()
@@ -75,6 +135,11 @@ def xr_window(qapp, xr_field_calls):
     window.deleteLater()
     QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
     qapp.processEvents()
+
+
+@pytest.fixture(scope="module")
+def xr_adaptive_computation() -> mvp.MVPComputation:
+    return mvp.compute_adaptive_mvp()
 
 
 def _enter_xr(window: MainWindow, qtbot) -> None:
@@ -110,7 +175,7 @@ def test_xr_entry_uses_real_mvp_result_and_draws_frozen_trajectory(
 
     assert result.trajectory == mvp.build_trajectory()
     assert len(result.trajectory) == 11
-    assert len(result.samples) == 22
+    assert len(result.samples) == 33
     assert len(xr_window.scene_view._trajectory_markers) == 11
     assert xr_window.scene_view._trajectory_path is not None
     assert (
@@ -204,19 +269,9 @@ def test_play_pause_reset_and_mode_switch_are_result_only(
     qtbot,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    static_pattern_calls = 0
-    real_generate_static_pattern = mvp.generate_static_pattern
-
-    def counted_static_pattern(*args, **kwargs):
-        nonlocal static_pattern_calls
-        static_pattern_calls += 1
-        return real_generate_static_pattern(*args, **kwargs)
-
-    monkeypatch.setattr(mvp, "generate_static_pattern", counted_static_pattern)
     _enter_xr(xr_window, qtbot)
     result = xr_window._xr_result
     assert result is not None
-    assert static_pattern_calls == 1
     original_trajectory = result.trajectory
     original_pattern = np.array(result.static_pattern, copy=True)
 
@@ -263,7 +318,6 @@ def test_play_pause_reset_and_mode_switch_are_result_only(
     assert result.trajectory == original_trajectory
     assert np.array_equal(result.static_pattern, original_pattern)
     assert result.static_pattern.flags.writeable is False
-    assert static_pattern_calls == 1
 
 
 def test_field_worker_cancellation_and_stale_version_are_isolated(
@@ -280,7 +334,11 @@ def test_field_worker_cancellation_and_stale_version_are_isolated(
     cancel_checks = []
     finished = []
     failed = []
-    monkeypatch.setattr(gui_workers, "compute_mvp", lambda **_kwargs: mvp_result)
+    monkeypatch.setattr(
+        gui_workers,
+        "compute_adaptive_mvp",
+        lambda **_kwargs: mvp_result,
+    )
 
     def cancel_during_field(
         _engine,
@@ -396,3 +454,449 @@ def test_leaving_xr_restores_ordinary_smart_space_state(
             xr_window.runtime_metric,
         )
     ) == ordinary_metrics
+
+
+def test_adaptive_field_is_real_on_demand_and_cached_by_exact_command(
+    xr_window: MainWindow,
+    qtbot,
+    xr_field_calls,
+) -> None:
+    _enter_xr(xr_window, qtbot)
+    result = xr_window._xr_result
+    assert result is not None
+    initial_calls = [
+        call for call in xr_field_calls if call[0].name == "XR Dynamic Room MVP"
+    ]
+    assert len(initial_calls) == 1
+    assert len(xr_window._xr_field_cache) == 1
+
+    xr_window.xr_mode_combo.setCurrentText(mvp.ADAPTIVE_RIS_MODE)
+    assert len(xr_field_calls) == 1
+    assert "provisional" in xr_window.pattern_view.metadata.text()
+    assert xr_window.scene_view._heatmap_item.isVisible() is True
+
+    target = next(
+        sample
+        for sample in result.samples
+        if sample.mode == mvp.ADAPTIVE_RIS_MODE
+        and sample.command_hash != mvp._pattern_hash(result.static_pattern)
+    )
+    xr_window.xr_timeline.setValue(target.trajectory.sample_index)
+    assert xr_window.scene_view._heatmap_item.isVisible() is False
+    assert "Adaptive field queued" in xr_window.xr_field_status.text()
+    qtbot.waitUntil(lambda: len(xr_field_calls) == 2, timeout=3000)
+    qtbot.waitUntil(lambda: xr_window._active_worker is None, timeout=3000)
+
+    _, config, patterns, model, cancel_check = xr_field_calls[-1]
+    assert (config.grid_width, config.grid_height) == (80, 60)
+    assert isinstance(model, ControllerModel)
+    assert callable(cancel_check)
+    assert target.commanded_pattern is not None
+    assert np.array_equal(
+        patterns[result.scene.ris_surfaces[0].id],
+        target.commanded_pattern,
+    )
+    assert len(xr_window._xr_field_cache) == 2
+    assert xr_window.scene_view._heatmap_item.isVisible() is True
+    assert xr_window.scene_view._field_value_range == xr_window._xr_field_scales[
+        "接收功率"
+    ]
+    assert "Adaptive uses same bounds" in xr_window.scene_view._field_legend_text
+
+    before = len(xr_field_calls)
+    xr_window.xr_quantity_combo.setCurrentText("SNR")
+    assert xr_window.scene_view._field_value_range == xr_window._xr_field_scales["SNR"]
+    xr_window.xr_quantity_combo.setCurrentText("RIS 增益")
+    xr_window.xr_mode_combo.setCurrentText(mvp.NO_RIS_MODE)
+    assert "N/A for No RIS" in xr_window.xr_field_status.text()
+    xr_window.xr_mode_combo.setCurrentText(mvp.STATIC_RIS_MODE)
+    xr_window.xr_mode_combo.setCurrentText(mvp.ADAPTIVE_RIS_MODE)
+    qtbot.wait(750)
+    assert len(xr_field_calls) == before
+
+
+def test_cached_adaptive_selection_replaces_older_pending_request(
+    xr_window: MainWindow,
+    qtbot,
+) -> None:
+    _enter_xr(xr_window, qtbot)
+    result = xr_window._xr_result
+    assert result is not None
+    adaptive = [
+        sample for sample in result.samples if sample.mode == mvp.ADAPTIVE_RIS_MODE
+    ]
+    cached = adaptive[0]
+    queued = next(sample for sample in adaptive if sample.command_hash != cached.command_hash)
+
+    xr_window.xr_mode_combo.setCurrentText(mvp.ADAPTIVE_RIS_MODE)
+    xr_window.xr_timeline.setValue(queued.trajectory.sample_index)
+    assert xr_window._xr_field_debounce.isActive()
+    assert xr_window._xr_pending_field_request is not None
+
+    xr_window.xr_timeline.setValue(cached.trajectory.sample_index)
+
+    assert xr_window._xr_field_debounce.isActive() is False
+    assert xr_window._xr_pending_field_request is None
+
+
+def test_cancelled_xr_worker_stays_active_until_termination_then_runs_latest(
+    xr_window: MainWindow,
+    qtbot,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _enter_xr(xr_window, qtbot)
+    result = xr_window._xr_result
+    assert result is not None
+    adaptive = [
+        sample for sample in result.samples if sample.mode == mvp.ADAPTIVE_RIS_MODE
+    ]
+    first, latest = adaptive[1], adaptive[2]
+    _ManualAdaptiveFieldWorker.started = []
+    original_pool = xr_window.thread_pool
+    xr_window.thread_pool = _ManualPool()
+    monkeypatch.setattr(gui_main, "XRAdaptiveFieldWorker", _ManualAdaptiveFieldWorker)
+    xr_window.xr_mode_combo.setCurrentText(mvp.ADAPTIVE_RIS_MODE)
+    xr_window.xr_timeline.setValue(first.trajectory.sample_index)
+    xr_window._xr_field_debounce.stop()
+    xr_window._start_pending_xr_field()
+    old = _ManualAdaptiveFieldWorker.started[-1]
+    try:
+        xr_window._cancel_active()
+        xr_window.xr_timeline.setValue(latest.trajectory.sample_index)
+        xr_window._xr_field_debounce.stop()
+        xr_window._start_pending_xr_field()
+
+        assert old.cancel_requested is True
+        assert xr_window._xr_active_worker is old
+        assert len(_ManualAdaptiveFieldWorker.started) == 1
+        assert xr_window._xr_pending_field_request is not None
+        assert xr_window._xr_pending_field_request[0] == latest.trajectory.sample_index
+
+        old.signals.terminated.emit(old.version, old)
+        qtbot.waitUntil(lambda: len(_ManualAdaptiveFieldWorker.started) == 2)
+        assert (
+            _ManualAdaptiveFieldWorker.started[-1].sample_index
+            == latest.trajectory.sample_index
+        )
+    finally:
+        xr_window._xr_active_worker = None
+        xr_window._active_worker = None
+        xr_window.thread_pool = original_pool
+
+
+def test_cancel_then_reselect_same_sample_waits_for_old_worker_termination(
+    xr_window: MainWindow,
+    qtbot,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _enter_xr(xr_window, qtbot)
+    result = xr_window._xr_result
+    assert result is not None
+    sample = next(
+        item
+        for item in result.samples
+        if item.mode == mvp.ADAPTIVE_RIS_MODE
+        and item.command_hash != mvp._pattern_hash(result.static_pattern)
+    )
+    _ManualAdaptiveFieldWorker.started = []
+    original_pool = xr_window.thread_pool
+    xr_window.thread_pool = _ManualPool()
+    monkeypatch.setattr(gui_main, "XRAdaptiveFieldWorker", _ManualAdaptiveFieldWorker)
+    xr_window.xr_mode_combo.setCurrentText(mvp.ADAPTIVE_RIS_MODE)
+    xr_window.xr_timeline.setValue(sample.trajectory.sample_index)
+    xr_window._xr_field_debounce.stop()
+    xr_window._start_pending_xr_field()
+    old = _ManualAdaptiveFieldWorker.started[-1]
+    try:
+        xr_window._cancel_active()
+        xr_window._redraw_xr_field()
+        xr_window._xr_field_debounce.stop()
+
+        assert old.cancel_requested is True
+        assert xr_window._xr_pending_field_request is not None
+        assert len(_ManualAdaptiveFieldWorker.started) == 1
+
+        old.signals.terminated.emit(old.version, old)
+        qtbot.waitUntil(lambda: len(_ManualAdaptiveFieldWorker.started) == 2)
+        assert (
+            _ManualAdaptiveFieldWorker.started[-1].sample_index
+            == sample.trajectory.sample_index
+        )
+    finally:
+        xr_window._xr_active_worker = None
+        xr_window._active_worker = None
+        xr_window.thread_pool = original_pool
+
+
+def test_failed_xr_worker_keeps_pending_until_termination(
+    xr_window: MainWindow,
+    qtbot,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _enter_xr(xr_window, qtbot)
+    result = xr_window._xr_result
+    assert result is not None
+    adaptive = [
+        sample for sample in result.samples if sample.mode == mvp.ADAPTIVE_RIS_MODE
+    ]
+    worker = XRAdaptiveFieldWorker(
+        xr_window._version,
+        adaptive[1].trajectory.sample_index,
+        result.scene,
+        xr_window._xr_fast_config(),
+        adaptive[1].commanded_pattern,
+        adaptive[1].command_hash,
+        xr_window._xr_field_key_for_sample(adaptive[1]),
+    )
+    xr_window._xr_active_worker = worker
+    xr_window._active_worker = worker
+    xr_window._xr_field_inflight_key = worker.expected_key
+    latest_key = xr_window._xr_field_key_for_sample(adaptive[2])
+    assert latest_key is not None
+    xr_window._xr_pending_field_request = (
+        adaptive[2].trajectory.sample_index,
+        adaptive[2],
+        latest_key,
+    )
+    monkeypatch.setattr(QMessageBox, "critical", lambda *_args: None)
+
+    xr_window._worker_failed(xr_window._version, "boom")
+
+    assert xr_window._xr_active_worker is worker
+    assert xr_window._xr_pending_field_request is not None
+    xr_window._xr_worker_terminated(xr_window._version, worker)
+    assert xr_window._xr_active_worker is not worker
+
+
+def test_closed_window_ignores_old_xr_termination_and_result(
+    xr_window: MainWindow,
+    qtbot,
+) -> None:
+    _enter_xr(xr_window, qtbot)
+    result = xr_window._xr_result
+    field = xr_window._xr_static_field
+    assert result is not None and field is not None
+    sample = next(
+        item
+        for item in result.samples
+        if item.mode == mvp.ADAPTIVE_RIS_MODE
+        and item.command_hash != mvp._pattern_hash(result.static_pattern)
+    )
+    key = xr_window._xr_field_key_for_sample(sample)
+    assert key is not None
+    worker = XRAdaptiveFieldWorker(
+        xr_window._version,
+        sample.trajectory.sample_index,
+        result.scene,
+        xr_window._xr_fast_config(),
+        sample.commanded_pattern,
+        sample.command_hash,
+        key,
+    )
+    xr_window._xr_active_worker = worker
+    xr_window._active_worker = worker
+    xr_window.close()
+    qtbot.wait(10)
+
+    xr_window._xr_adaptive_field_ready(
+        xr_window._version,
+        XRAdaptiveFieldResult(
+            sample_index=sample.trajectory.sample_index,
+            command_hash=sample.command_hash,
+            key=key,
+            field_map=field,
+        ),
+    )
+    xr_window._xr_worker_terminated(xr_window._version, worker)
+
+    assert key not in xr_window._xr_field_cache
+    assert xr_window._xr_active_worker is None
+    assert xr_window._xr_pending_field_request is None
+
+
+def test_adaptive_playback_does_not_launch_field_physics_per_frame(
+    xr_window: MainWindow,
+    qtbot,
+    xr_field_calls,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _enter_xr(xr_window, qtbot)
+    result = xr_window._xr_result
+    assert result is not None
+    xr_window.xr_mode_combo.setCurrentText(mvp.ADAPTIVE_RIS_MODE)
+    xr_window.xr_timeline.setValue(1)
+
+    def unexpected_channel(*_args, **_kwargs):
+        raise AssertionError("Adaptive playback must use precomputed link states")
+
+    monkeypatch.setattr(SimulationEngine, "compute_channel", unexpected_channel)
+    xr_window._xr_playback_timer.setInterval(10)
+    qtbot.mouseClick(xr_window.xr_play_button, Qt.MouseButton.LeftButton)
+    qtbot.waitUntil(
+        lambda: not xr_window._xr_playback_timer.isActive(),
+        timeout=1500,
+    )
+    assert xr_window._xr_sample_index == 10
+    assert len(xr_field_calls) == 1
+
+    qtbot.waitUntil(lambda: len(xr_field_calls) == 2, timeout=3000)
+    qtbot.waitUntil(lambda: xr_window._active_worker is None, timeout=3000)
+    qtbot.wait(100)
+    assert len(xr_field_calls) == 2
+    final_sample = next(
+        sample
+        for sample in result.samples
+        if sample.mode == mvp.ADAPTIVE_RIS_MODE
+        and sample.trajectory.sample_index == 10
+    )
+    assert final_sample.commanded_pattern is not None
+    assert np.array_equal(
+        xr_field_calls[-1][2][result.scene.ris_surfaces[0].id],
+        final_sample.commanded_pattern,
+    )
+
+
+def test_adaptive_field_worker_honors_cancel_and_exact_request_identity(
+    xr_adaptive_computation: mvp.MVPComputation,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scene = xr_adaptive_computation.scene
+    sample = next(
+        item
+        for item in xr_adaptive_computation.samples
+        if item.mode == mvp.ADAPTIVE_RIS_MODE
+        and item.command_hash != mvp._pattern_hash(xr_adaptive_computation.static_pattern)
+    )
+    assert sample.commanded_pattern is not None
+    config = SimulationConfig(80, 60, "power")
+    key = build_xr_field_cache_key(
+        scene,
+        SimulationEngine(),
+        ControllerModel(),
+        config,
+        sample.command_hash,
+    )
+    worker = XRAdaptiveFieldWorker(
+        73,
+        sample.trajectory.sample_index,
+        scene,
+        config,
+        sample.commanded_pattern,
+        sample.command_hash,
+        key,
+    )
+    finished = []
+    failed = []
+
+    def cancel_during_field(
+        _engine,
+        _scene,
+        _config,
+        _patterns,
+        _model,
+        *,
+        cancel_check,
+    ):
+        worker.cancel()
+        assert cancel_check()
+        raise SimulationCancelled("cancelled")
+
+    monkeypatch.setattr(SimulationEngine, "compute_field_map", cancel_during_field)
+    worker.signals.finished.connect(lambda *args: finished.append(args))
+    worker.signals.failed.connect(lambda *args: failed.append(args))
+    worker.run()
+
+    assert finished == []
+    assert failed == []
+
+
+def test_adaptive_field_cache_key_covers_real_scene_command_and_grid_identity(
+    xr_adaptive_computation: mvp.MVPComputation,
+) -> None:
+    scene = xr_adaptive_computation.scene
+    engine = SimulationEngine()
+    model = ControllerModel()
+    command_hash = mvp._pattern_hash(xr_adaptive_computation.static_pattern)
+    key = build_xr_field_cache_key(
+        scene,
+        engine,
+        model,
+        SimulationConfig(80, 60, "power"),
+        command_hash,
+    )
+
+    assert key.profile_identity == engine.profile_identity
+    assert key.world_model_identity == "controller_nominal/1"
+    assert key.command_hash == command_hash
+    assert (key.grid_width, key.grid_height) == (80, 60)
+    assert key.production_quadrature_order == 8
+    assert key != build_xr_field_cache_key(
+        scene,
+        engine,
+        model,
+        SimulationConfig(81, 60, "power"),
+        command_hash,
+    )
+    assert key != build_xr_field_cache_key(
+        scene,
+        engine,
+        model,
+        SimulationConfig(80, 60, "power"),
+        "sha256:" + "0" * 64,
+    )
+
+
+def test_late_adaptive_field_is_cached_but_never_applied_to_wrong_snapshot(
+    xr_window: MainWindow,
+    qtbot,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _enter_xr(xr_window, qtbot)
+    result = xr_window._xr_result
+    field = xr_window._xr_static_field
+    assert result is not None and field is not None
+    adaptive = [
+        sample for sample in result.samples if sample.mode == mvp.ADAPTIVE_RIS_MODE
+    ]
+    source = adaptive[1]
+    current = adaptive[2]
+    source_key = xr_window._xr_field_key_for_sample(source)
+    assert source_key is not None
+    xr_window.xr_mode_combo.setCurrentText(mvp.ADAPTIVE_RIS_MODE)
+    xr_window.xr_timeline.setValue(current.trajectory.sample_index)
+    xr_window._xr_field_debounce.stop()
+    xr_window._xr_pending_field_request = None
+    draws = []
+    monkeypatch.setattr(
+        xr_window.scene_view,
+        "set_field_map",
+        lambda *args, **kwargs: draws.append((args, kwargs)),
+    )
+
+    xr_window._xr_adaptive_field_ready(
+        xr_window._version,
+        XRAdaptiveFieldResult(
+            sample_index=source.trajectory.sample_index,
+            command_hash=source.command_hash,
+            key=source_key,
+            field_map=field,
+        ),
+    )
+    assert source_key in xr_window._xr_field_cache
+    assert draws == []
+
+    stale_version = xr_window._version
+    xr_window.scenario_combo.setCurrentIndex(
+        xr_window.scenario_combo.findData("smart_space")
+    )
+    assert xr_window._xr_field_cache == {}
+    xr_window._xr_adaptive_field_ready(
+        stale_version,
+        XRAdaptiveFieldResult(
+            sample_index=source.trajectory.sample_index,
+            command_hash=source.command_hash,
+            key=source_key,
+            field_map=field,
+        ),
+    )
+    assert xr_window._xr_field_cache == {}

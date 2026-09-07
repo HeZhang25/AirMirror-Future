@@ -17,8 +17,9 @@
 | 底部 | Power、SNR、RIS Gain、Coverage、Dead Zone、Runtime |
 | 状态栏 | 当前任务开始/进度/完成/取消/失败 |
 
-场景选择器只包含可运行的 Future Smart Space。XR、Factory、City 只在不可交互路线文字
-中出现，直到各自通过 release gate。
+场景选择器包含正式路线中的 Future Smart Space，以及明确标为 non-release prototype 的
+`XR Dynamic Room MVP`。XR prototype 入口不表示 formal v0.2 XR gate 已满足；Factory、City
+仍只在不可交互路线文字中出现，直到各自通过 release gate。
 
 ## 2. 主画布
 
@@ -165,6 +166,27 @@ Power 和 SNR 保持当前每张图 `3/97 percentile` sequential auto-scale。RI
 
 当前 Field Map 将同一组 fixed RIS commanded pattern 用于所有评价点；它表示“固定配置下的空间
 分布”，不是每个像素分别重新聚焦后的最优包络。Coverage/Dead Zone 必须沿用这一解释。
+
+### 6.1 XR Dynamic Room Adaptive non-release prototype
+
+XR prototype 保留固定 `0..5 s`、`0.5 s` 间隔的 11 点轨迹，并提供 No RIS、Static RIS 与
+Adaptive RIS 三种 Controller 模式。No RIS 禁用 RIS contribution；Static 在 `t=0` 经现有
+Coherent Target Focus 生成一次 legal command 并冻结；Adaptive 在每个离散 sample 的当前位置经
+同一 Focus 路径生成一次 legal command。Adaptive 是理想即时重配置的离散采样 prototype，结果在
+FND-PHY-NB/FND-QA-CC closure 前标为 provisional，不代表实际控制时延、连续跟踪或 formal v0.2。
+
+进入 XR 后，同一后台 worker 先计算 `11×3` 个真实 production link states，再计算一张 Static
+Fast `80×60` 场图。No RIS 场图复用该次计算的 `baseline_power_dbm`，SNR 按同一项目 noise
+semantics 派生。Adaptive 场图只能使用当前 sample 保存的 exact legal command，通过 production
+`SimulationEngine.compute_field_map` 在后台按需计算；未就绪时隐藏旧场图并明确显示 queued/
+calculating，不得显示 Static 图、移动热点或重标色伪造结果。
+
+Adaptive complete field results 使用包含 scene、Profile、Controller world、command hash、grid 和
+production quadrature order 的 session-local identity 做有界缓存；这是完整结果缓存，不是 P1A
+coefficient/A@Gamma cache。timeline/Play/Pause 采用 `650 ms` settle debounce，播放和 mode/quantity
+切换不逐帧强制启动 field physics。Power/SNR 三模式使用同一固定数值显示范围；No RIS 的 RIS
+Gain 为 N/A。任一 field result 只有在 task version 及当前 mode/sample command identity 都匹配时
+才能绘制，退出 XR 后清空 prototype 缓存并恢复进入前的 Smart Space 状态。
 
 ## 7. 场景保存和加载
 

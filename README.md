@@ -133,12 +133,21 @@ received power(t)、SNR(t) CSV 与双 panel PNG：
 python -m airmirror_future.experiments.xr_dynamic_room_mvp
 ```
 
-该入口不是 formal v0.2 XR；Adaptive RIS、人体/头部模型、Doppler、fading、wideband/OFDM
-均未实现。桌面应用的 Scenario 下拉框也提供 `XR Dynamic Room MVP · Prototype`：后台先完成
-同一真实 link-state 计算，再以 frozen Static pattern 执行一次 Fast `80×60` production field
-map。No RIS 视图复用该结果的 baseline，Power/SNR 使用两种模式联合确定的同一色标；播放、
-slider 和模式切换只读取 cache，不生成逐 sample 动态 heatmap。孔径、相位误差、RIS 数量和
-formal Dynamic User 实验仍属于后续里程碑。
+Adaptive non-release 扩展使用同一场景/轨迹，在每个离散 sample 经现有 Controller Coherent
+Target Focus 生成 legal command；新结果目录必须不存在：
+
+```powershell
+python -m airmirror_future.experiments.xr_dynamic_room_mvp --adaptive --output <new-run-directory>
+```
+
+该入口不是 formal v0.2 XR，且 Adaptive 结果在 FND-PHY-NB/FND-QA-CC closure 前均为
+provisional；它不声称真实控制时延、连续跟踪或硬件更新率。桌面应用的 Scenario 下拉框也提供
+`XR Dynamic Room MVP · Prototype`：后台先完成 `11×3` 个真实 link states，再以 frozen Static
+pattern 执行一次 Fast `80×60` production field map。No RIS 视图复用该结果的 baseline；
+Adaptive field 只在当前 sample 稳定后，使用该 sample 保存的 exact command 后台按需计算并按
+完整 identity 缓存。Power/SNR 三模式沿用同一显示范围；播放、slider 和 quantity 切换不逐帧
+运行昂贵 physics。人体/头部模型、Doppler、fading、wideband/OFDM、孔径、相位误差、RIS 数量
+和 formal Dynamic User 实验仍属于后续里程碑。
 
 ## 四个目标场景与路线图
 
