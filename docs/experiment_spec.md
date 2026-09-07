@@ -209,6 +209,16 @@ identity 可写入 `quadrature_policy_id/version`；在 FND-QA-CC 尚未完成�
 preregistration/summary 字段由 QA-AP owner 维护，不能在本 Work Item 中越权重写；coefficient
 identity 仍由 FND-QA-CC 拥有，不能伪造成 production default。
 
+当前已签署并迁入 production 的事实是每个 control patch 使用 midpoint `8×8`；实现位置是
+`physics/ris_scattering.py` 的 `PRODUCTION_QUADRATURE_ORDER` 与 `_production_quadrature_spec()`。
+仓库尚未冻结与该 production policy 一一对应的 canonical `quadrature_policy_id/version`，普通
+Foundation `phase_bits.py` runner 因此继续写空值；空值表示“本 run 未记录已签署的 policy identity”，
+不表示 midpoint `8×8` 未执行，也不能在下游推断或回填。QA-AP/C2 Integration Owner 必须先依据
+已签署 policy 冻结唯一 ID/version，再从实际 production 配置向普通新 runner 接线，并通过 C2
+provenance/production-policy 一致性测试验收。QA-AP 历史 runner 的
+`fnd_qa_ap_candidate/1` 只标识当时的候选评价，不能复用为 production canonical identity；legacy
+结果保持不变。
+
 主 gating world 仅为 `ControllerModel`。`random_seed` 是 C2 scene/world seed；random legal
 pattern 使用独立 `pattern_seed`，固定候选列表由 preregistration 提供。off-focus pattern
 针对 `focus_target_rx` 只生成一次，evaluation 使用 `evaluation_rx` 且不重新 Focus。
