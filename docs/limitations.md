@@ -51,8 +51,9 @@
   软件没有自动证明该带宽对任意几何都满足窄带条件；
 - Field Map 对所有网格点使用同一 fixed RIS pattern，不是逐像素最优聚焦包络；
 - PropagationProfile 已在 C1 Verified（外部独立最终审查 PASS），最小 provenance 已在 C2 Verified；
-  `channel_frequency_model_id` 与 coefficient consistency 仍是后续 Planned contract，不得在现有
-  结果中声称已经实现。Profile 只拥有环境 modifier；当前及
+  `channel_frequency_model_id=narrowband_center_frequency_flat_v1` 已由本 Work Item 接入为运行元数据，
+  但 FND-PHY-NB 仍待独立 closure；legacy 结果缺失该字段时不得回写。它不表示已实现宽带/OFDM。
+  Profile 只拥有环境 modifier；当前及
   目标模型中的墙面 `Gamma_wall` 均属于 Wall/Reflection Model，不得在 C1 中重复迁入 Profile。
 - C1 支持 environment-only complex modifier，但只签入默认 Profile 的 v0.1 数值兼容；自定义
   复相位规则与最终 Focus/coefficient consistency 仍须 FND-QA-CC/必要 migration，不能凭注入

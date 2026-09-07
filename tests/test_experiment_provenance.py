@@ -8,6 +8,7 @@ import pytest
 
 import airmirror_future
 from airmirror_future.experiments.provenance import _build_provenance_fields
+from airmirror_future.experiments.provenance import CHANNEL_FREQUENCY_MODEL_ID
 from airmirror_future.optimization.coherent_focus import generate_coherent_target_pattern
 from airmirror_future.physics import reflections
 from airmirror_future.ris.phase import (
@@ -65,7 +66,7 @@ def test_builds_default_partial_provenance_from_actual_inputs() -> None:
         "provenance_schema_id": "airmirror_experiment_provenance",
         "provenance_schema_version": 1,
         "provenance_status": "partial",
-        "pending_contracts_json": '["FND-PHY-NB","FND-QA-AP","FND-QA-CC"]',
+        "pending_contracts_json": '["FND-PHY-NB","FND-QA-CC"]',
         "run_id": "20260904T010203.123456Z-1a2b3c4d",
         "software_version": airmirror_future.__version__,
         "focus_mode_id": "ris_only_phase_conjugate",
@@ -81,7 +82,7 @@ def test_builds_default_partial_provenance_from_actual_inputs() -> None:
         "world_model_version": "1",
         "world_model_parameters_json": "{}",
         "random_seed": 20260901,
-        "channel_frequency_model_id": "",
+        "channel_frequency_model_id": CHANNEL_FREQUENCY_MODEL_ID,
         "quadrature_policy_id": "",
         "quadrature_policy_version": "",
         "coefficient_model_identity": "",
@@ -142,7 +143,6 @@ def test_ground_truth_records_all_six_sigmas_and_its_actual_seed() -> None:
 
 def test_candidate_owner_metadata_stays_partial_while_owners_are_pending() -> None:
     fields = _build(
-        channel_frequency_model_id="candidate_narrowband_v1",
         quadrature_policy_id="candidate_midpoint",
         quadrature_policy_version="7",
         coefficient_model_identity="candidate:abc",
@@ -150,8 +150,18 @@ def test_candidate_owner_metadata_stays_partial_while_owners_are_pending() -> No
 
     assert fields["provenance_status"] == "partial"
     assert fields["pending_contracts_json"] == (
-        '["FND-PHY-NB","FND-QA-AP","FND-QA-CC"]'
+        '["FND-PHY-NB","FND-QA-CC"]'
     )
+    assert fields["channel_frequency_model_id"] == CHANNEL_FREQUENCY_MODEL_ID
+
+
+def test_frequency_model_identity_is_stable_and_candidate_values_are_rejected() -> None:
+    assert _build()["channel_frequency_model_id"] == CHANNEL_FREQUENCY_MODEL_ID
+    assert _build(channel_frequency_model_id=CHANNEL_FREQUENCY_MODEL_ID)[
+        "channel_frequency_model_id"
+    ] == CHANNEL_FREQUENCY_MODEL_ID
+    with pytest.raises(ValueError, match="channel_frequency_model_id"):
+        _build(channel_frequency_model_id="candidate_narrowband_v1")
 
 
 def test_world_is_required_at_the_internal_seam() -> None:

@@ -54,10 +54,11 @@
 | Noise Figure | dB | 0..30 | `Receiver.noise_figure_db` |
 | Coverage SNR | dB | -30..100 | `Scene.coverage_threshold_db` |
 
-Foundation FND-PHY-NB 的目标文案：Frequency 明确标为中心频率；Bandwidth 明确标为等效占用/
-接收噪声带宽。Model Info 必须说明 `h(fc)` 在 `B` 内按平坦处理，任何容量显示必须写“平坦信道
-Shannon 理论上界”，TX Power 是该带宽内总功率而非 PSD；不能写 OFDM 容量或真实吞吐。该标签
-更新仍为 Planned。
+FND-PHY-NB 文案要求：Frequency 明确标为中心频率 `fc`；Bandwidth 明确标为等效占用/接收噪声
+带宽 `B`。Model Info 必须说明 `h(fc)` 在 `B` 内按平坦信道处理，任何容量显示必须写
+“Center-frequency flat-channel Shannon upper bound / 平坦信道 Shannon 理论上界”；TX Power
+是该带宽内总功率而非 PSD；不能写 OFDM 容量或真实吞吐。GUI 热点接线由 GUI owner 在安全检查点
+完成，本 Work Item 不直接修改 `main_window.py`。
 
 ### RIS
 
