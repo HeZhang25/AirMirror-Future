@@ -75,11 +75,11 @@ Shannon 理论上界”，TX Power 是该带宽内总功率而非 PSD；不能�
 `pitch/lambda`；这些值不得带“通过/失败”或 `lambda/2` 合规提示。A2 本身不改变当前 GUI
 状态机，也不新增可点击入口。频率变化不得自动改写 Width/Height 或 Nx/Ny。
 
-Foundation B 的 Model Info/结果说明还必须标注当前 production aperture integration 为
-`1×1 midpoint per equivalent control patch`，并把精确 dBm 解释为 current scalar
-center-point model 输出。FND-QA-AP runner/verification 完成前不得显示“quadrature converged”“EM accurate”或
-把小数位数当作物理精度；GUI 不新增 quadrature order 可编辑控件，除非后续 production policy
-Work Item 明确授权。
+Model Info/结果说明必须标注当前 signed production aperture integration policy：每个既有
+equivalent control patch 内使用 midpoint `8×8` integration subpoints。该积分细化不增加 control
+cells，不改变 `Nx/Ny`、command vector size 或 pattern semantics；精确 dBm 仍只是当前系统级
+近似模型输出，不得宣称“EM accurate”或把小数位数当作物理精度。GUI 不新增 quadrature order
+可编辑控件，除非后续 production policy Work Item 明确授权。
 
 ### Ground Truth
 
@@ -118,7 +118,7 @@ Apply 使用 dataclass replace 重建并校验对象。任何错误用对话框�
 
 | 选择 | 点击 Optimize 后 |
 |---|---|
-| Coherent Target Focus | GUI 默认；主线程按 Controller nominal total received power 生成 pattern，随后后台重算场图 |
+| Coherent Target Focus | GUI 默认；versioned worker 按 Controller nominal total received power 生成 pattern，并在同一 snapshot 上串行计算指标与场图 |
 | RIS-only Physics Focus | 保留的公开对照；只使 RIS patch 贡献相互相干 |
 | Feedback Greedy | worker 从全零 pattern 开始，仅用 oracle 测量 |
 | Physics-Guided Feedback | worker 从 Physics Focus 开始反馈细化 |
@@ -146,6 +146,14 @@ Idle
     -> Result at current N: render + metrics -> Idle
 ```
 
+Smart Space 实体拖动只在 Qt 主线程立即更新 Scene 位置、使旧 version 失效并清除已失效的
+pattern/metrics/field 显示；不得同步执行 Focus、link metrics 或 field map。拖动停止 `450 ms` 后，
+一个 versioned worker 必须基于同一 deep-copied Scene/Ground Truth snapshot 串行完成默认
+Coherent Target Focus、focused/baseline link metrics 和固定 commanded pattern field map。Generation
+切换、Apply、Load 和显式 Coherent Target Focus 也复用同一后台路径。输入再次变化时立即请求
+取消；只有最新 version 的整组 pattern/metrics/field 可以一起应用，旧结果静默丢弃。该调度
+变更不改变 Focus objective、production midpoint `8×8` 或传播公式。
+
 quantity 在 Power/SNR/RIS Gain 间切换只重绘已有 `FieldMapResult`，不触发物理重算。
 
 Power 和 SNR 保持当前每张图 `3/97 percentile` sequential auto-scale。RIS Gain 是例外：显示层
@@ -168,13 +176,15 @@ Power 和 SNR 保持当前每张图 `3/97 percentile` sequential auto-scale。RI
 ## 8. 人工验收清单
 
 1. 启动后中文正常、模型标签可见，场图完成时 UI 可继续拖动；
-2. 拖 RX，旧图不会在新位置后覆盖；
+2. 拖 TX/RX/RIS 时 marker 保持流畅，旧输出立即失效，停止后只应用同一最新 snapshot 的
+   pattern、metrics 与场图；
 3. Current→Future 时 scene 不移动，Future 徽标出现且参数真实变化；
 4. Show Field/Rays/Pattern/Coverage/Labels 各自只影响显示；
 5. Phase Error 后 commanded 与 actual 图不同；
 6. Feedback 可显示进度并取消；
 7. Save/Load 后 scene 数值往返一致，pattern 重新生成；
-8. Model Info 正确声明系统级近似、Shannon 上界、当前 `1×1` center-point policy、A2 semantic
-   与 discretization accuracy 的状态边界，以及 partial-aperture blockage 未实现。
+8. Model Info 正确声明系统级近似、Shannon 上界、当前 signed midpoint `8×8` per-control-patch
+   production policy、A2 semantic 与 discretization accuracy 的状态边界，以及
+   partial-aperture blockage 未实现。
 9. Foundation 完成时，Model Info 同时声明中心频率平坦信道、固定 pattern 场图和 wall 仅 XY
    误差；这些计划文案不得在对应实现/测试完成前误标为 Verified。

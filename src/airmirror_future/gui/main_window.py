@@ -42,6 +42,8 @@ from airmirror_future.gui.scene_view import SceneView
 from airmirror_future.gui.workers import (
     MapWorker,
     OptimizationWorker,
+    SmartSpaceRefreshResult,
+    SmartSpaceRefreshWorker,
     XRDynamicRoomWorker,
     XRDynamicRoomResult,
 )
@@ -91,10 +93,13 @@ class MainWindow(QMainWindow):
         self._xr_sample_index = 0
         self._xr_sample_lookup: dict[tuple[int, str], DynamicLinkSample] = {}
         self._smart_metric_texts: tuple[str, ...] = ()
+        self._smart_space_refresh_pending = False
+        self._xr_resume_smart_space_refresh = False
+        self._debounced_action: str | None = None
         self._debounce = QTimer(self)
         self._debounce.setSingleShot(True)
         self._debounce.setInterval(450)
-        self._debounce.timeout.connect(self.start_field_map)
+        self._debounce.timeout.connect(self._run_debounced_action)
         self._xr_playback_timer = QTimer(self)
         self._xr_playback_timer.setInterval(500)
         self._xr_playback_timer.timeout.connect(self._advance_xr_sample)
@@ -106,7 +111,7 @@ class MainWindow(QMainWindow):
         self._set_pending(False)
         self._set_focus_pattern()
         self._refresh_all(recompute_map=False)
-        QTimer.singleShot(100, self.start_field_map)
+        self._schedule_field_map()
 
     def _build_ui(self) -> None:
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -495,6 +500,7 @@ class MainWindow(QMainWindow):
     def _enter_xr_demo(self) -> None:
         if self._xr_demo_active:
             return
+        self._xr_resume_smart_space_refresh = self._smart_space_refresh_pending
         self._xr_demo_active = True
         self._smart_metric_texts = tuple(
             widget.text()
@@ -522,6 +528,7 @@ class MainWindow(QMainWindow):
         self.xr_timeline.setValue(0)
         self._xr_playback_timer.stop()
         self._debounce.stop()
+        self._debounced_action = None
         self._version += 1
         self._cancel_active()
         self._set_smart_space_widgets_enabled(False)
@@ -827,6 +834,9 @@ class MainWindow(QMainWindow):
         self.progress.setRange(0, 100)
         self.progress.setValue(0)
         self.statusBar().showMessage("Smart Space mode restored")
+        if self._xr_resume_smart_space_refresh:
+            self._xr_resume_smart_space_refresh = False
+            self._schedule_smart_space_refresh()
 
     def _set_focus_pattern(self) -> None:
         ris = self.scene_model.ris_surfaces[0]
@@ -853,9 +863,11 @@ class MainWindow(QMainWindow):
         self._pattern_source = "RIS-only Physics Focus"
 
     def _refresh_all(self, *, recompute_map: bool = True) -> None:
+        self._smart_space_refresh_pending = False
         self.scene_view.load_scene(self.scene_model, preserve_heatmap=True)
         self._refresh_metrics()
         self._refresh_pattern()
+        self.pattern_view.setVisible(self.show_pattern.isChecked())
         generation = self.scene_model.ris_surfaces[0].generation
         self.future_badge.setText(
             "Future Scenario Assumption" if generation == "Future" else ""
@@ -946,10 +958,50 @@ class MainWindow(QMainWindow):
             replace(item, position=position) if item.id == identifier else item
             for item in self.scene_model.ris_surfaces
         ]
-        self._set_focus_pattern()
-        self._refresh_metrics()
-        self._refresh_pattern()
-        self._schedule_field_map()
+        self._schedule_smart_space_refresh()
+
+    def _mark_smart_space_results_pending(self) -> None:
+        """Hide invalidated outputs while the latest scene snapshot is pending."""
+        self._smart_space_refresh_pending = True
+        self.latest_field = None
+        self.scene_view.clear_field_overlays()
+        self.pattern_view.setVisible(False)
+        self.power_metric.setText("Power: calculating…")
+        self.snr_metric.setText("SNR: calculating…")
+        self.gain_metric.setText("RIS Gain: calculating…")
+        self.coverage_metric.setText("Coverage: calculating…")
+        self.dead_zone_metric.setText("Dead Zone: calculating…")
+        self.runtime_metric.setText("Runtime: calculating…")
+        self.progress.setRange(0, 100)
+        self.progress.setValue(0)
+        self.cancel_button.setEnabled(False)
+        self.statusBar().showMessage("场景已更新 · 等待拖动停止后后台计算…")
+
+    def _schedule_smart_space_refresh(self) -> None:
+        """Invalidate immediately and debounce one coherent latest-scene solve."""
+        self._version += 1
+        self._cancel_active()
+        self._debounced_action = "smart_space_refresh"
+        self._mark_smart_space_results_pending()
+        self._debounce.start()
+
+    def _reload_scene_and_schedule_smart_space_refresh(self) -> None:
+        """Render applied inputs immediately, then solve their outputs off-thread."""
+        self.scene_view.load_scene(self.scene_model)
+        generation = self.scene_model.ris_surfaces[0].generation
+        self.future_badge.setText(
+            "Future Scenario Assumption" if generation == "Future" else ""
+        )
+        self._refresh_generation_status()
+        self._schedule_smart_space_refresh()
+
+    def _run_debounced_action(self) -> None:
+        action = self._debounced_action
+        self._debounced_action = None
+        if action == "smart_space_refresh":
+            self.start_smart_space_refresh()
+        elif action == "field_map":
+            self.start_field_map()
 
     def _schedule_field_map(self) -> None:
         """Invalidate any running result immediately, then debounce a replacement."""
@@ -957,6 +1009,7 @@ class MainWindow(QMainWindow):
             return
         self._version += 1
         self._cancel_active()
+        self._debounced_action = "field_map"
         self._debounce.start()
 
     def _generation_changed(self, generation: str) -> None:
@@ -995,8 +1048,7 @@ class MainWindow(QMainWindow):
         self._sync_scene_controls()
         self._sync_ris_controls()
         self._sync_ground_truth_controls()
-        self._set_focus_pattern()
-        self._refresh_all()
+        self._reload_scene_and_schedule_smart_space_refresh()
 
     def _sync_ris_controls(self) -> None:
         ris = self.scene_model.ris_surfaces[0]
@@ -1045,9 +1097,8 @@ class MainWindow(QMainWindow):
                 measurement_noise_sigma_db=self.measurement_noise.value(),
                 position_error_sigma_m=self.position_error.value(),
             )
-            self._set_focus_pattern()
             self._set_pending(False)
-            self._refresh_all()
+            self._reload_scene_and_schedule_smart_space_refresh()
         except Exception as exc:
             QMessageBox.critical(self, "参数错误", str(exc))
 
@@ -1061,6 +1112,7 @@ class MainWindow(QMainWindow):
     def start_field_map(self) -> None:
         if self._xr_demo_active:
             return
+        self._debounced_action = None
         self._cancel_active()
         self._version += 1
         version = self._version
@@ -1080,6 +1132,70 @@ class MainWindow(QMainWindow):
         self.cancel_button.setEnabled(True)
         self.statusBar().showMessage("正在后台计算场图…")
         self.thread_pool.start(worker)
+
+    def start_smart_space_refresh(self) -> None:
+        """Start one background Focus→metrics→field solve for the latest drag."""
+        if self._xr_demo_active:
+            return
+        self._debounced_action = None
+        self._cancel_active()
+        self._version += 1
+        version = self._version
+        worker = SmartSpaceRefreshWorker(
+            version,
+            copy.deepcopy(self.scene_model),
+            self._quality_config(),
+            copy.deepcopy(self.ground_truth),
+        )
+        worker.signals.finished.connect(self._smart_space_refresh_ready)
+        worker.signals.failed.connect(self._worker_failed)
+        self._active_worker = worker
+        self._workers.append(worker)
+        self.progress.setRange(0, 0)
+        self.cancel_button.setEnabled(True)
+        self.statusBar().showMessage("正在后台计算 Focus、链路指标与场图…")
+        self.thread_pool.start(worker)
+
+    def _smart_space_refresh_ready(
+        self,
+        version: int,
+        result: SmartSpaceRefreshResult,
+    ) -> None:
+        if version != self._version or self._xr_demo_active:
+            return
+        self._smart_space_refresh_pending = False
+        self.patterns = result.patterns
+        self._pattern_source = result.pattern_source
+        self.latest_field = result.field_map
+        self.scene_view.load_scene(self.scene_model)
+        self._refresh_pattern()
+        self.pattern_view.setVisible(self.show_pattern.isChecked())
+        self.power_metric.setText(
+            f"Power: {result.focused.received_power_dbm:.2f} dBm"
+        )
+        self.snr_metric.setText(f"SNR: {result.focused.snr_db:.2f} dB")
+        self.gain_metric.setText(
+            "RIS Gain: "
+            f"{result.focused.received_power_dbm - result.baseline.received_power_dbm:+.2f} dB"
+        )
+        self._redraw_latest_map()
+        self.scene_view.set_coverage_map(
+            result.field_map,
+            self.scene_model.coverage_threshold_db,
+            self.show_coverage.isChecked(),
+        )
+        self.coverage_metric.setText(
+            f"Coverage: {result.field_map.coverage_percent:.1f}%"
+        )
+        self.dead_zone_metric.setText(
+            f"Dead Zone: {result.field_map.dead_zone_percent:.1f}%"
+        )
+        self.runtime_metric.setText(f"Runtime: {result.field_map.runtime_s:.2f} s")
+        self.progress.setRange(0, 100)
+        self.progress.setValue(100)
+        self.cancel_button.setEnabled(False)
+        self.statusBar().showMessage("最新场景的 Focus、指标与场图计算完成")
+        self._active_worker = None
 
     def _field_ready(self, version: int, result: FieldMapResult) -> None:
         if version != self._version:
@@ -1123,15 +1239,14 @@ class MainWindow(QMainWindow):
             return
         algorithm = self.algorithm.currentText()
         if algorithm == "Coherent Target Focus":
-            self._set_focus_pattern()
-            self._refresh_all()
-            self.statusBar().showMessage("Coherent Target Focus 完成")
+            self._schedule_smart_space_refresh()
             return
         if algorithm == "RIS-only Physics Focus":
             self._set_ris_only_pattern()
             self._refresh_all()
             self.statusBar().showMessage("RIS-only Physics Focus 完成")
             return
+        self._smart_space_refresh_pending = False
         self._cancel_active()
         self._version += 1
         worker = OptimizationWorker(
@@ -1177,7 +1292,10 @@ class MainWindow(QMainWindow):
     def _worker_failed(self, version: int, details: str) -> None:
         if version != self._version:
             return
+        active_worker = self._active_worker
         self._active_worker = None
+        if isinstance(active_worker, SmartSpaceRefreshWorker):
+            self._smart_space_refresh_pending = False
         self.cancel_button.setEnabled(False)
         self.progress.setRange(0, 100)
         if self._xr_demo_active:
@@ -1196,6 +1314,9 @@ class MainWindow(QMainWindow):
         self._active_worker = None
 
     def _cancel_work(self) -> None:
+        self._debounce.stop()
+        self._debounced_action = None
+        self._smart_space_refresh_pending = False
         self._version += 1
         self._cancel_active()
         self.cancel_button.setEnabled(False)
@@ -1230,9 +1351,8 @@ class MainWindow(QMainWindow):
                 self.generation_combo.blockSignals(False)
                 self._sync_scene_controls()
                 self._sync_ris_controls()
-                self._set_focus_pattern()
                 self._set_pending(False)
-                self._refresh_all()
+                self._reload_scene_and_schedule_smart_space_refresh()
             except Exception as exc:
                 QMessageBox.critical(self, "加载失败", str(exc))
 
