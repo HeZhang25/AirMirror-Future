@@ -100,8 +100,11 @@ provenance_schema_version = 1
 ```
 
 C2 新运行必须把尚未签署或尚未完成独立 closure 的 owner 列入 `pending_contracts_json`；当前
-FND-PHY-NB 已接入 canonical frequency model 但仍等待本 Work Item closure，FND-QA-AP 已有
-signed policy，FND-QA-CC 仍 pending。若某后续 QA runner 正在评价显式 candidate，
+FND-PHY-NB 已接入 canonical frequency model 但仍等待本 Work Item 的独立审查/维护者 closure，
+FND-QA-AP 已有 signed policy，FND-QA-CC 仍 pending。NB owner 不能自行移除自身 pending 项，
+也不能把结果写成 `complete` 或 `Verified`。NB Verified 后，由 C2/Integration 或 Status Owner
+依据该 Work Item 的独立审查通过记录和维护者签署事实，统一更新 builder 的 pending 常量及相关
+事实源；不能由入口调用者或本地实验结果推断。若某后续 QA runner 正在评价显式 candidate，
 可以记录 candidate ID/version，但 owner 仍留在 pending list，结果仍为 `partial`。只有 pending
 为空且本 run 必需 identity 均由 owner closure 签署并非空时才能写 `complete`。不得用 `default`、
 类名、ADR 目标值、0 或当前行为猜测 future identity/Verified provenance。
