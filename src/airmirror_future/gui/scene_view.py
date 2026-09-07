@@ -97,6 +97,7 @@ class SceneView(QGraphicsView):
         self._field_legend_labels: list[QGraphicsSimpleTextItem] = []
         self._field_legend_text: str | None = None
         self._gain_legend_gmax_db: float | None = None
+        self._field_value_range: tuple[float, float] | None = None
         self._show_labels = True
         self._show_rays = True
         self._entities_draggable = True
@@ -161,6 +162,7 @@ class SceneView(QGraphicsView):
         self._field_legend_labels = []
         self._field_legend_text = None
         self._gain_legend_gmax_db = old_gain_gmax
+        self._field_value_range = None
         self._entity_items = {}
         self._entity_labels = {}
         self._trajectory_path = None
@@ -321,15 +323,35 @@ class SceneView(QGraphicsView):
             marker.setZValue(12 if active else 11)
 
     @staticmethod
-    def _rgba(values: np.ndarray) -> np.ndarray:
-        finite = values[np.isfinite(values)]
-        if finite.size == 0:
-            normalized = np.zeros_like(values)
-        else:
-            low, high = np.percentile(finite, (3, 97))
-            if high <= low:
-                high = low + 1.0
-            normalized = np.clip((values - low) / (high - low), 0.0, 1.0)
+    def field_value_range(*arrays: np.ndarray) -> tuple[float, float]:
+        """Return one robust color range shared by all supplied field arrays."""
+        finite_parts = [
+            np.asarray(values, dtype=float)[np.isfinite(values)]
+            for values in arrays
+        ]
+        finite_parts = [values for values in finite_parts if values.size]
+        if not finite_parts:
+            return (0.0, 1.0)
+        low, high = np.percentile(np.concatenate(finite_parts), (3, 97))
+        if high <= low:
+            high = low + 1.0
+        return float(low), float(high)
+
+    @staticmethod
+    def _rgba(
+        values: np.ndarray,
+        *,
+        value_range: tuple[float, float] | None = None,
+    ) -> np.ndarray:
+        low, high = (
+            SceneView.field_value_range(values)
+            if value_range is None
+            else value_range
+        )
+        if not math.isfinite(low) or not math.isfinite(high) or high <= low:
+            raise ValueError("field color range must be finite and increasing")
+        normalized = np.clip((values - low) / (high - low), 0.0, 1.0)
+        normalized = np.where(np.isfinite(normalized), normalized, 0.0)
         red = np.clip(1.8 * normalized, 0.0, 1.0)
         green = np.clip(1.8 - np.abs(normalized - 0.55) * 3.0, 0.0, 1.0)
         blue = np.clip(1.6 * (1.0 - normalized), 0.0, 1.0)
@@ -404,7 +426,59 @@ class SceneView(QGraphicsView):
         self._field_legend_text = f"{title}; {' | '.join(numeric_labels)}"
         self._field_legend_item.setToolTip(self._field_legend_text)
 
-    def set_field_map(self, result: FieldMapResult, quantity: str) -> None:
+    def _render_scalar_legend(
+        self,
+        quantity: str,
+        value_range: tuple[float, float],
+    ) -> None:
+        """Render the explicit shared scale used by an XR scalar field."""
+        self._remove_field_legend_items()
+        low, high = value_range
+        bar_width = 300
+        bar_height = 12
+        samples = np.linspace(low, high, bar_width, dtype=float)[None, :]
+        bar_rgba = self._rgba(samples, value_range=value_range)
+        bar_rgba[:, :, 3] = 255
+        bar_rgba = np.ascontiguousarray(np.repeat(bar_rgba, bar_height, axis=0))
+        image = QImage(
+            bar_rgba.data,
+            bar_width,
+            bar_height,
+            bar_width * 4,
+            QImage.Format.Format_RGBA8888,
+        ).copy()
+        self._field_legend_item = self.graphics_scene.addPixmap(QPixmap.fromImage(image))
+        self._field_legend_item.setPos(10, 26)
+        self._field_legend_item.setZValue(30)
+
+        unit = "dBm" if quantity == "接收功率" else "dB"
+        title = (
+            "Power · shared No RIS / Static RIS scale"
+            if quantity == "接收功率"
+            else "SNR · shared No RIS / Static RIS scale"
+        )
+        numeric_labels = (f"{low:.2f} {unit}", f"{high:.2f} {unit}")
+        for text in (title, *numeric_labels):
+            label = self.graphics_scene.addSimpleText(text)
+            label.setBrush(QColor("#f8fafc"))
+            label.setZValue(31)
+            self._field_legend_labels.append(label)
+        self._field_legend_labels[0].setPos(10, 6)
+        low_label, high_label = self._field_legend_labels[1:]
+        low_label.setPos(10, 40)
+        high_label.setPos(10 + bar_width - high_label.boundingRect().width(), 40)
+        self._field_legend_text = (
+            f"{title}; {numeric_labels[0]} | {numeric_labels[1]}"
+        )
+        self._field_legend_item.setToolTip(self._field_legend_text)
+
+    def set_field_map(
+        self,
+        result: FieldMapResult,
+        quantity: str,
+        *,
+        value_range: tuple[float, float] | None = None,
+    ) -> None:
         if self.model_scene is None:
             return
         values = {
@@ -415,10 +489,20 @@ class SceneView(QGraphicsView):
         if quantity == "RIS 增益":
             rgba, gmax = self._ris_gain_rgba(values)
             self._gain_legend_gmax_db = gmax
+            self._field_value_range = None
         else:
-            rgba = self._rgba(values)
+            active_range = (
+                self.field_value_range(values)
+                if value_range is None
+                else value_range
+            )
+            rgba = self._rgba(values, value_range=active_range)
             self._gain_legend_gmax_db = None
-            self._remove_field_legend_items()
+            self._field_value_range = active_range
+            if value_range is None:
+                self._remove_field_legend_items()
+            else:
+                self._render_scalar_legend(quantity, active_range)
         rgba = np.ascontiguousarray(np.flipud(rgba))
         height, width, _ = rgba.shape
         image = QImage(rgba.data, width, height, width * 4, QImage.Format.Format_RGBA8888).copy()

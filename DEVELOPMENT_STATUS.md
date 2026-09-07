@@ -7,7 +7,7 @@
 | release 状态 | Verified |
 | 规范基线 | [docs/README.md](docs/README.md) |
 | 当前 Capability | Foundation 0.1.1C overall In Progress：C1 Verified，C2 Verified；FND-QA-AP-01 preregistration signed/frozen，FND-QA-AP-02..06 Verified；signed midpoint 8×8 production quadrature policy 已接入 production RIS scattering；Foundation overall In Progress；FND-PHY-NB/FND-QA-CC Planned；P1A gate closed |
-| Prototype lane | XR Dynamic Room MVP headless + minimal GUI result playback 已 Implemented / exit condition met，仅为 non-release prototype；FND-PHY-NB / FND-QA-CC Planned / deferred for scene-first MVP；P1A formal gate closed；formal v0.2 gate not satisfied |
+| Prototype lane | XR Dynamic Room MVP headless + cached-field GUI result playback 已 Implemented / exit condition met，仅为 non-release prototype；FND-PHY-NB / FND-QA-CC Planned / deferred for scene-first MVP；P1A formal gate closed；formal v0.2 gate not satisfied |
 
 ## Foundation FND-QA-AP-05/06 formal verification and policy closure
 
@@ -63,8 +63,10 @@ coefficient system 或 scene framework。范围与退出条件见
 [XR Dynamic Room MVP Work Item](docs/work_items/xr_dynamic_room_mvp.md)。
 
 现有 MainWindow 已增加 `XR Dynamic Room MVP · Prototype` 入口：同一 headless MVP evaluation
-通过既有 QThreadPool 在后台一次性计算，SceneView 只播放冻结的 11 点结果并显示 trajectory；
-Play/Pause/Reset、sample slider 与 No RIS/Static RIS 切换均不逐帧重算 channel 或 field map。
+通过既有 QThreadPool 在后台计算 11×2 link states，随后以 frozen Static pattern 执行唯一一次
+Fast `80×60` production field map。SceneView 在该 cached spatial field 上播放冻结的 11 点轨迹；
+No RIS power 来自同一结果的 baseline，No RIS SNR 复用现有 noise semantics，Power/SNR 两模式
+共享联合色标。Play/Pause/Reset、sample slider、mode/quantity 切换均不重算 channel 或 field map。
 退出 Demo 后恢复原 Smart Space Scene、pattern、控件和已有 field 状态。该 GUI 仍不是 formal
 v0.2 XR GUI，full GUI animation 继续 deferred。
 

@@ -10,14 +10,60 @@ import pytest
 PySide6 = pytest.importorskip("PySide6")
 from PySide6.QtCore import QCoreApplication, QEvent, QThreadPool, Qt
 
+from airmirror_future.core.types import FieldMapResult
 from airmirror_future.experiments import xr_dynamic_room_mvp as mvp
+from airmirror_future.gui import workers as gui_workers
 from airmirror_future.gui.main_window import MainWindow
+from airmirror_future.gui.workers import XRDynamicRoomResult, XRDynamicRoomWorker
+from airmirror_future.physics.noise import noise_power_dbm
 from airmirror_future.scenarios.smart_space import create_smart_space_scene
-from airmirror_future.simulation.engine import SimulationEngine
+from airmirror_future.simulation.engine import SimulationCancelled, SimulationEngine
+from airmirror_future.simulation.ground_truth import ControllerModel
 
 
 @pytest.fixture
-def xr_window(qapp):
+def xr_field_calls(monkeypatch: pytest.MonkeyPatch):
+    calls = []
+
+    def field_map(
+        _engine,
+        scene,
+        config,
+        ris_patterns=None,
+        model=None,
+        cancel_check=None,
+    ):
+        if cancel_check is not None and cancel_check():
+            raise SimulationCancelled("cancelled")
+        x_m = np.linspace(0.05, scene.room_size.x - 0.05, config.grid_width)
+        y_m = np.linspace(0.05, scene.room_size.y - 0.05, config.grid_height)
+        x_grid, y_grid = np.meshgrid(x_m, y_m)
+        baseline = -92.0 + 0.3 * x_grid - 0.2 * y_grid
+        gain = 4.0 + 0.1 * x_grid
+        power = baseline + gain
+        noise_dbm = noise_power_dbm(
+            scene.bandwidth_hz,
+            scene.receiver().noise_figure_db,
+        )
+        calls.append((scene, config, ris_patterns, model, cancel_check))
+        return FieldMapResult(
+            x_m=x_m,
+            y_m=y_m,
+            received_power_dbm=power,
+            snr_db=power - noise_dbm,
+            baseline_power_dbm=baseline,
+            ris_gain_db=gain,
+            coverage_percent=75.0,
+            dead_zone_percent=25.0,
+            runtime_s=0.125,
+        )
+
+    monkeypatch.setattr(SimulationEngine, "compute_field_map", field_map)
+    return calls
+
+
+@pytest.fixture
+def xr_window(qapp, xr_field_calls):
     window = MainWindow(create_smart_space_scene("Current"))
     yield window
     window._debounce.stop()
@@ -36,12 +82,27 @@ def _enter_xr(window: MainWindow, qtbot) -> None:
     assert index >= 0
     assert "XR Dynamic Room MVP" in window.scenario_combo.itemText(index)
     window.scenario_combo.setCurrentIndex(index)
-    qtbot.waitUntil(lambda: window._xr_result is not None, timeout=5000)
+    qtbot.waitUntil(lambda: window._xr_static_field is not None, timeout=5000)
+
+
+def test_xr_trajectory_is_visible_while_field_map_is_pending(
+    xr_window: MainWindow,
+    qtbot,
+) -> None:
+    index = xr_window.scenario_combo.findData("xr_dynamic_room_mvp")
+    xr_window.scenario_combo.setCurrentIndex(index)
+
+    assert len(xr_window.scene_view._trajectory_markers) == 11
+    assert xr_window.scene_view._heatmap_item is None
+    assert "Field map calculating" in xr_window.xr_field_status.text()
+    assert xr_window.isEnabled()
+    qtbot.waitUntil(lambda: xr_window._xr_static_field is not None, timeout=5000)
 
 
 def test_xr_entry_uses_real_mvp_result_and_draws_frozen_trajectory(
     xr_window: MainWindow,
     qtbot,
+    xr_field_calls,
 ) -> None:
     _enter_xr(xr_window, qtbot)
     result = xr_window._xr_result
@@ -52,6 +113,10 @@ def test_xr_entry_uses_real_mvp_result_and_draws_frozen_trajectory(
     assert len(result.samples) == 22
     assert len(xr_window.scene_view._trajectory_markers) == 11
     assert xr_window.scene_view._trajectory_path is not None
+    assert (
+        xr_window.scene_view._trajectory_path.zValue()
+        > xr_window.scene_view._heatmap_item.zValue()
+    )
     assert xr_window.scene_view._entities_draggable is False
     assert all(
         sample.ris_channel == 0.0j
@@ -65,7 +130,73 @@ def test_xr_entry_uses_real_mvp_result_and_draws_frozen_trajectory(
     } == {mvp._pattern_hash(result.static_pattern)}
     assert "Power:" in xr_window.power_metric.text()
     assert "SNR:" in xr_window.snr_metric.text()
-    assert "Mode: No RIS" == xr_window.gain_metric.text()
+    assert "RIS Gain: N/A · Mode: No RIS" == xr_window.gain_metric.text()
+    xr_calls = [
+        call for call in xr_field_calls if call[0].name == "XR Dynamic Room MVP"
+    ]
+    assert len(xr_calls) == 1
+    _, config, patterns, model, cancel_check = xr_calls[0]
+    assert (config.grid_width, config.grid_height) == (80, 60)
+    assert patterns[result.scene.ris_surfaces[0].id] is result.static_pattern
+    assert isinstance(model, ControllerModel)
+    assert callable(cancel_check)
+
+
+def test_cached_field_modes_use_baseline_noise_semantics_and_shared_scales(
+    xr_window: MainWindow,
+    qtbot,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _enter_xr(xr_window, qtbot)
+    static = xr_window._xr_static_field
+    no_ris = xr_window._xr_no_ris_field
+    result = xr_window._xr_result
+    assert static is not None and no_ris is not None and result is not None
+
+    noise_dbm = noise_power_dbm(
+        result.scene.bandwidth_hz,
+        result.scene.receiver().noise_figure_db,
+    )
+    assert no_ris.received_power_dbm is static.baseline_power_dbm
+    assert np.array_equal(no_ris.snr_db, static.baseline_power_dbm - noise_dbm)
+
+    power_range = xr_window._xr_field_scales["接收功率"]
+    assert power_range == xr_window.scene_view.field_value_range(
+        static.baseline_power_dbm,
+        static.received_power_dbm,
+    )
+    assert xr_window.scene_view._field_value_range == power_range
+    assert "shared No RIS / Static RIS scale" in xr_window.scene_view._field_legend_text
+
+    draws = []
+    real_set_field_map = xr_window.scene_view.set_field_map
+
+    def record_field_map(field, quantity, *, value_range=None):
+        draws.append((field, quantity, value_range))
+        real_set_field_map(field, quantity, value_range=value_range)
+
+    monkeypatch.setattr(xr_window.scene_view, "set_field_map", record_field_map)
+    xr_window.xr_mode_combo.setCurrentText(mvp.STATIC_RIS_MODE)
+    assert draws[-1][0] is static
+    assert draws[-1][1:] == ("接收功率", power_range)
+    assert xr_window.scene_view._field_value_range == power_range
+
+    xr_window.xr_quantity_combo.setCurrentText("SNR")
+    snr_range = xr_window._xr_field_scales["SNR"]
+    assert draws[-1][0] is static
+    assert draws[-1][1:] == ("SNR", snr_range)
+    assert xr_window.scene_view._field_value_range == snr_range
+    xr_window.xr_mode_combo.setCurrentText(mvp.NO_RIS_MODE)
+    assert draws[-1][0] is no_ris
+    assert draws[-1][1:] == ("SNR", snr_range)
+    assert xr_window.scene_view._field_value_range == snr_range
+
+    xr_window.xr_quantity_combo.setCurrentText("RIS 增益")
+    assert xr_window.scene_view._heatmap_item.isVisible() is False
+    assert "N/A for No RIS" in xr_window.xr_field_status.text()
+    xr_window.xr_mode_combo.setCurrentText(mvp.STATIC_RIS_MODE)
+    assert xr_window.scene_view._heatmap_item.isVisible() is True
+    assert xr_window.scene_view._gain_legend_gmax_db is not None
 
 
 def test_play_pause_reset_and_mode_switch_are_result_only(
@@ -124,7 +255,7 @@ def test_play_pause_reset_and_mode_switch_are_result_only(
         f"Power: {selected.received_power_dbm:.2f} dBm"
     )
     assert xr_window.snr_metric.text() == f"SNR: {selected.snr_db:.2f} dB"
-    assert xr_window.gain_metric.text() == "Mode: Static RIS"
+    assert "Mode: Static RIS" in xr_window.gain_metric.text()
 
     qtbot.mouseClick(xr_window.xr_reset_button, Qt.MouseButton.LeftButton)
     assert xr_window._xr_sample_index == 0
@@ -133,6 +264,58 @@ def test_play_pause_reset_and_mode_switch_are_result_only(
     assert np.array_equal(result.static_pattern, original_pattern)
     assert result.static_pattern.flags.writeable is False
     assert static_pattern_calls == 1
+
+
+def test_field_worker_cancellation_and_stale_version_are_isolated(
+    xr_window: MainWindow,
+    qtbot,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _enter_xr(xr_window, qtbot)
+    mvp_result = xr_window._xr_result
+    static_field = xr_window._xr_static_field
+    assert mvp_result is not None and static_field is not None
+
+    worker = XRDynamicRoomWorker(41)
+    cancel_checks = []
+    finished = []
+    failed = []
+    monkeypatch.setattr(gui_workers, "compute_mvp", lambda **_kwargs: mvp_result)
+
+    def cancel_during_field(
+        _engine,
+        _scene,
+        _config,
+        _patterns,
+        _model,
+        *,
+        cancel_check,
+    ):
+        cancel_checks.append(cancel_check)
+        worker.cancel()
+        if cancel_check():
+            raise SimulationCancelled("cancelled")
+        raise AssertionError("cancel_check did not observe worker cancellation")
+
+    monkeypatch.setattr(SimulationEngine, "compute_field_map", cancel_during_field)
+    worker.signals.finished.connect(lambda *args: finished.append(args))
+    worker.signals.failed.connect(lambda *args: failed.append(args))
+    worker.run()
+    assert len(cancel_checks) == 1
+    assert finished == []
+    assert failed == []
+
+    stale_version = xr_window._version
+    xr_window.scenario_combo.setCurrentIndex(
+        xr_window.scenario_combo.findData("smart_space")
+    )
+    xr_window._xr_demo_ready(
+        stale_version,
+        XRDynamicRoomResult(mvp=mvp_result, field_map=static_field),
+    )
+    assert xr_window._xr_demo_active is False
+    assert xr_window._xr_static_field is None
+    assert xr_window.scene_view.model_scene is xr_window.scene_model
 
 
 def test_scene_view_moves_only_rx_visual_during_playback(

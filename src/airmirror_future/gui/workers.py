@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import threading
 import traceback
 
 from PySide6.QtCore import QObject, QRunnable, Signal, Slot
 
-from airmirror_future.core.types import Scene, SimulationConfig
-from airmirror_future.experiments.xr_dynamic_room_mvp import compute_mvp
+from airmirror_future.core.config import field_quality_preset
+from airmirror_future.core.types import FieldMapResult, Scene, SimulationConfig
+from airmirror_future.experiments.xr_dynamic_room_mvp import MVPComputation, compute_mvp
 from airmirror_future.optimization.greedy import FeedbackGreedyOptimizer
 from airmirror_future.optimization.measurement import MeasurementOracle
 from airmirror_future.optimization.physics_guided import PhysicsGuidedFeedbackOptimizer
@@ -20,6 +22,15 @@ class WorkerSignals(QObject):
     finished = Signal(int, object)
     failed = Signal(int, str)
     progress = Signal(int, int, int, float)
+    partial = Signal(int, object)
+
+
+@dataclass(frozen=True, slots=True)
+class XRDynamicRoomResult:
+    """Cached link states and the single production Static-RIS field map."""
+
+    mvp: MVPComputation
+    field_map: FieldMapResult
 
 
 class MapWorker(QRunnable):
@@ -70,7 +81,7 @@ class MapWorker(QRunnable):
 
 
 class XRDynamicRoomWorker(QRunnable):
-    """Compute the complete XR MVP result once for deterministic playback."""
+    """Sequentially cache XR link states and one Static-RIS Fast field map."""
 
     def __init__(self, version: int) -> None:
         super().__init__()
@@ -84,7 +95,30 @@ class XRDynamicRoomWorker(QRunnable):
     @Slot()
     def run(self) -> None:
         try:
-            result = compute_mvp()
+            if self._cancelled.is_set():
+                return
+            engine = SimulationEngine()
+            model = ControllerModel()
+            mvp = compute_mvp(engine=engine, model=model)
+            if self._cancelled.is_set():
+                return
+            try:
+                self.signals.partial.emit(self.version, mvp)
+            except RuntimeError:
+                return
+
+            fast = field_quality_preset("fast")
+            ris = mvp.scene.ris_surfaces[0]
+            field_map = engine.compute_field_map(
+                mvp.scene,
+                SimulationConfig(fast.grid_width, fast.grid_height, "power"),
+                {ris.id: mvp.static_pattern},
+                model,
+                cancel_check=self._cancelled.is_set,
+            )
+            result = XRDynamicRoomResult(mvp=mvp, field_map=field_map)
+        except SimulationCancelled:
+            return
         except Exception:
             if not self._cancelled.is_set():
                 try:

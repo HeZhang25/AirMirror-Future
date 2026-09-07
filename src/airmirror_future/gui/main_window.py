@@ -43,6 +43,7 @@ from airmirror_future.gui.workers import (
     MapWorker,
     OptimizationWorker,
     XRDynamicRoomWorker,
+    XRDynamicRoomResult,
 )
 from airmirror_future.experiments.xr_dynamic_room_mvp import (
     DynamicLinkSample,
@@ -57,6 +58,7 @@ from airmirror_future.ris.generations import generation_preset
 from airmirror_future.ris.aperture import equivalent_patch_diagnostics
 from airmirror_future.ris.phase import generate_focus_pattern
 from airmirror_future.optimization.coherent_focus import generate_coherent_target_pattern
+from airmirror_future.physics.noise import noise_power_dbm
 from airmirror_future.simulation.engine import SimulationEngine
 from airmirror_future.simulation.ground_truth import ControllerModel, GroundTruthModel
 
@@ -83,6 +85,9 @@ class MainWindow(QMainWindow):
         self._pattern_source = "Coherent Target Focus"
         self._xr_demo_active = False
         self._xr_result: MVPComputation | None = None
+        self._xr_static_field: FieldMapResult | None = None
+        self._xr_no_ris_field: FieldMapResult | None = None
+        self._xr_field_scales: dict[str, tuple[float, float]] = {}
         self._xr_sample_index = 0
         self._xr_sample_lookup: dict[tuple[int, str], DynamicLinkSample] = {}
         self._smart_metric_texts: tuple[str, ...] = ()
@@ -158,6 +163,10 @@ class MainWindow(QMainWindow):
         self.xr_mode_combo.addItems(MVP_MODES)
         self.xr_mode_combo.currentTextChanged.connect(self._xr_mode_changed)
         xr_layout.addWidget(self.xr_mode_combo)
+        self.xr_quantity_combo = QComboBox()
+        self.xr_quantity_combo.addItems(("接收功率", "SNR", "RIS 增益"))
+        self.xr_quantity_combo.currentTextChanged.connect(self._redraw_xr_field)
+        xr_layout.addWidget(self.xr_quantity_combo)
         buttons = QHBoxLayout()
         self.xr_play_button = QPushButton("Play")
         self.xr_pause_button = QPushButton("Pause")
@@ -178,6 +187,10 @@ class MainWindow(QMainWindow):
         xr_layout.addWidget(self.xr_timeline)
         self.xr_sample_label = QLabel("Sample: —")
         xr_layout.addWidget(self.xr_sample_label)
+        self.xr_field_status = QLabel("Field map: —")
+        self.xr_field_status.setWordWrap(True)
+        self.xr_field_status.setStyleSheet("color:#64748b")
+        xr_layout.addWidget(self.xr_field_status)
         self.xr_controls.setVisible(False)
         self._set_xr_controls_ready(False)
         layout.addWidget(self.xr_controls)
@@ -461,6 +474,7 @@ class MainWindow(QMainWindow):
 
     def _set_xr_controls_ready(self, ready: bool) -> None:
         self.xr_mode_combo.setEnabled(ready)
+        self.xr_quantity_combo.setEnabled(ready)
         self.xr_play_button.setEnabled(ready and not self._xr_playback_timer.isActive())
         self.xr_pause_button.setEnabled(ready and self._xr_playback_timer.isActive())
         self.xr_reset_button.setEnabled(ready)
@@ -494,11 +508,17 @@ class MainWindow(QMainWindow):
             )
         )
         self._xr_result = None
+        self._xr_static_field = None
+        self._xr_no_ris_field = None
+        self._xr_field_scales = {}
         self._xr_sample_lookup = {}
         self._xr_sample_index = 0
         self.xr_mode_combo.blockSignals(True)
         self.xr_mode_combo.setCurrentText(NO_RIS_MODE)
         self.xr_mode_combo.blockSignals(False)
+        self.xr_quantity_combo.blockSignals(True)
+        self.xr_quantity_combo.setCurrentText("接收功率")
+        self.xr_quantity_combo.blockSignals(False)
         self.xr_timeline.setValue(0)
         self._xr_playback_timer.stop()
         self._debounce.stop()
@@ -537,20 +557,21 @@ class MainWindow(QMainWindow):
         self.dead_zone_metric.setText("RX: (8.50, 4.00, 1.20) m")
         self.runtime_metric.setText("Sample: 1/11")
         self.xr_sample_label.setText("Precomputing 11 × 2 production link states…")
+        self.xr_field_status.setText("Field map calculating… · Fast 80×60")
         self.progress.setRange(0, 0)
         self.statusBar().showMessage("正在后台计算 XR Dynamic Room MVP…")
 
         worker = XRDynamicRoomWorker(self._version)
+        worker.signals.partial.connect(self._xr_links_ready)
         worker.signals.finished.connect(self._xr_demo_ready)
         worker.signals.failed.connect(self._worker_failed)
         self._active_worker = worker
         self._workers.append(worker)
         self.thread_pool.start(worker)
 
-    def _xr_demo_ready(self, version: int, result: MVPComputation) -> None:
+    def _xr_links_ready(self, version: int, result: MVPComputation) -> None:
         if version != self._version or not self._xr_demo_active:
             return
-        self._active_worker = None
         self._xr_result = result
         self._xr_sample_lookup = {
             (sample.trajectory.sample_index, sample.mode): sample
@@ -564,14 +585,102 @@ class MainWindow(QMainWindow):
         self.xr_timeline.setRange(0, len(result.trajectory) - 1)
         self._set_xr_controls_ready(True)
         self.progress.setRange(0, 100)
-        self.progress.setValue(100)
+        self.progress.setValue(25)
         self._set_xr_sample(0)
         self.statusBar().showMessage(
-            "XR MVP ready · production results cached for playback"
+            "XR link states cached · field map calculating in background…"
+        )
+
+    def _xr_demo_ready(self, version: int, result: XRDynamicRoomResult) -> None:
+        if version != self._version or not self._xr_demo_active:
+            return
+        if self._xr_result is not result.mvp:
+            self._xr_links_ready(version, result.mvp)
+        self._active_worker = None
+        self._xr_static_field = result.field_map
+        self._xr_no_ris_field = self._derive_no_ris_field(
+            result.field_map,
+            result.mvp.scene,
+        )
+        self._xr_field_scales = {
+            "接收功率": self.scene_view.field_value_range(
+                self._xr_no_ris_field.received_power_dbm,
+                self._xr_static_field.received_power_dbm,
+            ),
+            "SNR": self.scene_view.field_value_range(
+                self._xr_no_ris_field.snr_db,
+                self._xr_static_field.snr_db,
+            ),
+        }
+        self._redraw_xr_field()
+        self.progress.setRange(0, 100)
+        self.progress.setValue(100)
+        self.xr_field_status.setText(
+            "Field map cached · Fast 80×60 · "
+            f"{result.field_map.runtime_s:.2f} s"
+        )
+        self.statusBar().showMessage(
+            "XR MVP ready · link states and one Static-RIS field map cached"
+        )
+
+    @staticmethod
+    def _derive_no_ris_field(
+        static_field: FieldMapResult,
+        scene: Scene,
+    ) -> FieldMapResult:
+        """Adapt the baseline arrays from one field solve for No RIS display."""
+        noise_dbm = noise_power_dbm(
+            scene.bandwidth_hz,
+            scene.receiver().noise_figure_db,
+        )
+        baseline_snr = static_field.baseline_power_dbm - noise_dbm
+        coverage = float(
+            np.mean(baseline_snr >= scene.coverage_threshold_db) * 100.0
+        )
+        return replace(
+            static_field,
+            received_power_dbm=static_field.baseline_power_dbm,
+            snr_db=baseline_snr,
+            ris_gain_db=np.full_like(static_field.ris_gain_db, np.nan),
+            coverage_percent=coverage,
+            dead_zone_percent=100.0 - coverage,
+            runtime_s=0.0,
+        )
+
+    def _redraw_xr_field(self, *_args: object) -> None:
+        if (
+            not self._xr_demo_active
+            or self._xr_static_field is None
+            or self._xr_no_ris_field is None
+        ):
+            return
+        mode = self.xr_mode_combo.currentText()
+        quantity = self.xr_quantity_combo.currentText()
+        if mode == NO_RIS_MODE and quantity == "RIS 增益":
+            self.scene_view.set_field_visible(False)
+            self.xr_field_status.setText(
+                "RIS Gain: N/A for No RIS · cached field remains unchanged"
+            )
+            return
+        field = (
+            self._xr_static_field
+            if mode == STATIC_RIS_MODE
+            else self._xr_no_ris_field
+        )
+        self.scene_view.set_field_map(
+            field,
+            quantity,
+            value_range=self._xr_field_scales.get(quantity),
+        )
+        self.scene_view.set_field_visible(True)
+        self.xr_field_status.setText(
+            "Field map cached · Fast 80×60 · "
+            f"{self._xr_static_field.runtime_s:.2f} s"
         )
 
     def _xr_mode_changed(self, _mode: str) -> None:
         self._set_xr_sample(self._xr_sample_index)
+        self._redraw_xr_field()
 
     def _set_xr_sample(self, index: int) -> None:
         if not self._xr_demo_active or self._xr_result is None:
@@ -611,7 +720,15 @@ class MainWindow(QMainWindow):
             f"Power: {sample.received_power_dbm:.2f} dBm"
         )
         self.snr_metric.setText(f"SNR: {sample.snr_db:.2f} dB")
-        self.gain_metric.setText(f"Mode: {mode}")
+        if mode == STATIC_RIS_MODE:
+            baseline = self._xr_sample_lookup[(index, NO_RIS_MODE)]
+            self.gain_metric.setText(
+                "RIS Gain: "
+                f"{sample.received_power_dbm - baseline.received_power_dbm:+.2f} dB"
+                f" · Mode: {mode}"
+            )
+        else:
+            self.gain_metric.setText(f"RIS Gain: N/A · Mode: {mode}")
         self.coverage_metric.setText(f"Time: {sample.trajectory.time_s:.1f} s")
         self.dead_zone_metric.setText(
             f"RX: ({point.x:.2f}, {point.y:.2f}, {point.z:.2f}) m"
@@ -664,6 +781,9 @@ class MainWindow(QMainWindow):
         self._cancel_active()
         self._xr_demo_active = False
         self._xr_result = None
+        self._xr_static_field = None
+        self._xr_no_ris_field = None
+        self._xr_field_scales = {}
         self._xr_sample_lookup = {}
         self._xr_sample_index = 0
         self.xr_controls.setVisible(False)
@@ -1061,8 +1181,11 @@ class MainWindow(QMainWindow):
         self.cancel_button.setEnabled(False)
         self.progress.setRange(0, 100)
         if self._xr_demo_active:
-            self._set_xr_controls_ready(False)
-            self.xr_sample_label.setText("XR MVP calculation failed")
+            self._set_xr_controls_ready(self._xr_result is not None)
+            if self._xr_result is None:
+                self.xr_sample_label.setText("XR MVP calculation failed")
+            else:
+                self.xr_field_status.setText("Field map calculation failed")
         self.statusBar().showMessage("计算失败")
         QMessageBox.critical(self, "计算失败", details)
 
