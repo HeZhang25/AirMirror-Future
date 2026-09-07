@@ -135,6 +135,14 @@ class SceneView(QGraphicsView):
         ):
             if entity.id == identifier:
                 self.on_entity_moved(identifier, self._model_position(point, entity.position.z))
+                label = self._entity_labels.get(identifier)
+                item = self._entity_items.get(identifier)
+                if label is not None and item is not None:
+                    is_ris = any(
+                        ris.id == identifier for ris in self.model_scene.ris_surfaces
+                    )
+                    offset = QPointF(8, 8) if is_ris else QPointF(10, -18)
+                    label.setPos(item.pos() + offset)
                 return
 
     def set_options(self, *, show_labels: bool, show_rays: bool) -> None:
@@ -527,6 +535,19 @@ class SceneView(QGraphicsView):
             self._field_legend_item.setVisible(visible)
         for label in self._field_legend_labels:
             label.setVisible(visible)
+
+    def clear_field_overlays(self) -> None:
+        """Remove field and coverage graphics after their inputs become stale."""
+        if self._heatmap_item is not None:
+            self.graphics_scene.removeItem(self._heatmap_item)
+        if self._coverage_item is not None:
+            self.graphics_scene.removeItem(self._coverage_item)
+        self._heatmap_item = None
+        self._coverage_item = None
+        self._remove_field_legend_items()
+        self._field_legend_text = None
+        self._gain_legend_gmax_db = None
+        self._field_value_range = None
 
     def set_coverage_map(
         self, result: FieldMapResult, threshold_db: float, visible: bool
