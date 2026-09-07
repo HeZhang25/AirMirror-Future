@@ -277,13 +277,15 @@ def test_adaptive_csv_png_provenance_and_lossless_command_replay(
     assert {row["provenance_schema_version"] for row in rows} == {"1"}
     assert {row["provenance_status"] for row in rows} == {"partial"}
     assert all(
-        {"FND-PHY-NB", "FND-QA-AP", "FND-QA-CC"}
+        {"FND-PHY-NB", "FND-QA-CC"}
         == set(json.loads(row["pending_contracts_json"]))
         for row in rows
     )
     assert {row["focus_mode_id"] for row in rows} == {"coherent_target"}
     assert {row["world_model_id"] for row in rows} == {"controller_nominal"}
-    assert {row["channel_frequency_model_id"] for row in rows} == {""}
+    assert {row["channel_frequency_model_id"] for row in rows} == {
+        "narrowband_center_frequency_flat_v1"
+    }
     assert {row["coefficient_model_identity"] for row in rows} == {""}
     assert {row["quadrature_policy_id"] for row in rows} == {
         "fnd_qa_ap_candidate"
