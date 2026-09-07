@@ -10,6 +10,7 @@ import sys
 
 from airmirror_future.core.config import FIELD_QUALITY_PRESETS, field_quality_preset
 from airmirror_future.core.types import Scene, SimulationConfig
+from airmirror_future.experiments.provenance import CHANNEL_FREQUENCY_MODEL_ID
 from airmirror_future.ris.generations import generation_preset
 from airmirror_future.ris.phase import generate_focus_pattern
 from airmirror_future.scenarios.smart_space import create_smart_space_scene
@@ -47,6 +48,9 @@ def run_headless(scene: Scene, generation: str, quality: str) -> int:
         "focused_power_dbm": focused.received_power_dbm,
         "target_ris_gain_db": focused.received_power_dbm - baseline.received_power_dbm,
         "snr_db": focused.snr_db,
+        "shannon_capacity_bps": focused.shannon_capacity_bps,
+        "capacity_semantics": "Center-frequency flat-channel Shannon upper bound",
+        "channel_frequency_model_id": CHANNEL_FREQUENCY_MODEL_ID,
         "coverage_percent": field.coverage_percent,
         "dead_zone_percent": field.dead_zone_percent,
         "field_runtime_s": field.runtime_s,
