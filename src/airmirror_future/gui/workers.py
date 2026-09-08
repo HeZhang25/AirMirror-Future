@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+import copy
+from dataclasses import asdict, dataclass, replace
 import hashlib
 import json
 import threading
@@ -21,9 +22,16 @@ from airmirror_future.core.types import (
 )
 from airmirror_future.core.pattern_contract import validate_commanded_pattern
 from airmirror_future.experiments.xr_dynamic_room_mvp import (
+    ADAPTIVE_RIS_MODE,
+    NO_RIS_MODE,
+    STATIC_RIS_MODE,
+    DynamicLinkSample,
     MVPComputation,
+    TrajectorySample,
     _pattern_hash,
     compute_adaptive_mvp,
+    generate_adaptive_pattern,
+    generate_static_pattern,
 )
 from airmirror_future.experiments.xr_route import XRRouteExperiment
 from airmirror_future.experiments.xr_route_headless import compute_route_experiment
@@ -35,6 +43,10 @@ from airmirror_future.optimization.physics_guided import PhysicsGuidedFeedbackOp
 from airmirror_future.ris.phase import generate_focus_pattern
 from airmirror_future.simulation.engine import SimulationCancelled, SimulationEngine
 from airmirror_future.simulation.ground_truth import ControllerModel, GroundTruthModel
+from airmirror_future.simulation.prepared_controller import (
+    prepare_controller_field,
+    prepare_controller_link,
+)
 
 
 class WorkerSignals(QObject):
@@ -108,6 +120,7 @@ class XRFieldCacheKey:
     coverage_threshold_db: float | None
     batch_size: int
     production_quadrature_order: int
+    coefficient_identity: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,6 +131,34 @@ class XRAdaptiveFieldResult:
     command_hash: str
     key: XRFieldCacheKey
     field_map: FieldMapResult
+
+
+@dataclass(frozen=True, slots=True)
+class XRFutureFixedFieldRequest:
+    """One immutable selected-point request; never a whole-route cache claim."""
+
+    scene: Scene
+    static_position: Vec3
+    selected_position: Vec3
+    selected_point_id: str
+    experiment_identity: str
+    scene_identity: str
+    trajectory_identity: str
+
+
+@dataclass(frozen=True, slots=True)
+class XRFuturePreparedFieldResult:
+    """Exact M8 fixed-grid fields produced from one prepared coefficient matrix."""
+
+    request: XRFutureFixedFieldRequest
+    mvp: MVPComputation
+    static_key: XRFieldCacheKey
+    static_field: FieldMapResult
+    adaptive_key: XRFieldCacheKey
+    adaptive_field: FieldMapResult
+    coefficient_identity: str
+    build_runtime_s: float
+    coefficient_bytes: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -162,6 +203,8 @@ def build_xr_field_cache_key(
     model: ControllerModel,
     config: SimulationConfig,
     command_hash: str,
+    *,
+    coefficient_identity: str = "",
 ) -> XRFieldCacheKey:
     """Build the complete bounded XR field-result identity for one command."""
     if not isinstance(model, ControllerModel) or isinstance(model, GroundTruthModel):
@@ -179,6 +222,47 @@ def build_xr_field_cache_key(
         coverage_threshold_db=config.coverage_threshold_db,
         batch_size=config.batch_size,
         production_quadrature_order=PRODUCTION_QUADRATURE_ORDER,
+        coefficient_identity=coefficient_identity,
+    )
+
+
+def _prepared_identity_digest(identities: tuple[str, ...]) -> str:
+    """Compact D's exact per-grid receiver coefficient identities for GUI keys."""
+    digest = hashlib.sha256()
+    digest.update(b"airmirror_prepared_controller_field_gui/1\0")
+    for identity in identities:
+        digest.update(identity.encode("utf-8"))
+        digest.update(b"\0")
+    return "sha256:" + digest.hexdigest()
+
+
+def _dynamic_sample(
+    trajectory: TrajectorySample,
+    mode: str,
+    channel: ChannelResult,
+    static_hash: str,
+    pattern: np.ndarray | None,
+) -> DynamicLinkSample:
+    command_hash = "" if pattern is None else _pattern_hash(pattern)
+    command_kind = {
+        NO_RIS_MODE: "none",
+        STATIC_RIS_MODE: "static",
+        ADAPTIVE_RIS_MODE: "adaptive",
+    }[mode]
+    return DynamicLinkSample(
+        trajectory=trajectory,
+        mode=mode,
+        received_power_dbm=channel.received_power_dbm,
+        snr_db=channel.snr_db,
+        ris_channel=channel.ris_channel,
+        static_pattern_hash=static_hash,
+        total_channel=channel.total_channel,
+        los_channel=channel.los_channel,
+        wall_channel=channel.wall_channel,
+        noise_power_dbm=channel.noise_power_dbm,
+        command_kind=command_kind,
+        command_hash=command_hash,
+        commanded_pattern=pattern,
     )
 
 
@@ -425,6 +509,184 @@ class XRDynamicRoomWorker(_XRPhysicsWorker):
             )
         except SimulationCancelled:
             return
+        except Exception:
+            if not self._cancelled.is_set():
+                try:
+                    self.signals.failed.emit(self.version, traceback.format_exc())
+                except RuntimeError:
+                    pass
+            return
+        if self._cancelled.is_set():
+            return
+        try:
+            self.signals.finished.emit(self.version, result)
+        except RuntimeError:
+            pass
+
+
+class XRFuturePreparedFieldWorker(_XRPhysicsWorker):
+    """Build one exact Future M8 fixed grid and evaluate two real commands."""
+
+    def __init__(
+        self,
+        version: int,
+        request: XRFutureFixedFieldRequest,
+        config: SimulationConfig,
+    ) -> None:
+        super().__init__()
+        self.version = version
+        self.request = copy.deepcopy(request)
+        self.config = copy.deepcopy(config)
+        self.signals = WorkerSignals()
+        self._cancelled = threading.Event()
+
+    def cancel(self) -> None:
+        self._cancelled.set()
+
+    def _emit_progress(self, done: int, total: int) -> None:
+        try:
+            self.signals.progress.emit(
+                self.version,
+                done,
+                total,
+                done / max(total, 1),
+            )
+        except RuntimeError:
+            pass
+
+    @Slot()
+    def _run(self) -> None:
+        try:
+            if self._cancelled.is_set():
+                return
+            scene = copy.deepcopy(self.request.scene)
+            enabled = [ris for ris in scene.ris_surfaces if ris.enabled]
+            if len(enabled) != 1 or enabled[0].generation != "Future":
+                raise ValueError(
+                    "XR Future fixed field requires exactly one enabled full Future RIS"
+                )
+            if (self.config.grid_width, self.config.grid_height) != (48, 36):
+                raise ValueError("XR Future fixed field is bounded to 48x36")
+            if PRODUCTION_QUADRATURE_ORDER != 8:
+                raise ValueError("XR Future fixed field requires Production M8")
+
+            selected_receiver = replace(
+                scene.receiver(),
+                position=self.request.selected_position,
+            )
+            scene.receivers = [selected_receiver]
+            engine = SimulationEngine()
+            model = ControllerModel()
+            static_pattern = generate_static_pattern(
+                scene,
+                self.request.static_position,
+                engine=engine,
+                model=model,
+            )
+            adaptive_pattern = generate_adaptive_pattern(
+                scene,
+                self.request.selected_position,
+                engine=engine,
+                model=model,
+            )
+            trajectory = TrajectorySample(
+                0,
+                0.0,
+                self.request.selected_position,
+            )
+            prepared_link = prepare_controller_link(
+                scene,
+                engine=engine,
+                rx=selected_receiver,
+                controller_model=model,
+            )
+            baseline = engine.compute_channel(
+                scene,
+                tx=scene.transmitter(),
+                rx=selected_receiver,
+                ris_patterns={},
+                model=model,
+            )
+            static_channel = prepared_link.evaluate(static_pattern)
+            adaptive_channel = prepared_link.evaluate(adaptive_pattern)
+            static_hash = _pattern_hash(static_pattern)
+            mvp = MVPComputation(
+                scene,
+                (trajectory,),
+                static_pattern,
+                (
+                    _dynamic_sample(
+                        trajectory,
+                        NO_RIS_MODE,
+                        baseline,
+                        static_hash,
+                        None,
+                    ),
+                    _dynamic_sample(
+                        trajectory,
+                        STATIC_RIS_MODE,
+                        static_channel,
+                        static_hash,
+                        static_pattern,
+                    ),
+                    _dynamic_sample(
+                        trajectory,
+                        ADAPTIVE_RIS_MODE,
+                        adaptive_channel,
+                        static_hash,
+                        adaptive_pattern,
+                    ),
+                ),
+            )
+            if self._cancelled.is_set():
+                return
+            try:
+                self.signals.partial.emit(self.version, mvp)
+            except RuntimeError:
+                return
+
+            total = 3
+            self._emit_progress(0, total)
+            prepared = prepare_controller_field(
+                scene,
+                self.config,
+                engine=engine,
+                controller_model=model,
+                receiver_batch_size=8,
+            )
+            if self._cancelled.is_set():
+                return
+            coefficient_identity = _prepared_identity_digest(
+                prepared.coefficient_identities
+            )
+            self._emit_progress(1, total)
+            static_field = prepared.evaluate(static_pattern)
+            self._emit_progress(2, total)
+            adaptive_field = prepared.evaluate(adaptive_pattern)
+            self._emit_progress(3, total)
+            static_key = build_xr_field_cache_key(
+                scene,
+                engine,
+                model,
+                self.config,
+                static_hash,
+                coefficient_identity=coefficient_identity,
+            )
+            adaptive_key = replace(
+                static_key,
+                command_hash=_pattern_hash(adaptive_pattern),
+            )
+            result = XRFuturePreparedFieldResult(
+                mvp=mvp,
+                static_key=static_key,
+                static_field=static_field,
+                adaptive_key=adaptive_key,
+                adaptive_field=adaptive_field,
+                coefficient_identity=coefficient_identity,
+                build_runtime_s=prepared.build_runtime_s,
+                coefficient_bytes=prepared.coefficient_bytes,
+                request=self.request,
+            )
         except Exception:
             if not self._cancelled.is_set():
                 try:
