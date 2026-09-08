@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass, replace
 import math
 import time
@@ -38,8 +39,11 @@ DEFAULT_COEFFICIENT_MEMORY_BUDGET_BYTES = 128 * 1024 * 1024
 
 def _require_controller(model: ControllerModel | None) -> ControllerModel:
     active = model or ControllerModel()
-    if not isinstance(active, ControllerModel) or isinstance(active, GroundTruthModel):
-        raise ValueError("prepared coefficient reuse requires ControllerModel, not GroundTruthModel")
+    if type(active) is not ControllerModel:
+        raise ValueError(
+            "prepared coefficient reuse requires the nominal ControllerModel, "
+            "not GroundTruthModel or a custom subclass"
+        )
     return active
 
 
@@ -55,6 +59,7 @@ def _channel_result(
     los_channel: complex,
     wall_channel: complex,
     ris_channel: complex,
+    ris_id: str,
 ) -> ChannelResult:
     total = los_channel + wall_channel + ris_channel
     power_w = tx.power_w * abs(total) ** 2
@@ -71,7 +76,7 @@ def _channel_result(
         noise_power_dbm=noise_dbm,
         snr_db=snr_db,
         shannon_capacity_bps=shannon_capacity_bps(scene.bandwidth_hz, snr_db),
-        path_details=[{"kind": "prepared-controller", "ris_id": scene.ris_surfaces[0].id}],
+        path_details=[{"kind": "prepared-controller", "ris_id": ris_id}],
     )
 
 
@@ -97,6 +102,7 @@ class PreparedControllerLink:
             self.los_channel,
             self.wall_channel,
             ris_channel,
+            self.ris.id,
         )
 
 
@@ -110,35 +116,45 @@ def prepare_controller_link(
     controller_model: ControllerModel | None = None,
 ) -> PreparedControllerLink:
     """Prepare one nominal link using C's shared coefficient/focus seam."""
-    _require_controller(controller_model)
+    model = _require_controller(controller_model)
     active_engine = engine or SimulationEngine()
-    target_tx = active_engine._resolve_tx(scene, tx)
-    target_rx = active_engine._resolve_rx(scene, rx)
+    snapshot = copy.deepcopy(scene)
+    if isinstance(tx, Transmitter):
+        target_tx = copy.deepcopy(tx)
+    else:
+        target_tx = active_engine._resolve_tx(snapshot, tx)
+    if isinstance(rx, Receiver):
+        target_rx = copy.deepcopy(rx)
+    else:
+        target_rx = active_engine._resolve_rx(snapshot, rx)
     if isinstance(ris, RISSurface):
-        target_ris = ris
+        matches = [item for item in snapshot.ris_surfaces if item.id == ris.id and item.enabled]
+        if len(matches) != 1:
+            raise ValueError(f"enabled RIS id not found or not unique: {ris.id}")
+        target_ris = matches[0]
     elif ris is None:
-        enabled = [item for item in scene.ris_surfaces if item.enabled]
+        enabled = [item for item in snapshot.ris_surfaces if item.enabled]
         if len(enabled) != 1:
             raise ValueError("prepared link requires exactly one enabled RIS")
         target_ris = enabled[0]
     else:
-        matches = [item for item in scene.ris_surfaces if item.id == ris and item.enabled]
+        matches = [item for item in snapshot.ris_surfaces if item.id == ris and item.enabled]
         if len(matches) != 1:
             raise ValueError(f"enabled RIS id not found or not unique: {ris}")
         target_ris = matches[0]
     coefficients, _ = active_engine.controller_focus_terms(
-        scene, target_tx, target_rx, target_ris, ControllerModel()
+        snapshot, target_tx, target_rx, target_ris, model
     )
     baseline = active_engine.compute_channel(
-        scene, tx=target_tx, rx=target_rx, ris_patterns={}, model=ControllerModel()
+        snapshot, tx=target_tx, rx=target_rx, ris_patterns={}, model=model
     )
     identity = controller_ris_coefficient_identity(
-        scene, active_engine, target_tx, target_rx, target_ris
+        snapshot, active_engine, target_tx, target_rx, target_ris
     )
     values = np.asarray(coefficients, dtype=complex)
     values.setflags(write=False)
     return PreparedControllerLink(
-        scene,
+        snapshot,
         target_tx,
         target_rx,
         target_ris,
@@ -214,16 +230,17 @@ def prepare_controller_field(
     max_point_sample_pairs: int = 262_144,
 ) -> PreparedControllerField:
     """Build one bounded, reusable production-M8 field coefficient matrix."""
-    _require_controller(controller_model)
+    model = _require_controller(controller_model)
     if coefficient_memory_budget_bytes <= 0:
         raise ValueError("coefficient_memory_budget_bytes must be positive")
-    scene._validate_environment_ids()
-    enabled = [ris for ris in scene.ris_surfaces if ris.enabled]
+    snapshot = copy.deepcopy(scene)
+    snapshot._validate_environment_ids()
+    enabled = [ris for ris in snapshot.ris_surfaces if ris.enabled]
     if len(enabled) != 1:
         raise ValueError("prepared field requires exactly one enabled RIS")
     ris = enabled[0]
-    tx = scene.transmitter()
-    rx_template = scene.receiver()
+    tx = snapshot.transmitter()
+    rx_template = snapshot.receiver()
     point_count = config.grid_width * config.grid_height
     coefficient_bytes = point_count * ris.cell_count * np.dtype(complex).itemsize
     if coefficient_bytes > coefficient_memory_budget_bytes:
@@ -238,15 +255,15 @@ def prepare_controller_field(
 
     started = time.perf_counter()
     active_engine = engine or SimulationEngine()
-    x_values = np.linspace(0.05, scene.room_size.x - 0.05, config.grid_width)
-    y_values = np.linspace(0.05, scene.room_size.y - 0.05, config.grid_height)
+    x_values = np.linspace(0.05, snapshot.room_size.x - 0.05, config.grid_width)
+    y_values = np.linspace(0.05, snapshot.room_size.y - 0.05, config.grid_height)
     xx, yy = np.meshgrid(x_values, y_values, indexing="xy")
     receiver_points = np.column_stack(
-        (xx.reshape(-1), yy.reshape(-1), np.full(point_count, scene.z_eval_m))
+        (xx.reshape(-1), yy.reshape(-1), np.full(point_count, snapshot.z_eval_m))
     )
     spec = _production_quadrature_spec(ris)
     incident_modifier = active_engine._environment_modifier(
-        scene,
+        snapshot,
         PropagationPathContext(
             "ris_incident", tx.position, ris.position, ris_id=ris.id
         ),
@@ -277,12 +294,12 @@ def prepare_controller_field(
             ).value
             coefficients[index] *= incident_modifier * scattered_modifier
             no_ris = active_engine.compute_channel(
-                scene, tx=tx, rx=receiver, ris_patterns={}, model=ControllerModel()
+                snapshot, tx=tx, rx=receiver, ris_patterns={}, model=model
             )
             baselines[index] = no_ris.total_channel
             identities.append(
                 controller_ris_coefficient_identity(
-                    scene, active_engine, tx, receiver, ris
+                    snapshot, active_engine, tx, receiver, ris
                 )
             )
     coefficients.setflags(write=False)
@@ -290,7 +307,7 @@ def prepare_controller_field(
     x_values.setflags(write=False)
     y_values.setflags(write=False)
     return PreparedControllerField(
-        scene=scene,
+        scene=snapshot,
         config=config,
         tx=tx,
         rx_template=rx_template,

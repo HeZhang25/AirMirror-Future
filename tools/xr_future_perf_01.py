@@ -451,6 +451,23 @@ def run(output: Path, grids: list[tuple[int, int]]) -> None:
         },
         "fields": fields,
     }
+    link_error = evidence["link"]["comparison"]
+    if (
+        link_error["max_ris_channel_abs_error"] > CHANNEL_ATOL
+        or link_error["max_total_channel_abs_error"] > CHANNEL_ATOL
+        or link_error["max_power_db_abs_error"] > DB_ATOL
+        or link_error["max_snr_db_abs_error"] > DB_ATOL
+    ):
+        raise AssertionError(f"link tolerance failed: {link_error}")
+    for item in fields:
+        comparison = item["comparison"]
+        if (
+            comparison["max_power_db_abs_error"] > DB_ATOL
+            or comparison["max_snr_db_abs_error"] > DB_ATOL
+            or comparison["max_baseline_db_abs_error"] > DB_ATOL
+            or comparison["coverage_percent_abs_error"] != 0.0
+        ):
+            raise AssertionError(f"field tolerance failed: {comparison}")
     (output / "evidence.json").write_text(
         json.dumps(evidence, indent=2, allow_nan=False), encoding="utf-8"
     )

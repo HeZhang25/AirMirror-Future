@@ -92,6 +92,18 @@ def test_prepared_link_identity_invalidates_only_coefficient_inputs() -> None:
     )
 
 
+def test_prepared_link_owns_an_immutable_physics_snapshot() -> None:
+    scene = create_smart_space_scene("Current")
+    pattern = generate_coherent_target_pattern(scene)
+    prepared = prepare_controller_link(scene)
+    before = prepared.evaluate(pattern)
+    scene.frequency_hz *= 1.01
+    scene.ris_surfaces[0].position = Vec3(4.5, 7.9, 1.5)
+    after = prepared.evaluate(pattern)
+    assert after.total_channel == before.total_channel
+    assert prepare_controller_link(scene).coefficient_identity != prepared.coefficient_identity
+
+
 def test_prepared_controller_rejects_ground_truth() -> None:
     scene = create_smart_space_scene("Current")
     with pytest.raises(ValueError, match="GroundTruthModel"):
