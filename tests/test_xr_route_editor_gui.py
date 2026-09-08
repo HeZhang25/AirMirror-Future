@@ -461,12 +461,16 @@ def test_edit_invalidates_all_old_results_and_preserves_pattern_visibility(windo
     window._xr_field_cache = {object(): window._xr_static_field}
     window.scene_view.set_field_map(window._xr_static_field, "接收功率")
     window.show_pattern.setChecked(False)
+    window._xr_playback_waiting_for_field = True
+    window._xr_playback_timer.start()
     old_version = window._version
 
     window._xr_add_route_point()
 
     assert window._version > old_version
     assert window._xr_result is None
+    assert not window._xr_playback_timer.isActive()
+    assert window._xr_playback_waiting_for_field is False
     assert window._xr_static_field is None
     assert window._xr_no_ris_field is None
     assert not window._xr_field_cache
@@ -508,7 +512,11 @@ def test_latest_run_uses_copied_scene_and_waits_for_actual_termination(
     assert second_scene.name == first_scene_name
     assert second_draft != first_draft
 
+    window._xr_playback_waiting_for_field = True
+    window._xr_playback_timer.start()
     window._cancel_xr_editor_run()
+    assert not window._xr_playback_timer.isActive()
+    assert window._xr_playback_waiting_for_field is False
     assert "waiting for worker termination" in window.xr_sample_label.text()
     assert "not terminated" in window.statusBar().currentMessage()
     second.signals.terminated.emit(second.version, second)

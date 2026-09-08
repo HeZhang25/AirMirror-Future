@@ -77,6 +77,7 @@ from airmirror_future.ris.aperture import equivalent_patch_diagnostics
 from airmirror_future.ris.phase import generate_focus_pattern
 from airmirror_future.optimization.coherent_focus import generate_coherent_target_pattern
 from airmirror_future.physics.noise import noise_power_dbm
+from airmirror_future.physics.ris_scattering import PRODUCTION_QUADRATURE_ORDER
 from airmirror_future.simulation.engine import SimulationEngine
 from airmirror_future.simulation.ground_truth import ControllerModel, GroundTruthModel
 from airmirror_future.scenarios.xr_editor import (
@@ -921,6 +922,7 @@ class MainWindow(QMainWindow):
         if not self._xr_editor_active:
             return
         self._xr_playback_timer.stop()
+        self._xr_playback_waiting_for_field = False
         self._xr_field_debounce.stop()
         self._debounce.stop()
         self._version += 1
@@ -1116,6 +1118,7 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Cannot run trajectory", str(exc))
             return
         self._xr_playback_timer.stop()
+        self._xr_playback_waiting_for_field = False
         self._xr_field_debounce.stop()
         self._version += 1
         self._cancel_active()
@@ -1150,12 +1153,18 @@ class MainWindow(QMainWindow):
         if not self._xr_editor_active:
             return
         worker_active = self._xr_active_worker is not None
+        self._xr_playback_timer.stop()
+        self._xr_playback_waiting_for_field = False
         self._version += 1
         self._xr_demo_start_pending = False
         self._xr_pending_run_request = None
         self._xr_pending_field_request = None
         self._xr_field_debounce.stop()
         self._cancel_active()
+        if self._xr_result is not None:
+            self.xr_field_status.setText(
+                "Field request cancelled · cached current-run results remain available"
+            )
         self._xr_cancel_waiting_for_termination = worker_active
         self.xr_cancel_button.setEnabled(False)
         self.xr_run_button.setEnabled(True)
@@ -1188,6 +1197,7 @@ class MainWindow(QMainWindow):
             )
         )
         self._xr_result = None
+        self._xr_playback_waiting_for_field = False
         self._xr_pending_run_request = None
         self._xr_demo_start_pending = False
         self._xr_cancel_waiting_for_termination = False
@@ -1260,6 +1270,7 @@ class MainWindow(QMainWindow):
             )
         )
         self._xr_result = None
+        self._xr_playback_waiting_for_field = False
         self._xr_static_field = None
         self._xr_no_ris_field = None
         self._xr_field_scales = {}
@@ -1317,7 +1328,9 @@ class MainWindow(QMainWindow):
         self.dead_zone_metric.setText("RX: (8.50, 4.00, 1.20) m")
         self.runtime_metric.setText("Sample: 1/11")
         self.xr_sample_label.setText("Precomputing 11 × 3 production link states…")
-        self.xr_field_status.setText("Field map calculating… · Fast 80×60")
+        self.xr_field_status.setText(
+            f"Field map calculating… · {self._xr_field_precision_label()}"
+        )
         self.progress.setRange(0, 0)
         self.statusBar().showMessage("正在后台计算 XR Dynamic Room MVP…")
 
@@ -1431,7 +1444,7 @@ class MainWindow(QMainWindow):
         self.progress.setRange(0, 100)
         self.progress.setValue(100)
         self.xr_field_status.setText(
-            "Field map cached · Fast 80×60 · "
+            f"Field map cached · {self._xr_field_precision_label()} · "
             f"{result.field_map.runtime_s:.2f} s · Adaptive fields on demand"
         )
         if self._xr_editor_active:
@@ -1455,6 +1468,15 @@ class MainWindow(QMainWindow):
     def _xr_fast_config() -> SimulationConfig:
         fast = field_quality_preset("fast")
         return SimulationConfig(fast.grid_width, fast.grid_height, "power")
+
+    @staticmethod
+    def _xr_field_precision_label() -> str:
+        """Keep physics precision distinct from the display-grid preset."""
+        fast = field_quality_preset("fast")
+        return (
+            f"Production M{PRODUCTION_QUADRATURE_ORDER} · "
+            f"Fast grid {fast.grid_width}×{fast.grid_height}"
+        )
 
     def _xr_cache_field(
         self,
@@ -1507,7 +1529,8 @@ class MainWindow(QMainWindow):
         )
         self._xr_field_debounce.start()
         self.xr_field_status.setText(
-            "Adaptive field queued… · Fast 80×60 · playback remains result-only"
+            f"Adaptive field queued… · {self._xr_field_precision_label()} · "
+            "playback remains result-only"
         )
 
     def _start_pending_xr_field(self) -> None:
@@ -1552,7 +1575,7 @@ class MainWindow(QMainWindow):
         )
         self.xr_field_status.setText(
             f"{state} · sample {sample_index + 1}/"
-            f"{len(self._xr_result.trajectory)} · Fast 80×60"
+            f"{len(self._xr_result.trajectory)} · {self._xr_field_precision_label()}"
         )
         self.thread_pool.start(worker)
 
@@ -1665,7 +1688,8 @@ class MainWindow(QMainWindow):
         if self._xr_static_field is None or self._xr_no_ris_field is None:
             self.scene_view.set_field_visible(False)
             self.xr_field_status.setText(
-                "Field map calculating… · Fast 80×60 · links remain playable when ready"
+                "Field map calculating… · "
+                f"{self._xr_field_precision_label()} · links remain playable when ready"
             )
             return
         if mode == NO_RIS_MODE and quantity == "RIS 增益":
@@ -1710,13 +1734,14 @@ class MainWindow(QMainWindow):
         self.scene_view.set_field_visible(self.show_field.isChecked())
         if mode == ADAPTIVE_RIS_MODE:
             self.xr_field_status.setText(
-                "Adaptive field cached · exact sample command · Fast 80×60 · "
+                "Adaptive field cached · exact sample command · "
+                f"{self._xr_field_precision_label()} · "
                 f"{field.runtime_s:.2f} s · cache {len(self._xr_field_cache)}/"
                 f"{self._xr_field_cache_limit}"
             )
         else:
             self.xr_field_status.setText(
-                "Field map cached · Fast 80×60 · "
+                f"Field map cached · {self._xr_field_precision_label()} · "
                 f"{self._xr_static_field.runtime_s:.2f} s · Adaptive fields on demand"
             )
 
@@ -1871,6 +1896,7 @@ class MainWindow(QMainWindow):
         if not self._xr_demo_active:
             return
         self._xr_playback_timer.stop()
+        self._xr_playback_waiting_for_field = False
         self._xr_field_debounce.stop()
         self._version += 1
         self._cancel_active()

@@ -160,6 +160,8 @@ def test_xr_trajectory_is_visible_while_field_map_is_pending(
     assert len(xr_window.scene_view._trajectory_markers) == 11
     assert xr_window.scene_view._heatmap_item is None
     assert "Field map calculating" in xr_window.xr_field_status.text()
+    assert "Production M8" in xr_window.xr_field_status.text()
+    assert "Fast grid 80×60" in xr_window.xr_field_status.text()
     assert xr_window.isEnabled()
     qtbot.waitUntil(lambda: xr_window._xr_static_field is not None, timeout=5000)
 
