@@ -1,7 +1,7 @@
 {
   "config_kind": "fnd_qa_cc_ready_contract_candidate",
   "config_version": "1",
-  "status": "ready_hold_pending_independent_d_final_decision",
+  "status": "ready_pass_phase_two_authorized",
   "base_sha": "87d2dea8c3ca40774f754271d7b21743cefcc133",
   "origin_main_sha": "a7271648d3d6d98d6af953eadcc4784b7776222f",
   "production_modified": false,
@@ -16,9 +16,12 @@
     "phy_nb_formal_closure": "verified_on_origin_main"
   },
   "independent_d_review": {
-    "verified_person_or_environment": false,
-    "result": null,
-    "note": "Local Codex subagents and same-host d_* directories are not independent D evidence."
+    "verified_person_or_environment": true,
+    "result": "READY PASS",
+    "blocking_findings": 0,
+    "reviewed_commit": "86fb9ceaad07a03a653b2b8016f8af75b35805f7",
+    "evidence_commit": "73fc59fa37ccc0668d3da9db2c46bae482b41d92",
+    "branch": "task/fnd-qa-cc-ready-review-d-final"
   },
   "coefficient_source": {
     "layer": "physics.ris_scattering",

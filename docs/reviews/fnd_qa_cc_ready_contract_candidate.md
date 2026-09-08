@@ -6,7 +6,7 @@
 | 作者角色 | C / Coefficient Consistency Owner |
 | Contract base SHA | `87d2dea8c3ca40774f754271d7b21743cefcc133` |
 | 当前集成基线 | `origin/main@a7271648d3d6d98d6af953eadcc4784b7776222f`（PR #23/#22） |
-| 本稿状态 | **Ready candidate / HOLD pending independent D review of final correction** |
+| 本稿状态 | **READY PASS；D evidence `73fc59fa`，blocking findings 0；阶段二已获维护者授权** |
 | 允许范围 | 阶段一实施契约和验证计划；不迁移 production，不提升状态，不进入 P1A |
 
 ## 1. 证据来源和纠正边界
@@ -389,5 +389,6 @@ version、quadrature/coefficient identity；不得覆盖、回填或把旧结果
 `midpoint_8x8_per_control_patch/1`。QA-CC 不重新选择 policy，只在阶段二消费并验证其接线。
 
 任一项有异议时，D 应给出最小 blocking decision，不参与 builder 核心实现后再充当独立 reviewer。
-在 D 对当前最终设计差异正式 PASS 前，本 Work Item 继续 **Ready HOLD / Planned**。阶段二的
-FND-T21/T22、builder、migration 与完整回归是 Ready 后 closure 证据，不是 Ready 前置实现要求。
+D 已在 `73fc59fa37ccc0668d3da9db2c46bae482b41d92` 对 `86fb9ce` 签署 **READY PASS**，
+blocking findings `0`，且维护者已授权进入既定阶段二。FND-T21/T22、builder、migration 与完整
+回归仍是阶段二 closure 证据，不得因 Ready PASS 提前报告为完成。
