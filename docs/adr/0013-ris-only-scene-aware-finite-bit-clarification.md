@@ -1,6 +1,6 @@
-# ADR-0013：Scene-aware RIS-only 有限 bit 语义澄清（待维护者决策）
+# ADR-0013：Scene-aware RIS-only 有限 bit 语义澄清
 
-- 状态：Proposed / Pending maintainer decision
+- 状态：Accepted clarification (方案 A；维护者批准 2026-09-08)
 - 日期：2026-09-08
 - 关联：ADR-0006、ADR-0011、AMF-RIS-012、FND-QA-CC
 
@@ -22,11 +22,9 @@ coefficient `a^C`。C 的 Ready candidate 将新的 scene-aware RIS-only 有限 
 3. 新 scene-aware 路径必须是独立的内部/具名 production callable；不得以
    legacy API 的数组兼容性掩盖 coefficient basis 的迁移。
 
-## 待决策的 scene-aware RIS-only 语义
+## 已批准的 scene-aware RIS-only 语义（方案 A）
 
-两项方案如下，维护者必须明确选择其一：
-
-### 方案 A（建议：保持公共 offset 契约）
+### 方案 A：复用公共 offset 候选枚举
 
 - continuous 命令：`phi_n = wrap(-arg(a_n^C))`。
 - finite-bit 候选族：对 `base_phase_n = wrap(-arg(a_n^C))` 使用
@@ -37,20 +35,16 @@ coefficient `a^C`。C 的 Ready candidate 将新的 scene-aware RIS-only 有限 
   不加入 `h_baseline^C`，不使用 Coherent 的 total-power objective。
 - 仅当候选功率相对 incumbent 严格超过既有数值比较规则时替换；相等时
   first-wins。`delta=0` 因为是首项而在平局时保留。
-- 若 `a^C` 或 RIS 合成项触发 ADR-0006 的退化/非有限输入规则，则保持其
-  精确 fallback、错误类型和命令验证语义，不新增容差。
+- 逐元素 `a_n^C == 0`：使用确定性 `base_phase_n = 0.0`（不调用 `arg(0)`），
+  再按同一量化器处理；该规则不引入新容差，也不改变非零元素相位。
+- aggregate RIS 合成项或其他 ADR-0006 规定的退化条件：保持既有精确 `0.0`
+  fallback；不把逐元素 zero 误当作 aggregate 退化。
+- 任一 coefficient、phase、channel 或 offset 含 NaN/Inf：按既有输入校验抛出
+  `ValueError`；不得静默替换、归零或放宽错误语义。
 
-### 方案 B（保持 singleton，但需显式改约）
-
-- continuous 命令同方案 A。
-- finite-bit 候选族仅为 `{Q(base_phase + 0)}`。
-- 目标仍为 `P_RIS`，而非 total received power；singleton 内不执行 offset
-  比较，因此不得宣称对公共 offset 可达族最优。
-- 该方案视为对 ADR-0006/QA-CC Work Item 公共 offset 要求的受控例外，必须由
-  新的获批准 ADR 明确记录兼容迁移、验收范围和调用方影响后方可使用。
-
-在维护者选择并批准前，Ready 状态保持 HOLD；不得把任一方案写成已批准的
-production 语义。
+本方案只适用于新增 scene-aware RIS-only callable。legacy RIS-only API 仍仅有
+旧 center-path 量化语义，不能声称已经具备 common-offset 保证。新路径只声明在
+ADR-0006 公共 offset 可达候选族内的最优，不声明任意逐 patch 离散相位的全局最优。
 
 ## Coherent 语义（不变）
 
@@ -62,13 +56,14 @@ production 语义。
 
 ## Ready 与实施边界
 
-本 ADR 仅是 Ready 设计决策输入。FND-T21/T22、independent oracle、identity
+本 ADR 是 Ready 设计决策输入。FND-T21/T22、independent oracle、identity
 mutation、GT no-leak、三代 headless 及完整回归属于阶段二实施后的 closure 证据；
-它们不因本文件而提前报告为通过。维护者批准后，C 才可更新 Ready Markdown、
-机器 JSON 和测试计划；生产 source/Focus migration 仍需另行授权。
+它们不因本文件而提前报告为通过。生产 source/Focus migration 仍需另行授权。
 
-## 决策记录（留空）
+## 决策记录
 
-- Maintainer decision: **pending**
-- Decision date: pending
-- Rationale / approved option: pending
+- Maintainer decision: **方案 A approved**
+- Decision date: 2026-09-08
+- Rationale / approved option: 保持 ADR-0006 公共 offset 候选生成、顺序与比较规则，
+  但为新增 scene-aware RIS-only 路径定义独立的 RIS-only `P_RIS` 目标；singleton
+  `delta=0` 不作为生产例外。

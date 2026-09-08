@@ -6,7 +6,7 @@
 | 作者角色 | C / Coefficient Consistency Owner |
 | 审计基线 | `87d2dea8c3ca40774f754271d7b21743cefcc133` |
 | 基线关系 | `HEAD == origin/main`，2026-09-08 fetch 后 `0/0` |
-| 本稿状态 | **Ready candidate / HOLD pending real independent D review** |
+| 本稿状态 | **Ready candidate / HOLD pending independent D review of final correction** |
 | 允许范围 | 阶段一实施契约和验证计划；不迁移 production，不提升状态，不进入 P1A |
 
 ## 1. 证据来源和纠正边界
@@ -172,26 +172,28 @@ GroundTruthModel
 
 它们继续用于历史兼容和教学解释，不被改名为 M8-consistent production evidence。
 
-### 5.2 新的 scene-aware production RIS-only 路径
+### 5.2 新的 scene-aware production RIS-only 路径（ADR-0013 方案 A，已获维护者批准）
 
 新增 optimization/simulation 层内部 callable（最终名称由代码审查确认，不顶层 export）：
 
 ```text
 base_phase_n = wrap(-arg(a_n^C))
 continuous command = base_phase
-finite command = Q(base_phase) at exact delta=0
+finite command = Q(base_phase + delta), delta in ADR-0006 candidates
 ```
 
 RIS-only 的 Foundation 语义仍是 phase-conjugate，不读取 baseline。有限 bit 下，本 Work Item 的
 连续解析目标为 `P_RIS=Pt*|sum(a_n^C*Gamma_cmd,n)|^2`，continuous `-arg(a^C)` 在幅度不随
-phase 变化时使各项同相。有限 bit 只定义为该解析命令经既有硬件量化器得到的确定性兼容命令；
-候选族严格为 singleton `{Q(base_phase+delta) | delta=0}`，因此只在该 singleton 内“最优”，不
-宣称任意离散组合或 common-offset family 的最优。若未来希望在 common-offset 可达族中最大化
-`|h_RIS|^2`，那是新的 RIS-only optimization objective，必须先有获批准 ADR；不得在 QA-CC 中
-静默加入。
+phase 变化时使各项同相。有限 bit 使用 ADR-0006 既有公共 offset 候选生成器：`delta=0` 精确为
+首项，随后保持既有边界排序/环形中点顺序，仅以既有 strict-better 规则替换 incumbent，平局
+first-wins。目标只在该公共 offset 可达候选族内最优，不宣称任意逐 patch 离散组合的全局最优。
 
-因此兼容关系明确为：legacy API 继续 `Q(center-path)`；production scene-aware path 使用
-`Q(-arg(a^C))`。两者在 M8/complex Profile 下可以不同，差异必须在 release note/provenance 中
+逐元素 `a_n^C == 0` 使用确定性 `base_phase_n=0.0` 后进入同一量化器；不新增容差。aggregate
+RIS 退化继续使用 ADR-0006 的精确 `0.0` fallback。任一 coefficient、phase、channel 或 offset
+含 NaN/Inf 均按既有输入校验抛 `ValueError`，不得静默替换或放宽错误语义。
+
+因此兼容关系明确为：legacy API 继续 `Q(center-path)`；新增 production scene-aware path 使用
+`Q(-arg(a^C)+delta)`。legacy API 不声明 common-offset 保证；两者在 M8/complex Profile 下可以不同，差异必须在 release note/provenance 中
 显式记录，不能伪装为数组兼容。
 
 ### 5.3 Coherent 路径
@@ -293,7 +295,7 @@ Coherent；continuous 与 finite-bit 不做跨模式差值作为验收。Current
 - 从 production source 获取 `a^C`，并用独立 scalar oracle 在至少一个小型解析 fixture 重算 M8；
 - continuous scene-aware command 对每个非零 coefficient 满足
   `wrap(arg(a_n^C)+phi_n)=0`，并验证各 `a_n^C*Gamma_cmd,n` 同相；
-- finite scene-aware command 精确等于 `Q(-arg(a^C))` 的 `delta=0`；命令全部通过 A3；
+- finite scene-aware command 枚举 ADR-0006 候选，首项精确为 `Q(-arg(a^C))` 的 `delta=0`；命令全部通过 A3；
 - `dot(a^C,Gamma_cmd)` 与 production engine `h_RIS` 一致；
 - legacy API 数组、顶层 export、shape、异常继续由现有兼容测试锁定；不要求 legacy center pattern
   等于 M8 production pattern。

@@ -1,7 +1,7 @@
 {
   "config_kind": "fnd_qa_cc_ready_contract_candidate",
   "config_version": "1",
-  "status": "ready_hold_pending_real_independent_d_review",
+  "status": "ready_hold_pending_independent_d_review_final_correction",
   "base_sha": "87d2dea8c3ca40774f754271d7b21743cefcc133",
   "origin_main_sha": "87d2dea8c3ca40774f754271d7b21743cefcc133",
   "production_modified": false,
@@ -42,10 +42,15 @@
     "scene_aware_ris_only": {
       "continuous_base_phase": "wrap(-arg(a_controller))",
       "analytic_objective": "Pt*abs(sum(a_controller*Gamma_cmd))**2 with phase-independent magnitude",
-      "finite_candidate_offsets": [0.0],
-      "finite_optimality_claim": "singleton deterministic quantization only",
-      "common_offset_search": false,
-      "new_search_requires_adr": true
+      "finite_candidate_offsets": "ADR-0006 common-offset candidate generator; delta=0 first",
+      "finite_optimality_claim": "optimal only within the ADR-0006 common-offset reachable candidate family",
+      "common_offset_search": true,
+      "strict_better_and_first_wins_unchanged": true,
+      "objective_excludes_baseline": true,
+      "element_zero_policy": "base_phase=0.0 before the existing quantizer; no new tolerance",
+      "aggregate_degenerate_policy": "ADR-0006 exact 0.0 fallback",
+      "nonfinite_policy": "raise ValueError using existing validation",
+      "legacy_api_common_offset_guarantee": false
     },
     "coherent": {
       "continuous_phase": "wrap(arg(h_baseline_controller)-arg(a_controller))",
