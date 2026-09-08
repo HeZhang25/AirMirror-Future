@@ -20,7 +20,8 @@ from airmirror_future.scenarios.smart_space import create_smart_space_scene
 
 XR_EDITOR_SCENE_TEMPLATES: tuple[tuple[str, str], ...] = (
     ("complex_office", "复杂办公室 / Complex Office"),
-    ("smart_space", "Future Smart Space"),
+    ("smart_space", "Current Smart Space"),
+    ("future_smart_space", "Future Smart Space · exact M8 fixed field"),
 )
 
 
@@ -107,4 +108,7 @@ def create_xr_editor_scene(template_id: str) -> Scene:
     if template_id == "smart_space":
         scene = create_smart_space_scene("Current")
         return replace(scene, name="XR Smart Space Route Editor")
+    if template_id == "future_smart_space":
+        scene = create_smart_space_scene("Future")
+        return replace(scene, name="XR Future Smart Space Fixed Field")
     raise ValueError(f"unknown XR editor scene template: {template_id!r}")
