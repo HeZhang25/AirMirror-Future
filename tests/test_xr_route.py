@@ -836,9 +836,11 @@ def test_route_csv_metadata_retain_actual_commands_identities_and_partial_proven
     assert metadata["sample_count"] == len(experiment.trajectory)
     assert metadata["provenance"]["provenance_status"] == "partial"
     assert set(json.loads(metadata["provenance"]["pending_contracts_json"])) == {
-        "FND-PHY-NB",
         "FND-QA-CC",
     }
+    assert str(metadata["provenance"]["coefficient_model_identity"]).startswith(
+        "sha256:"
+    )
 
     with artifacts.csv_path.open("r", newline="", encoding="utf-8-sig") as handle:
         reader = csv.DictReader(handle)
