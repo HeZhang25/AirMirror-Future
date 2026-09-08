@@ -4,6 +4,7 @@ import copy
 from dataclasses import replace
 import os
 from pathlib import Path
+from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -24,9 +25,11 @@ from airmirror_future.gui import main_window as gui_main
 from airmirror_future.gui.main_window import MainWindow
 from airmirror_future.gui.workers import XRDynamicRoomWorker
 from airmirror_future.gui.xr_trajectory_seam import (
+    EXPECTED_TRAJECTORY_INTERFACE_VERSION,
     LoadedRoute,
     RouteDraft,
     RoutePointDraft,
+    XRRouteTrajectoryBackend,
 )
 from airmirror_future.scenarios.smart_space import create_smart_space_scene
 from airmirror_future.scenarios.xr_editor import create_xr_editor_scene
@@ -64,21 +67,26 @@ class _FakeTrajectoryBackend:
             for point in draft.points
         ):
             raise ValueError("point outside room")
-        snapshot = (copy.deepcopy(scene), copy.deepcopy(draft))
+        snapshot = SimpleNamespace(
+            scene=copy.deepcopy(scene),
+            draft=copy.deepcopy(draft),
+            experiment_identity="fake:experiment",
+        )
         self.validated.append((scene, draft))
         return snapshot
 
     def sample(self, snapshot: object) -> tuple[TrajectorySample, ...]:
-        _scene, draft = snapshot
+        draft = snapshot.draft
         return tuple(
             TrajectorySample(index, point.time_s, point.position)
             for index, point in enumerate(draft.points)
         )
 
-    def save(self, snapshot: object, path: str | Path) -> None:
+    def save(self, snapshot: object, path: str | Path) -> object:
         self.saved.append((snapshot, Path(path)))
+        return snapshot
 
-    def load(self, path: str | Path, scene) -> LoadedRoute:
+    def load(self, path: str | Path) -> LoadedRoute:
         if isinstance(self.loaded, Exception):
             raise self.loaded
         if self.loaded is None:
@@ -125,10 +133,9 @@ class _WorkerSignals:
 
 
 class _ManualXRWorker:
-    def __init__(self, version, scene=None, trajectory=None) -> None:
+    def __init__(self, version, route_experiment=None) -> None:
         self.version = version
-        self.scene = scene
-        self.trajectory = trajectory
+        self.route_experiment = route_experiment
         self.signals = _WorkerSignals()
         self.cancel_requested = False
 
@@ -191,7 +198,7 @@ def _field(scene, config: SimulationConfig | None = None) -> FieldMapResult:
     )
 
 
-def test_editor_loads_complex_scene_and_marks_external_b_seam_pending(windows) -> None:
+def test_editor_loads_complex_scene_with_real_b_backend_ready(windows) -> None:
     window = windows()
 
     assert window._xr_editor_scene is not None
@@ -199,10 +206,11 @@ def test_editor_loads_complex_scene_and_marks_external_b_seam_pending(windows) -
     assert len(window._xr_editor_scene.walls) == 8
     assert len(window._xr_editor_scene.obstacles) == 3
     assert len(window.scene_view._route_point_items) == 4
-    assert not window.xr_run_button.isEnabled()
-    assert not window.xr_save_route_button.isEnabled()
-    assert not window.xr_load_route_button.isEnabled()
-    assert "pending B interface" in window.xr_route_status.text()
+    assert window.xr_run_button.isEnabled()
+    assert window.xr_save_route_button.isEnabled()
+    assert window.xr_load_route_button.isEnabled()
+    assert EXPECTED_TRAJECTORY_INTERFACE_VERSION in window.xr_route_status.text()
+    assert "Route valid" in window.xr_route_status.text()
     assert window.scene_view._heatmap_item is None
 
     window.xr_template_combo.setCurrentIndex(
@@ -308,7 +316,8 @@ def test_route_save_load_and_invalid_form_delegate_to_backend(
             for index, point in enumerate(loaded_draft.points)
         ),
     )
-    backend.loaded = LoadedRoute(loaded_draft, object())
+    assert window._xr_editor_scene is not None
+    backend.loaded = LoadedRoute(window._xr_editor_scene, loaded_draft, object())
     monkeypatch.setattr(
         gui_main.QFileDialog,
         "getOpenFileName",
@@ -377,9 +386,10 @@ def test_latest_run_uses_copied_scene_and_waits_for_actual_termination(
 
     window._run_xr_editor()
     first = pool.started[-1]
-    assert first.scene is not window._xr_editor_scene
-    assert first.trajectory[0].position == first.scene.receiver().position
-    first_scene_name = first.scene.name
+    first_scene = first.route_experiment.scene
+    first_draft = first.route_experiment.draft
+    assert first_scene is not window._xr_editor_scene
+    first_scene_name = first_scene.name
 
     window._xr_route_point_moved(1, Vec3(3.0, 3.0, 1.2))
     assert first.cancel_requested
@@ -391,8 +401,10 @@ def test_latest_run_uses_copied_scene_and_waits_for_actual_termination(
     assert len(pool.started) == 2
     second = pool.started[-1]
     assert second is window._xr_active_worker
-    assert second.scene.name == first_scene_name
-    assert second.trajectory != first.trajectory
+    second_scene = second.route_experiment.scene
+    second_draft = second.route_experiment.draft
+    assert second_scene.name == first_scene_name
+    assert second_draft != first_draft
 
     window._cancel_xr_editor_run()
     assert "waiting for worker termination" in window.xr_sample_label.text()
@@ -405,11 +417,16 @@ def test_custom_worker_runs_real_three_mode_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     scene = create_xr_editor_scene("smart_space")
-    trajectory = (
-        TrajectorySample(0, 0.0, Vec3(2.0, 2.0, 1.2)),
-        TrajectorySample(1, 1.0, Vec3(2.6, 2.4, 1.2)),
+    draft = RouteDraft(
+        "worker-route",
+        (
+            RoutePointDraft("point-1", Vec3(2.0, 1.0, 1.2), 0.0),
+            RoutePointDraft("point-2", Vec3(2.6, 1.0, 1.2), 1.0),
+        ),
+        1.0,
     )
-    scene.receivers = [replace(scene.receiver(), position=trajectory[0].position)]
+    experiment = XRRouteTrajectoryBackend().validate(scene, draft)
+    trajectory = experiment.trajectory
     monkeypatch.setattr(
         SimulationEngine,
         "compute_field_map",
@@ -421,7 +438,7 @@ def test_custom_worker_runs_real_three_mode_snapshot(
     partial = []
     finished = []
     terminated = []
-    worker = XRDynamicRoomWorker(7, scene=copy.deepcopy(scene), trajectory=trajectory)
+    worker = XRDynamicRoomWorker(7, route_experiment=experiment)
     worker.signals.partial.connect(lambda version, result: partial.append((version, result)))
     worker.signals.finished.connect(lambda version, result: finished.append((version, result)))
     worker.signals.terminated.connect(lambda version, value: terminated.append((version, value)))
@@ -450,3 +467,106 @@ def test_custom_worker_runs_real_three_mode_snapshot(
     }
     assert len(static_hashes) == 1
     assert not computation.static_pattern.flags.writeable
+
+
+def test_real_backend_save_load_round_trip_preserves_all_identities(
+    tmp_path: Path,
+) -> None:
+    backend = XRRouteTrajectoryBackend()
+    scene = create_xr_editor_scene("smart_space")
+    draft = RouteDraft(
+        "gui-round-trip",
+        (
+            RoutePointDraft("point-1", Vec3(1.5, 1.0, 1.2), 0.0),
+            RoutePointDraft("point-2", Vec3(3.5, 1.0, 1.2), 2.0),
+        ),
+        0.5,
+    )
+    snapshot = backend.validate(scene, draft)
+    route_path = tmp_path / "route.json"
+
+    bound = backend.save(snapshot, route_path)
+    loaded = backend.load(route_path)
+
+    assert route_path.is_file()
+    assert (tmp_path / "route.scene.json").is_file()
+    assert loaded.draft == draft
+    assert loaded.scene == bound.scene
+    assert loaded.snapshot.scene_identity == snapshot.scene_identity
+    assert loaded.snapshot.trajectory_identity == snapshot.trajectory_identity
+    assert loaded.snapshot.experiment_identity == snapshot.experiment_identity
+    assert loaded.snapshot.trajectory == snapshot.trajectory
+    with pytest.raises(FileExistsError):
+        backend.save(snapshot, route_path)
+
+
+def test_real_backend_retimes_speed_and_supports_single_point_and_dwell() -> None:
+    backend = XRRouteTrajectoryBackend()
+    scene = create_xr_editor_scene("smart_space")
+    draft = RouteDraft(
+        "speed-route",
+        (
+            RoutePointDraft("point-1", Vec3(1.0, 1.0, 1.2), 0.0),
+            RoutePointDraft("point-2", Vec3(3.0, 1.0, 1.2), 3.0),
+            RoutePointDraft("point-3", Vec3(4.0, 1.0, 1.2), 5.0),
+        ),
+        0.5,
+    )
+
+    retimed = backend.retime_from_previous_speed(draft, 1, 2.0)
+    assert tuple(point.time_s for point in retimed.points) == (0.0, 1.0, 3.0)
+    backend.validate(scene, retimed)
+
+    single = replace(draft, points=(draft.points[0],))
+    assert backend.sample(backend.validate(scene, single)) == (
+        TrajectorySample(0, 0.0, draft.points[0].position),
+    )
+
+    dwell = replace(
+        draft,
+        points=(
+            draft.points[0],
+            replace(draft.points[1], position=draft.points[0].position, time_s=1.0),
+            replace(draft.points[2], time_s=3.0),
+        ),
+    )
+    backend.validate(scene, dwell)
+    with pytest.raises(ValueError, match="zero-length dwell"):
+        backend.retime_from_previous_speed(dwell, 1, 1.0)
+
+
+def test_real_bundle_load_to_worker_end_to_end_preserves_snapshot(
+    tmp_path: Path,
+) -> None:
+    backend = XRRouteTrajectoryBackend()
+    scene = create_xr_editor_scene("smart_space")
+    draft = RouteDraft(
+        "gui-real-e2e",
+        (RoutePointDraft("point-1", Vec3(2.0, 1.0, 1.2), 0.0),),
+        0.5,
+    )
+    created = backend.validate(scene, draft)
+    backend.save(created, tmp_path / "route.json")
+    loaded = backend.load(tmp_path / "route.json")
+    partial = []
+    finished = []
+    worker = XRDynamicRoomWorker(11, route_experiment=loaded.snapshot)
+    worker.signals.partial.connect(lambda _version, result: partial.append(result))
+    worker.signals.finished.connect(lambda _version, result: finished.append(result))
+
+    worker.run()
+
+    assert len(partial) == len(finished) == 1
+    computation = finished[0].mvp
+    assert loaded.snapshot.experiment_identity == created.experiment_identity
+    assert loaded.snapshot.scene_identity == created.scene_identity
+    assert loaded.snapshot.trajectory_identity == created.trajectory_identity
+    assert computation.scene == loaded.snapshot.scene
+    assert computation.trajectory == loaded.snapshot.trajectory
+    assert len(computation.samples) == 3
+    assert {sample.mode for sample in computation.samples} == {
+        NO_RIS_MODE,
+        STATIC_RIS_MODE,
+        ADAPTIVE_RIS_MODE,
+    }
+    assert finished[0].field_map.received_power_dbm.shape == (60, 80)

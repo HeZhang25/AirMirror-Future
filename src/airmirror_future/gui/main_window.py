@@ -70,6 +70,7 @@ from airmirror_future.gui.xr_trajectory_seam import (
     RoutePointDraft,
     TrajectoryBackendUnavailable,
     TrajectoryEditorBackend,
+    XRRouteTrajectoryBackend,
 )
 from airmirror_future.ris.generations import generation_preset
 from airmirror_future.ris.aperture import equivalent_patch_diagnostics
@@ -99,7 +100,11 @@ class MainWindow(QMainWindow):
         self.scene_model = scene
         self.engine = SimulationEngine()
         self.controller_model = ControllerModel()
-        self.trajectory_backend = trajectory_backend
+        self.trajectory_backend = (
+            trajectory_backend
+            if trajectory_backend is not None
+            else XRRouteTrajectoryBackend()
+        )
         self.ground_truth = GroundTruthModel(seed=scene.random_seed)
         self.patterns: dict[str, np.ndarray] = {}
         self.latest_field: FieldMapResult | None = None
@@ -122,9 +127,7 @@ class MainWindow(QMainWindow):
         self._xr_editor_scene: Scene | None = None
         self._xr_trajectory: RouteDraft | None = None
         self._xr_selected_waypoint_index = 0
-        self._xr_pending_run_request: (
-            tuple[Scene, tuple[TrajectorySample, ...]] | None
-        ) = None
+        self._xr_pending_run_request: object | None = None
         self._xr_cancel_waiting_for_termination = False
         self._xr_result: MVPComputation | None = None
         self._xr_static_field: FieldMapResult | None = None
@@ -672,12 +675,20 @@ class MainWindow(QMainWindow):
         width = scene.room_size.x
         height = scene.room_size.y
         z = scene.z_eval_m
-        positions = (
-            Vec3(0.14 * width, 0.20 * height, z),
-            Vec3(0.34 * width, 0.74 * height, z),
-            Vec3(0.62 * width, 0.36 * height, z),
-            Vec3(0.86 * width, 0.76 * height, z),
-        )
+        if scene.name == "XR Complex Office":
+            positions = (
+                Vec3(0.14 * width, 0.50 * height, z),
+                Vec3(0.32 * width, 0.50 * height, z),
+                Vec3(0.63 * width, 0.50 * height, z),
+                Vec3(0.86 * width, 0.50 * height, z),
+            )
+        else:
+            positions = (
+                Vec3(0.14 * width, 0.12 * height, z),
+                Vec3(0.34 * width, 0.12 * height, z),
+                Vec3(0.62 * width, 0.12 * height, z),
+                Vec3(0.86 * width, 0.12 * height, z),
+            )
         return RouteDraft(
             name=f"{scene.name} route",
             points=tuple(
@@ -860,11 +871,11 @@ class MainWindow(QMainWindow):
     def _xr_delete_route_point(self) -> None:
         if self._xr_trajectory is None:
             return
-        if len(self._xr_trajectory.points) <= 2:
+        if len(self._xr_trajectory.points) <= 1:
             QMessageBox.warning(
                 self,
                 "Cannot delete point",
-                "A trajectory requires at least two route points.",
+                "A trajectory requires at least one route point.",
             )
             return
         waypoints = list(self._xr_trajectory.points)
@@ -1052,9 +1063,10 @@ class MainWindow(QMainWindow):
         if not path:
             return
         try:
-            self.trajectory_backend.save(snapshot, path)
+            bound = self.trajectory_backend.save(snapshot, path)
             self.statusBar().showMessage(
-                f"{self.trajectory_backend.interface_version} saved: {path}"
+                f"{self.trajectory_backend.interface_version} saved: {path} · "
+                f"identity {bound.experiment_identity}"
             )
         except Exception as exc:
             QMessageBox.critical(self, "Route save failed", str(exc))
@@ -1078,10 +1090,12 @@ class MainWindow(QMainWindow):
         if not path:
             return
         try:
-            loaded = self.trajectory_backend.load(path, self._xr_editor_scene)
+            loaded = self.trajectory_backend.load(path)
+            self._validate_xr_editor_scene(loaded.scene)
         except Exception as exc:
             QMessageBox.critical(self, "Route load failed", str(exc))
             return
+        self._xr_editor_scene = copy.deepcopy(loaded.scene)
         self._xr_trajectory = loaded.draft
         self._xr_selected_waypoint_index = 0
         self._xr_editor_inputs_changed("versioned trajectory loaded")
@@ -1101,10 +1115,6 @@ class MainWindow(QMainWindow):
             trajectory = self.trajectory_backend.sample(snapshot)
             if not trajectory:
                 raise ValueError("trajectory backend returned no samples")
-            scene = copy.deepcopy(self._xr_editor_scene)
-            scene.receivers = [
-                replace(scene.receiver(), position=trajectory[0].position)
-            ]
         except Exception as exc:
             QMessageBox.critical(self, "Cannot run trajectory", str(exc))
             return
@@ -1112,7 +1122,7 @@ class MainWindow(QMainWindow):
         self._xr_field_debounce.stop()
         self._version += 1
         self._cancel_active()
-        self._xr_pending_run_request = (scene, trajectory)
+        self._xr_pending_run_request = snapshot
         self._xr_demo_start_pending = True
         self._xr_cancel_waiting_for_termination = False
         self._xr_result = None
@@ -1127,7 +1137,7 @@ class MainWindow(QMainWindow):
         self.scene_view.clear_field_overlays()
         self.pattern_view.set_status(
             "Command calculating…",
-            "Worker owns deep-copied Scene and immutable trajectory samples.",
+            "Worker owns the validated immutable XR route experiment snapshot.",
         )
         self.xr_command_status.setText("Command: calculating from run snapshot")
         self.xr_field_status.setText("Field map: pending behind three-mode links")
@@ -1330,11 +1340,9 @@ class MainWindow(QMainWindow):
         if request is None:
             worker = XRDynamicRoomWorker(self._version)
         else:
-            scene, trajectory = request
             worker = XRDynamicRoomWorker(
                 self._version,
-                scene=scene,
-                trajectory=trajectory,
+                route_experiment=request,
             )
         self._xr_pending_run_request = None
         worker.signals.progress.connect(self._xr_link_progress)

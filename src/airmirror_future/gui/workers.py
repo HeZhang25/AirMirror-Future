@@ -22,12 +22,11 @@ from airmirror_future.core.types import (
 from airmirror_future.core.pattern_contract import validate_commanded_pattern
 from airmirror_future.experiments.xr_dynamic_room_mvp import (
     MVPComputation,
-    TrajectorySample,
     _pattern_hash,
     compute_adaptive_mvp,
-    evaluate_adaptive_trajectory,
-    generate_static_pattern,
 )
+from airmirror_future.experiments.xr_route import XRRouteExperiment
+from airmirror_future.experiments.xr_route_headless import compute_route_experiment
 from airmirror_future.optimization.coherent_focus import generate_coherent_target_pattern
 from airmirror_future.physics.ris_scattering import PRODUCTION_QUADRATURE_ORDER
 from airmirror_future.optimization.greedy import FeedbackGreedyOptimizer
@@ -350,17 +349,11 @@ class XRDynamicRoomWorker(_XRPhysicsWorker):
     def __init__(
         self,
         version: int,
-        scene: Scene | None = None,
-        trajectory: tuple[TrajectorySample, ...] | None = None,
+        route_experiment: XRRouteExperiment | None = None,
     ) -> None:
         super().__init__()
-        if (scene is None) != (trajectory is None):
-            raise ValueError("custom XR runs require both scene and trajectory")
-        if trajectory is not None and not trajectory:
-            raise ValueError("custom XR trajectory cannot be empty")
         self.version = version
-        self.scene = scene
-        self.trajectory = trajectory
+        self.route_experiment = route_experiment
         self.signals = WorkerSignals()
         self._cancelled = threading.Event()
 
@@ -386,7 +379,7 @@ class XRDynamicRoomWorker(_XRPhysicsWorker):
                 except RuntimeError:
                     pass
 
-            if self.scene is None or self.trajectory is None:
+            if self.route_experiment is None:
                 mvp = compute_adaptive_mvp(
                     engine=engine,
                     model=model,
@@ -394,32 +387,12 @@ class XRDynamicRoomWorker(_XRPhysicsWorker):
                     progress=link_progress,
                 )
             else:
-                static_pattern = generate_static_pattern(
-                    self.scene,
-                    self.trajectory[0].position,
-                    engine=engine,
-                    model=model,
-                )
-                samples = evaluate_adaptive_trajectory(
-                    self.scene,
-                    self.trajectory,
-                    static_pattern,
+                mvp = compute_route_experiment(
+                    self.route_experiment,
                     engine=engine,
                     model=model,
                     cancel_check=self._cancelled.is_set,
                     progress=link_progress,
-                )
-                evaluated_static = next(
-                    sample.commanded_pattern
-                    for sample in samples
-                    if sample.command_kind == "static"
-                    and sample.commanded_pattern is not None
-                )
-                mvp = MVPComputation(
-                    self.scene,
-                    self.trajectory,
-                    evaluated_static,
-                    samples,
                 )
             if self._cancelled.is_set():
                 return
