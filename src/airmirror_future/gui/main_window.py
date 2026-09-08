@@ -123,6 +123,7 @@ class MainWindow(QMainWindow):
         self._pattern_source = "Coherent Target Focus"
         self._pattern_context: tuple[object, ...] | None = None
         self._xr_demo_active = False
+        self._xr_playback_waiting_for_field = False
         self._xr_editor_active = False
         self._xr_editor_scene: Scene | None = None
         self._xr_trajectory: RouteDraft | None = None
@@ -1544,8 +1545,13 @@ class MainWindow(QMainWindow):
         self._xr_field_inflight_key = key
         self._workers.append(worker)
         self.progress.setRange(0, 0)
+        state = (
+            "Adaptive field buffering… · playback paused"
+            if self._xr_playback_waiting_for_field
+            else "Adaptive field calculating…"
+        )
         self.xr_field_status.setText(
-            f"Adaptive field calculating… · sample {sample_index + 1}/"
+            f"{state} · sample {sample_index + 1}/"
             f"{len(self._xr_result.trajectory)} · Fast 80×60"
         )
         self.thread_pool.start(worker)
@@ -1566,6 +1572,12 @@ class MainWindow(QMainWindow):
         current_key = None if current is None else self._xr_field_key_for_sample(current)
         if self.xr_mode_combo.currentText() == ADAPTIVE_RIS_MODE and current_key == result.key:
             self._redraw_xr_field()
+            if self._xr_playback_waiting_for_field:
+                self._xr_playback_waiting_for_field = False
+                self._xr_playback_timer.start()
+                self.statusBar().showMessage(
+                    "Adaptive field ready · XR playback resumed"
+                )
         else:
             self.statusBar().showMessage(
                 "Adaptive field cached for sample "
@@ -1708,7 +1720,37 @@ class MainWindow(QMainWindow):
                 f"{self._xr_static_field.runtime_s:.2f} s · Adaptive fields on demand"
             )
 
+    def _buffer_adaptive_playback_if_needed(self) -> None:
+        """Pause cold-cache playback until the current Adaptive field is ready."""
+        if (
+            not self._xr_playback_timer.isActive()
+            or self.xr_mode_combo.currentText() != ADAPTIVE_RIS_MODE
+            or self._xr_result is None
+        ):
+            return
+        sample = self._xr_sample_lookup.get(
+            (self._xr_sample_index, ADAPTIVE_RIS_MODE)
+        )
+        key = None if sample is None else self._xr_field_key_for_sample(sample)
+        if key is None or key in self._xr_field_cache:
+            return
+        self._xr_playback_timer.stop()
+        self._xr_playback_waiting_for_field = True
+        self._xr_field_debounce.stop()
+        self.xr_field_status.setText(
+            "Adaptive field buffering… · playback paused at sample "
+            f"{self._xr_sample_index + 1}/{len(self._xr_result.trajectory)}"
+        )
+        if sample is not None:
+            self._queue_xr_adaptive_field(sample, key)
+            self._start_pending_xr_field()
+
     def _xr_mode_changed(self, _mode: str) -> None:
+        if self.xr_mode_combo.currentText() != ADAPTIVE_RIS_MODE:
+            resume_playback = self._xr_playback_waiting_for_field
+            self._xr_playback_waiting_for_field = False
+            if resume_playback:
+                self._xr_playback_timer.start()
         self._set_xr_sample(self._xr_sample_index)
 
     def _set_xr_sample(self, index: int) -> None:
@@ -1787,6 +1829,7 @@ class MainWindow(QMainWindow):
             f"{mode}{' · provisional' if mode == ADAPTIVE_RIS_MODE else ''}"
         )
         self._redraw_xr_field()
+        self._buffer_adaptive_playback_if_needed()
 
     def _play_xr_demo(self) -> None:
         if not self._xr_demo_active or self._xr_result is None:
@@ -1794,11 +1837,13 @@ class MainWindow(QMainWindow):
         if self._xr_sample_index >= len(self._xr_result.trajectory) - 1:
             self._set_xr_sample(0)
         self._xr_playback_timer.start()
+        self._set_xr_sample(self._xr_sample_index)
         self._set_xr_controls_ready(True)
         self.statusBar().showMessage("XR MVP playback running")
 
     def _pause_xr_demo(self) -> None:
         self._xr_playback_timer.stop()
+        self._xr_playback_waiting_for_field = False
         self._set_xr_controls_ready(self._xr_result is not None)
         if self._xr_demo_active and self._xr_result is not None:
             self.statusBar().showMessage("XR MVP playback paused")
@@ -2577,6 +2622,7 @@ class MainWindow(QMainWindow):
         self.cancel_button.setEnabled(False)
         self.progress.setRange(0, 100)
         if self._xr_demo_active:
+            self._xr_playback_waiting_for_field = False
             self._set_xr_controls_ready(self._xr_result is not None)
             if self._xr_result is None:
                 self.xr_sample_label.setText("XR MVP calculation failed")
