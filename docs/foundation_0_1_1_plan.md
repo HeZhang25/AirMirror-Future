@@ -5,8 +5,8 @@
 | 文档状态 | Operational / Normative for sequencing |
 | 当前实现基线 | v0.1 Verified，commit `edfa43c` |
 | 目标版本 | v0.1.1 Foundation |
-| 当前计划状态 | Foundation 0.1.1 In Progress；Foundation 0.1.1A、A1/A2/A3、FND-FIX-WALL、B1/B2/B3 Verified；C1/C2 Verified，C overall In Progress；FND-QA-AP Verified（v1 formal run 与 reference-resolution continuation 完成，signed/frozen midpoint 8×8 policy；production migration completed）；FND-PHY-NB、FND-QA-CC Planned；P1A gate closed |
-| Prototype lane | M8 production migration → XR Dynamic Room MVP；non-release prototype only；FND-PHY-NB / FND-QA-CC Planned / deferred for scene-first MVP；P1A formal gate closed；formal v0.2 gate not satisfied |
+| 当前计划状态 | Foundation 0.1.1 In Progress；Foundation 0.1.1A、A1/A2/A3、FND-FIX-WALL、B1/B2/B3 Verified；C1/C2 Verified，C overall In Progress；FND-QA-AP 与 FND-PHY-NB Verified；production M8 canonical identity `midpoint_8x8_per_control_patch/1`；FND-QA-CC Planned；P1A gate closed |
+| Prototype lane | M8 production migration → XR Dynamic Room MVP；non-release prototype only；FND-QA-CC Planned / deferred for scene-first MVP；P1A formal gate closed；formal v0.2 gate not satisfied |
 | 父级路线 | v0.1 Smart Space → Foundation 0.1.1 → P1A |
 | 主要责任 | 项目维护者、物理仿真负责人、GUI/测试负责人 |
 | 最后复核 | 2026-09-04（C1 implementation handoff；Profile ownership 仍以 ADR-0012 为准） |
@@ -687,7 +687,7 @@ Implemented/Verified，也不签署 FND-PHY-NB 或 FND-QA-CC；FND-QA-AP 已在 
 
 #### FND-PHY-NB：Narrowband Frequency Contract
 
-- 状态：**Planned / deferred for scene-first MVP**；Requirement `AMF-PHY-007`；
+- 状态：**Verified（2026-09-08）**；Requirement `AMF-PHY-007`；
 - 依赖：ADR-0010 Accepted、C2 provenance 可用；
 - 输入：`fc`、`B`、noise figure、center-frequency channel；
 - 输出：flat-channel capacity 标签、`channel_frequency_model_id`、legacy 规则；
@@ -728,7 +728,7 @@ Implemented/Verified，也不签署 FND-PHY-NB 或 FND-QA-CC；FND-QA-AP 已在 
 | 12 | `FND-ARCH-01` 接入 environment-only PropagationProfile | Verified | C Work Item C1 verification evidence；FND-T13..14、三代 headless；三轮外部独立审查最终 PASS、blocking issues 0 |
 | 13 | `FND-EXP-01` 加入最小实验 provenance | Verified | C Work Item 01A..01C；schema v1、partial/pending、legacy 和 no-overwrite；C2 independent review PASS |
 | 14 | `FND-QA-AP` 最小孔径求积有效性门禁 | Verified | FND-QA-AP-01..06 signed/frozen contract、v1 formal run 与 reference-resolution continuation；M8×8 policy signed and migrated to production separately |
-| 15 | `FND-PHY-NB` 冻结 center-frequency flat-channel contract | Planned / deferred for scene-first MVP | FND-T20、model ID 与准确标签 |
+| 15 | `FND-PHY-NB` 冻结 center-frequency flat-channel contract | Verified | PR #19、FND-T20、canonical model ID、三代 headless 与独立复核 |
 | 16 | `FND-QA-CC` 验证 Controller coefficient/Focus 一致性 | Planned / deferred for scene-first MVP | FND-T21..22、identity/boundary review |
 | 17 | `FND-QA-01` Foundation Final Verification | Planned / deferred for scene-first MVP | 全量回归、headless、GUI 和 Foundation final exit evidence |
 
@@ -807,9 +807,9 @@ FND-QA-AP 已在固定 control grid/pattern 下完成独立 quadrature refinemen
 
 FND-T19 已独立关闭并验证 wall 几何语义，不把 z delta 映射成 wall height。FND-T20 只验证当前
 center-frequency flat-channel 合同，不借机加入频率轴。
-FND-T21/T22 必须在 FND-QA-AP 签署 production policy 后执行；M8 独立 migration 已完成，下一步
-仍须验证 Focus、simulator 和 QA runner 共用 coefficient。FND-T20..22 仍为 Planned，不因
-production migration 或文档测试设计而提前通过。
+FND-T20 已随 FND-PHY-NB 独立关闭。FND-T21/T22 必须在 FND-QA-AP 签署 production policy 后
+执行；M8 独立 migration 已完成，下一步仍须验证 Focus、simulator 和 QA runner 共用
+coefficient。FND-T21/T22 仍为 Planned，不因 production migration 或身份接线而提前通过。
 
 ## 11. 实验、兼容和版本策略
 
@@ -926,7 +926,7 @@ P1A/P1B/P1C 可在 MVP 后补回，状态统一为 **deferred for scene-first MV
 
 - `AMF-RIS-008..012`、`AMF-PHY-007`、`AMF-OPT-004`、`AMF-SIM-005..006`、`AMF-UI-007..008`、
   `AMF-EXP-006` 的状态必须与 requirements 及各自 verification evidence 一致（当前 C1/C2/
-  `AMF-EXP-006` 与 FND-QA-AP 已 Verified，FND-PHY-NB/FND-QA-CC 仍 Planned）；
+  `AMF-EXP-006`、FND-QA-AP 与 FND-PHY-NB 已 Verified，FND-QA-CC 仍 Planned）；
 - 当前要进入的子 Capability 对应 ADR 选项、影响和否决方案已评审；
 - 第 10 节相关行为测试已经设计；红灯可存在于本地 TDD 过程，但交付 commit 必须保持绿色；
 - 明确旧实验、公共 API 和 Scene v1 的兼容策略；
@@ -943,8 +943,8 @@ P1A/P1B/P1C 可在 MVP 后补回，状态统一为 **deferred for scene-first MV
 - 旧行为差异有 ADR 和版本记录。
 
 Foundation A exit 后、B 开始前的 FND-FIX-WALL 已完成独立验收并达到 Verified；A1/A2/A3 的
-Verified 状态不受该独立 closure 影响。FND-QA-AP 已 Verified 且 M8 migration 已完成；Foundation
-final gate 仍受 FND-PHY-NB、FND-QA-CC 及其他既有门禁阻断。
+Verified 状态不受该独立 closure 影响。FND-QA-AP 与 FND-PHY-NB 已 Verified 且 M8 migration
+已完成；Foundation final gate 仍受 FND-QA-CC 及其他既有门禁阻断。
 
 ### 14.3 Foundation 0.1.1B Exit Gate
 
@@ -1022,8 +1022,8 @@ Foundation 之后的正式路线与以下既有 P1/场景范围保持不变：
 7. 后续再考虑 fading、MIMO、OFDM、active/STAR RIS 和全波/测量校准。
 
 scene-first 快线只在 M8 production migration 后进入 XR Dynamic Room MVP；该 entry condition
-现已满足。FND-PHY-NB、
-FND-QA-CC、Foundation Final Verification、P1A、P1B、P1C 均为 **deferred for scene-first
+现已满足。FND-PHY-NB 已在 prototype 后补回并达到 Verified；FND-QA-CC、Foundation Final
+Verification、P1A、P1B、P1C 仍为 **deferred for scene-first
 MVP**，可在 MVP 后补回；它们没有因此 Completed/Verified。P1A formal gate 仍 closed，formal
 v0.2 gate not satisfied。
 

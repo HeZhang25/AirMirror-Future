@@ -14,7 +14,8 @@ capability 的 Completed/Verified。
 - FND-QA-AP 已 Verified，production quadrature policy 已 signed/frozen 为每个既有 RIS control
   patch 内 midpoint `8×8`；
 - M8 production migration 已完成并通过其独立门禁；
-- P1A formal gate 可继续 closed，FND-PHY-NB / FND-QA-CC 可仍为 Planned。
+- prototype entry 时 P1A formal gate 可继续 closed，FND-PHY-NB / FND-QA-CC 可仍为 Planned；
+  当前 FND-PHY-NB 已在 prototype 后补回并 Verified，FND-QA-CC 仍 Planned。
 
 ## Scope
 
@@ -26,12 +27,11 @@ capability 的 Completed/Verified。
 - Adaptive RIS 第一版未实现，保持 **deferred for scene-first MVP**；如后续纳入，必须与
   Static RIS 明确区分，并随 RX position 变化通过现有接口重新计算 commanded pattern；
 - 使用当前 center-frequency narrowband channel behavior；不作 wideband / OFDM claim，
-  FND-PHY-NB formal closure 保持 **deferred for scene-first MVP**；
+  FND-PHY-NB formal closure 已 Verified；
 - 复用现有 Scene / SimulationEngine / RIS / Pattern / metrics。
 
 ## Deferred items
 
-- FND-PHY-NB — Planned / **deferred for scene-first MVP**；
 - FND-QA-CC — Planned / **deferred for scene-first MVP**；
 - Foundation Final Verification — **deferred for scene-first MVP**；
 - P1A（formal gate remains closed）、P1B、P1C — **deferred for scene-first MVP**；

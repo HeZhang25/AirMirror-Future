@@ -21,7 +21,7 @@
 | AMF-PHY-004 | 墙体采用有限线段 image method 一次反射，`|Γ_wall|≤1`；墙系数由 Wall/Reflection Model 拥有并在每条反射路径恰好应用一次 | Implemented | `physics/reflections.py`、[ADR-0012](adr/0012-wall-reflection-coefficient-ownership.md) | `test_image_method_finds_specular_point_on_finite_wall`；C1 FND-T13c/T13d 补所有权回归 |
 | AMF-PHY-005 | 墙/矩形障碍物求交后按 dB 施加幅度衰减 | Implemented | `physics/blockage.py` | `test_complete_los_path_applies_wall_attenuation` |
 | AMF-PHY-006 | v0.1 明确不包含衍射、高阶反射、互耦和极化 | Verified | docs、Model Info | `docs/limitations.md`, GUI smoke |
-| AMF-PHY-007 | `frequency_hz` 明确为中心频率，信道在 `bandwidth_hz` 内采用平坦窄带近似；容量与 provenance 不得误称宽带/真实吞吐 | Planned | [ADR-0010](adr/0010-narrowband-center-frequency-flat-channel.md)、[FND-PHY-NB](work_items/foundation_0_1_1_narrowband_contract.md) | FND-T20、Model Info/实验字段人工复核 |
+| AMF-PHY-007 | `frequency_hz` 明确为中心频率，信道在 `bandwidth_hz` 内采用平坦窄带近似；容量与 provenance 不得误称宽带/真实吞吐 | Verified | [ADR-0010](adr/0010-narrowband-center-frequency-flat-channel.md)、[FND-PHY-NB](work_items/foundation_0_1_1_narrowband_contract.md) | PR #19、FND-T20、Model Info/实验字段、Scene v1、三代 headless及独立复核 |
 
 ## RIS
 

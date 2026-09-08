@@ -20,16 +20,16 @@ import numpy as np
 
 from airmirror_future.core.pattern_contract import validate_commanded_pattern
 from airmirror_future.core.types import CancelCheck, ChannelResult, Scene, Vec3
-from airmirror_future.experiments.fnd_qa_ap_01 import (
-    QUADRATURE_POLICY_ID,
-    QUADRATURE_POLICY_VERSION,
-)
 from airmirror_future.experiments.provenance import _build_provenance_fields
 from airmirror_future.experiments.run_output import _new_run_id
 from airmirror_future.optimization.coherent_focus import (
     generate_coherent_target_pattern,
 )
-from airmirror_future.physics.ris_scattering import PRODUCTION_QUADRATURE_ORDER
+from airmirror_future.physics.ris_scattering import (
+    PRODUCTION_QUADRATURE_ORDER,
+    PRODUCTION_QUADRATURE_POLICY_ID,
+    PRODUCTION_QUADRATURE_POLICY_VERSION,
+)
 from airmirror_future.scenarios.smart_space import create_smart_space_scene
 from airmirror_future.simulation.engine import SimulationCancelled, SimulationEngine
 from airmirror_future.simulation.ground_truth import ControllerModel
@@ -858,8 +858,8 @@ def run_adaptive(output: Path | None = None) -> AdaptiveMVPArtifacts:
         focus=generate_coherent_target_pattern,
         world=model,
         run_id=run_id,
-        quadrature_policy_id=QUADRATURE_POLICY_ID,
-        quadrature_policy_version=QUADRATURE_POLICY_VERSION,
+        quadrature_policy_id=PRODUCTION_QUADRATURE_POLICY_ID,
+        quadrature_policy_version=PRODUCTION_QUADRATURE_POLICY_VERSION,
     )
     timestamp = datetime.now(timezone.utc).isoformat()
     csv_path = output_directory / "xr_dynamic_room_adaptive.csv"

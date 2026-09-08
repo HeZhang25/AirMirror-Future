@@ -126,10 +126,7 @@ def test_fnd_t20c_frequency_model_identity_is_canonical() -> None:
     )
 
     assert fields["channel_frequency_model_id"] == CHANNEL_FREQUENCY_MODEL_ID
-    assert json.loads(str(fields["pending_contracts_json"])) == [
-        "FND-PHY-NB",
-        "FND-QA-CC",
-    ]
+    assert json.loads(str(fields["pending_contracts_json"])) == ["FND-QA-CC"]
 
 
 def test_scene_v1_round_trip_does_not_add_frequency_model_field(tmp_path) -> None:

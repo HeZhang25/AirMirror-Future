@@ -65,14 +65,14 @@ python -m airmirror_future.experiments.phase_bits --output results/checkpoints/<
 | FND-T13d | reflecting-wall exclusion / environment ID boundary | 反射墙不作为自身路径 blocker；其他阻挡仍只作用于命中的路径段；duplicate wall、非法 Wall/Obstacle/RIS ID 提前拒绝 | `test_reflecting_wall_is_excluded_from_reflection_leg_blockers`、`test_mutated_duplicate_wall_ids_fail_before_profile_or_world`、`test_environment_ids.py` constructor/loader/engine tests；C1 Verified |
 | FND-T14 | Profile/reflection identity layering | Profile ID/version/parameters 决定 profile identity；Reflection ID/version 独立；墙系数不改变 profile identity；总体 identity mutation 留给 FND-QA-CC | `test_profiles.py`、`test_engine_rejects_bad_outputs_with_profile_and_role`、GT ownership tests；C1 Verified |
 | FND-T15 | minimum experiment provenance schema | schema ID/version 与实际 focus/profile/reflection/world/search 一致；canonical Profile identity 可复算 | Verified：C2 independent review PASS，reviewed SHA `a5c434dd3d673069ea93c689e6435002aef4e83d` |
-| FND-T15b | unsigned future identity boundary | 未签署 FND-PHY-NB/FND-QA-AP/FND-QA-CC 时保持 partial/pending，不伪造 Verified/default identity | Verified：C2 independent review PASS，blocking issues 0 |
+| FND-T15b | owner identity boundary | 已签署 frequency/quadrature production identity 从唯一代码来源记录；FND-QA-CC 保持 partial/pending，不伪造 coefficient identity | Verified：C2 independent review PASS，blocking issues 0；production identity wiring tests |
 | FND-T15c | provenance source classification | v0.1 legacy 与 A/B checkpoint 分开且 bytes/mtime 不变；新 run 缺 schema 明确失败；未知来源不猜 legacy；未知 schema 拒绝 | Verified：C2 independent review PASS，legacy/checkpoint unchanged |
 | FND-T15d | experiment no-overwrite | existing run directory 在计算前失败；legacy hash 不变；新 CSV/PNG 只写唯一 run directory | Verified：C2 independent review PASS，真实 run |
 | FND-T16 | quadrature ownership boundary | 固定 aperture/control/pattern/Profile，只改变 rule/order | Verified：FND-QA-AP-02..06 formal evidence |
 | FND-T17 | refined reference construction | successive refinement + independent rule；未收敛明确失败 | Verified：FND-QA-AP-02..06 formal evidence |
 | FND-T18 | quadrature report/provenance guards | 深相消不输出 Inf/误导 phase/gain；policy identity 完整 | Verified：FND-QA-AP-02..06 formal evidence |
 | FND-T19 | floor-anchored wall geometry | 超出 `1e-9 m` 的 endpoint z 拒绝；Ground Truth wall 仅刚体 XY 平移；blockage/reflection 同几何 | `tests/test_wall_geometry.py` |
-| FND-T20 | center-frequency flat-channel contract | `fc` 改变 h；`B` 不改变 h(fc) 但改变 noise/SNR/capacity；model ID 稳定 | Planned：FND-PHY-NB |
+| FND-T20 | center-frequency flat-channel contract | `fc` 改变 h；`B` 不改变 h(fc) 但改变 noise/SNR/capacity；model ID 稳定 | Verified：PR #19、follow-up tests 与 D 独立复核 PASS |
 | FND-T21 | RIS-only coefficient consistency | Focus 与最终 Controller `a_n^C` 相位共轭；验证现有 Focus 与 M8 production coefficient | Planned / deferred for scene-first MVP：FND-QA-CC |
 | FND-T22 | Coherent coefficient consistency | Focus objective 与 Controller simulation 共用 `a_n^C/h_baseline^C`，保留 A1 量化/退化规则 | Planned：FND-QA-CC |
 
