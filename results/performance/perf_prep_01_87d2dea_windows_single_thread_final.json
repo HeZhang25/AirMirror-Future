@@ -1,0 +1,633 @@
+{
+  "schema_id": "airmirror_perf_prep_01",
+  "schema_version": 1,
+  "task": "PERF-PREP-01",
+  "measurement_started_utc": "2026-09-08T02:25:29Z",
+  "environment": {
+    "git_head": "87d2dea8c3ca40774f754271d7b21743cefcc133",
+    "git_origin_main": "87d2dea8c3ca40774f754271d7b21743cefcc133",
+    "git_branch": "task/perf-prep-01",
+    "git_status_porcelain": "?? docs/performance_perf_prep_01.md\n?? docs/reviews/\n?? results/performance/\n?? tests/test_perf_prep_01.py\n?? tools/",
+    "remote_origin": "git@github.com:HeZhang25/AirMirror-Future.git",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "os_name": "nt",
+    "machine": "AMD64",
+    "processor": "Intel64 Family 6 Model 198 Stepping 2, GenuineIntel",
+    "logical_cpu_count": 24,
+    "total_memory_bytes": 16513441792,
+    "python_version": "3.11.4 (tags/v3.11.4:d2340ef, Jun  7 2023, 05:45:37) [MSC v.1934 64 bit (AMD64)]",
+    "python_executable": "D:\\Projects\\AirMirror-Future\\.venv\\Scripts\\python.exe",
+    "numpy_version": "2.4.6",
+    "thread_environment": {
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1"
+    },
+    "threadpools": []
+  },
+  "contract": {
+    "production_semantics_modified": false,
+    "formal_p1a_started": false,
+    "qa_ap_full_matrix_run": false,
+    "blas_thread_policy": {
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1"
+    },
+    "default_generations": [
+      "Current",
+      "Advanced",
+      "Future"
+    ],
+    "default_field_grids": {
+      "Current": [
+        80,
+        60,
+        "fast"
+      ],
+      "Advanced": [
+        16,
+        12,
+        "representative_probe"
+      ],
+      "Future": [
+        8,
+        6,
+        "representative_probe"
+      ]
+    }
+  },
+  "focus": {
+    "Current": {
+      "scenario": {
+        "scene": "Future Smart Space",
+        "profile": "IndoorDeterministicProfile",
+        "world": "ControllerModel",
+        "random_seed": 20260901,
+        "frequency_hz": 5000000000.0,
+        "bandwidth_hz": 100000000.0,
+        "ris": {
+          "generation": "Current",
+          "width_m": 0.8,
+          "height_m": 0.8,
+          "nx": 8,
+          "ny": 8,
+          "control_count": 64,
+          "phase_bits": 1,
+          "reflection_efficiency": 0.7,
+          "production_quadrature": "midpoint_8x8_per_control_patch",
+          "production_sample_count": 4096
+        }
+      },
+      "candidate_semantics": "piecewise_constant_common_offset_commands",
+      "candidate_count": 123,
+      "focus_candidate_generation": {
+        "minimum_s": 2.4199999643315095e-05,
+        "median_s": 3.9000000469968654e-05,
+        "p95_s": 4.035000010844669e-05,
+        "maximum_s": 4.0500000068277586e-05,
+        "repeat_count": 3.0,
+        "warmup_count": 1.0
+      },
+      "ris_only_pattern_generation": {
+        "minimum_s": 4.3900000491703395e-05,
+        "median_s": 6.809999922552379e-05,
+        "p95_s": 0.00010022999995271674,
+        "maximum_s": 0.00010380000003351597,
+        "repeat_count": 3.0,
+        "warmup_count": 1.0
+      },
+      "channel_evaluation_with_ris": {
+        "minimum_s": 0.007292100000086066,
+        "median_s": 0.007298799999261973,
+        "p95_s": 0.007684359999802837,
+        "maximum_s": 0.007727199999862933,
+        "repeat_count": 3.0,
+        "warmup_count": 1.0
+      },
+      "channel_evaluation_without_ris": {
+        "minimum_s": 0.0002164999996239203,
+        "median_s": 0.0002181999998356332,
+        "p95_s": 0.00022954000023673872,
+        "maximum_s": 0.00023080000028130598,
+        "repeat_count": 3.0,
+        "warmup_count": 1.0
+      },
+      "coherent_focus_total": {
+        "minimum_s": 0.8724067000002833,
+        "median_s": 0.8902673000002324,
+        "p95_s": 0.8931611600002725,
+        "maximum_s": 0.893482700000277,
+        "repeat_count": 3.0,
+        "warmup_count": 0.0
+      },
+      "focus_output_size": 64,
+      "measured_focus_evaluation_count": 124,
+      "note": "",
+      "sample_channel_received_power_dbm": -47.7341042831962
+    },
+    "Advanced": {
+      "scenario": {
+        "scene": "Future Smart Space",
+        "profile": "IndoorDeterministicProfile",
+        "world": "ControllerModel",
+        "random_seed": 20260901,
+        "frequency_hz": 5000000000.0,
+        "bandwidth_hz": 100000000.0,
+        "ris": {
+          "generation": "Advanced",
+          "width_m": 1.6,
+          "height_m": 1.2,
+          "nx": 24,
+          "ny": 24,
+          "control_count": 576,
+          "phase_bits": 3,
+          "reflection_efficiency": 0.85,
+          "production_quadrature": "midpoint_8x8_per_control_patch",
+          "production_sample_count": 36864
+        }
+      },
+      "candidate_semantics": "piecewise_constant_common_offset_commands",
+      "candidate_count": 4609,
+      "focus_candidate_generation": {
+        "minimum_s": 0.00012599999990925426,
+        "median_s": 0.000141299999995681,
+        "p95_s": 0.0001463399999011017,
+        "maximum_s": 0.00014689999989059288,
+        "repeat_count": 3.0,
+        "warmup_count": 1.0
+      },
+      "ris_only_pattern_generation": {
+        "minimum_s": 7.679999998799758e-05,
+        "median_s": 9.549999958835542e-05,
+        "p95_s": 0.00013141000044925022,
+        "maximum_s": 0.0001354000005449052,
+        "repeat_count": 3.0,
+        "warmup_count": 1.0
+      },
+      "channel_evaluation_with_ris": {
+        "minimum_s": 0.06521130000055564,
+        "median_s": 0.066470599999775,
+        "p95_s": 0.06800564000031954,
+        "maximum_s": 0.06817620000038005,
+        "repeat_count": 3.0,
+        "warmup_count": 1.0
+      },
+      "channel_evaluation_without_ris": {
+        "minimum_s": 0.0003131000003122608,
+        "median_s": 0.0003298999999969965,
+        "p95_s": 0.00046022000024095174,
+        "maximum_s": 0.0004747000002680579,
+        "repeat_count": 3.0,
+        "warmup_count": 1.0
+      },
+      "coherent_focus_total": {
+        "minimum_s": 293.81605390000004,
+        "median_s": 293.81605390000004,
+        "p95_s": 293.81605390000004,
+        "maximum_s": 293.81605390000004,
+        "repeat_count": 1.0,
+        "warmup_count": 0.0
+      },
+      "focus_output_size": 576,
+      "measured_focus_evaluation_count": 4610,
+      "note": "Advanced total Focus intentionally has one measured repeat because the exact finite-bit candidate sweep is expensive.",
+      "sample_channel_received_power_dbm": -30.574865481304094
+    },
+    "Future": {
+      "scenario": {
+        "scene": "Future Smart Space",
+        "profile": "IndoorDeterministicProfile",
+        "world": "ControllerModel",
+        "random_seed": 20260901,
+        "frequency_hz": 5000000000.0,
+        "bandwidth_hz": 100000000.0,
+        "ris": {
+          "generation": "Future",
+          "width_m": 3.0,
+          "height_m": 2.0,
+          "nx": 64,
+          "ny": 48,
+          "control_count": 3072,
+          "phase_bits": null,
+          "reflection_efficiency": 0.95,
+          "production_quadrature": "midpoint_8x8_per_control_patch",
+          "production_sample_count": 196608
+        }
+      },
+      "candidate_semantics": "analytic_continuous_offset",
+      "candidate_count": 1,
+      "focus_candidate_generation": {
+        "minimum_s": 0.0,
+        "median_s": 0.0,
+        "p95_s": 0.0,
+        "maximum_s": 0.0,
+        "repeat_count": 0.0,
+        "warmup_count": 0.0
+      },
+      "ris_only_pattern_generation": {
+        "minimum_s": 0.00018399999953544466,
+        "median_s": 0.00019129999964206945,
+        "p95_s": 0.00023827999966670175,
+        "maximum_s": 0.0002434999996694387,
+        "repeat_count": 3.0,
+        "warmup_count": 1.0
+      },
+      "channel_evaluation_with_ris": {
+        "minimum_s": 0.3480193999994299,
+        "median_s": 0.3508774000001722,
+        "p95_s": 0.35629972000015186,
+        "maximum_s": 0.3569022000001496,
+        "repeat_count": 3.0,
+        "warmup_count": 1.0
+      },
+      "channel_evaluation_without_ris": {
+        "minimum_s": 0.00020979999953851802,
+        "median_s": 0.00023889999920356786,
+        "p95_s": 0.0003194500002791756,
+        "maximum_s": 0.00032840000039868755,
+        "repeat_count": 3.0,
+        "warmup_count": 1.0
+      },
+      "coherent_focus_total": {
+        "minimum_s": 0.3468787000001612,
+        "median_s": 0.34993759999997565,
+        "p95_s": 0.3531703100001323,
+        "maximum_s": 0.3535295000001497,
+        "repeat_count": 3.0,
+        "warmup_count": 0.0
+      },
+      "focus_output_size": 3072,
+      "measured_focus_evaluation_count": 2,
+      "note": "",
+      "sample_channel_received_power_dbm": -19.953904958890114
+    }
+  },
+  "field_maps": {
+    "Current": {
+      "scenario": {
+        "scene": "Future Smart Space",
+        "profile": "IndoorDeterministicProfile",
+        "world": "ControllerModel",
+        "random_seed": 20260901,
+        "frequency_hz": 5000000000.0,
+        "bandwidth_hz": 100000000.0,
+        "ris": {
+          "generation": "Current",
+          "width_m": 0.8,
+          "height_m": 0.8,
+          "nx": 8,
+          "ny": 8,
+          "control_count": 64,
+          "phase_bits": 1,
+          "reflection_efficiency": 0.7,
+          "production_quadrature": "midpoint_8x8_per_control_patch",
+          "production_sample_count": 4096
+        }
+      },
+      "grid_width": 80,
+      "grid_height": 60,
+      "point_count": 4800,
+      "quality_label": "fast",
+      "wall_clock_s": 3.757425000000694,
+      "engine_runtime_s": 3.7574132999998255,
+      "result_array_bytes": 154720,
+      "rss_before_bytes": 31830016,
+      "rss_after_bytes": 33136640,
+      "peak_rss_bytes": 33918976,
+      "peak_rss_delta_bytes": 2088960,
+      "coverage_percent": 71.89583333333334,
+      "allocation_contract": "FieldMapResult owns x/y plus four float64 grid arrays. Peak RSS also includes bounded production RIS contribution batches."
+    },
+    "Advanced": {
+      "scenario": {
+        "scene": "Future Smart Space",
+        "profile": "IndoorDeterministicProfile",
+        "world": "ControllerModel",
+        "random_seed": 20260901,
+        "frequency_hz": 5000000000.0,
+        "bandwidth_hz": 100000000.0,
+        "ris": {
+          "generation": "Advanced",
+          "width_m": 1.6,
+          "height_m": 1.2,
+          "nx": 24,
+          "ny": 24,
+          "control_count": 576,
+          "phase_bits": 3,
+          "reflection_efficiency": 0.85,
+          "production_quadrature": "midpoint_8x8_per_control_patch",
+          "production_sample_count": 36864
+        }
+      },
+      "grid_width": 16,
+      "grid_height": 12,
+      "point_count": 192,
+      "quality_label": "representative_probe",
+      "wall_clock_s": 0.9540971999995236,
+      "engine_runtime_s": 0.9539366999997583,
+      "result_array_bytes": 6368,
+      "rss_before_bytes": 31858688,
+      "rss_after_bytes": 34033664,
+      "peak_rss_bytes": 43933696,
+      "peak_rss_delta_bytes": 12075008,
+      "coverage_percent": 79.6875,
+      "allocation_contract": "FieldMapResult owns x/y plus four float64 grid arrays. Peak RSS also includes bounded production RIS contribution batches."
+    },
+    "Future": {
+      "scenario": {
+        "scene": "Future Smart Space",
+        "profile": "IndoorDeterministicProfile",
+        "world": "ControllerModel",
+        "random_seed": 20260901,
+        "frequency_hz": 5000000000.0,
+        "bandwidth_hz": 100000000.0,
+        "ris": {
+          "generation": "Future",
+          "width_m": 3.0,
+          "height_m": 2.0,
+          "nx": 64,
+          "ny": 48,
+          "control_count": 3072,
+          "phase_bits": null,
+          "reflection_efficiency": 0.95,
+          "production_quadrature": "midpoint_8x8_per_control_patch",
+          "production_sample_count": 196608
+        }
+      },
+      "grid_width": 8,
+      "grid_height": 6,
+      "point_count": 48,
+      "quality_label": "representative_probe",
+      "wall_clock_s": 1.845430999999735,
+      "engine_runtime_s": 1.8450681000003897,
+      "result_array_bytes": 1648,
+      "rss_before_bytes": 32034816,
+      "rss_after_bytes": 36270080,
+      "peak_rss_bytes": 86675456,
+      "peak_rss_delta_bytes": 54640640,
+      "coverage_percent": 83.33333333333334,
+      "allocation_contract": "FieldMapResult owns x/y plus four float64 grid arrays. Peak RSS also includes bounded production RIS contribution batches."
+    }
+  },
+  "metrics": {
+    "grid": [
+      80,
+      60
+    ],
+    "input_bytes": 38400,
+    "timing": {
+      "minimum_s": 1.0799999472510535e-05,
+      "median_s": 1.114999986384646e-05,
+      "p95_s": 1.3280000030135848e-05,
+      "maximum_s": 1.7700000171316788e-05,
+      "repeat_count": 30.0,
+      "warmup_count": 3.0
+    },
+    "coverage_percent": 45.0,
+    "outage_probability": 0.55
+  },
+  "pattern_view": {
+    "Current": {
+      "grid": [
+        8,
+        8
+      ],
+      "timing": {
+        "minimum_s": 0.00012929999957123073,
+        "median_s": 0.00014199999986885814,
+        "p95_s": 0.0001510399997641798,
+        "maximum_s": 0.00015359999997599516,
+        "repeat_count": 9.0,
+        "warmup_count": 2.0
+      },
+      "scope": "PhasePatternView.set_patterns plus offscreen event processing"
+    },
+    "Advanced": {
+      "grid": [
+        24,
+        24
+      ],
+      "timing": {
+        "minimum_s": 0.00014339999961521244,
+        "median_s": 0.00016079999932117062,
+        "p95_s": 0.00021698000000469617,
+        "maximum_s": 0.00024810000013530953,
+        "repeat_count": 9.0,
+        "warmup_count": 2.0
+      },
+      "scope": "PhasePatternView.set_patterns plus offscreen event processing"
+    },
+    "Future": {
+      "grid": [
+        64,
+        48
+      ],
+      "timing": {
+        "minimum_s": 0.0002441000006001559,
+        "median_s": 0.0002550999997765757,
+        "p95_s": 0.000269819999448373,
+        "maximum_s": 0.00027149999914399814,
+        "repeat_count": 9.0,
+        "warmup_count": 2.0
+      },
+      "scope": "PhasePatternView.set_patterns plus offscreen event processing"
+    }
+  },
+  "numerical_equivalence_anchors": {
+    "Current": {
+      "scenario": {
+        "scene": "Future Smart Space",
+        "profile": "IndoorDeterministicProfile",
+        "world": "ControllerModel",
+        "random_seed": 20260901,
+        "frequency_hz": 5000000000.0,
+        "bandwidth_hz": 100000000.0,
+        "ris": {
+          "generation": "Current",
+          "width_m": 0.8,
+          "height_m": 0.8,
+          "nx": 8,
+          "ny": 8,
+          "control_count": 64,
+          "phase_bits": 1,
+          "reflection_efficiency": 0.7,
+          "production_quadrature": "midpoint_8x8_per_control_patch",
+          "production_sample_count": 4096
+        }
+      },
+      "pattern_sha256_float64_be": "sha256:e51f55aaa1fa9245466398414be24b812dbb525e83a4089ff899e8a1c95ec92c",
+      "channel": {
+        "total_real": 0.00040588406125555886,
+        "total_imag": -6.12708707857905e-05,
+        "los_real": -8.736588170968655e-06,
+        "los_imag": 1.78407925524692e-05,
+        "wall_real": -0.00016354166982295363,
+        "wall_imag": -1.8452526220173337e-05,
+        "ris_real": 0.0005781623192494811,
+        "ris_imag": -6.0659137118086365e-05,
+        "received_power_dbm": -47.7341042831962,
+        "snr_db": 39.2658957168038
+      },
+      "field_grid": [
+        80,
+        60
+      ],
+      "field_quality_label": "fast",
+      "field_hashes_float64_be": {
+        "received_power_dbm": "sha256:c76ad243a4562dabf31f49dd97f98ec2daae04f2402f9c09122df5b53d498ce0",
+        "snr_db": "sha256:d21180e4bbefc1b99169403784bc347fc853eaff38af1b2c7bed0efca58225fc",
+        "baseline_power_dbm": "sha256:e639b51423af09baf3f6eab8431f86bea2f39b498a994e80f39656e9719d4e5f",
+        "ris_gain_db": "sha256:1914decfb4cbed1ae58910f7d337ac2959401881d81f51dfa91bc8603ce71f17"
+      },
+      "coverage_percent": 71.89583333333334,
+      "dead_zone_percent": 28.104166666666657
+    },
+    "Advanced": {
+      "scenario": {
+        "scene": "Future Smart Space",
+        "profile": "IndoorDeterministicProfile",
+        "world": "ControllerModel",
+        "random_seed": 20260901,
+        "frequency_hz": 5000000000.0,
+        "bandwidth_hz": 100000000.0,
+        "ris": {
+          "generation": "Advanced",
+          "width_m": 1.6,
+          "height_m": 1.2,
+          "nx": 24,
+          "ny": 24,
+          "control_count": 576,
+          "phase_bits": 3,
+          "reflection_efficiency": 0.85,
+          "production_quadrature": "midpoint_8x8_per_control_patch",
+          "production_sample_count": 36864
+        }
+      },
+      "pattern_sha256_float64_be": "sha256:58c500ef2d6282e2ed1aa6022d79c7ba91c75e60ecc2c1e0613733a732761e1a",
+      "channel": {
+        "total_real": 0.00295926959158194,
+        "total_imag": -5.396290576006866e-05,
+        "los_real": -8.736588170968655e-06,
+        "los_imag": 1.78407925524692e-05,
+        "wall_real": -0.00016354166982295363,
+        "wall_imag": -1.8452526220173337e-05,
+        "ris_real": 0.0031315478495758625,
+        "ris_imag": -5.3351172092364527e-05,
+        "received_power_dbm": -30.574865481304094,
+        "snr_db": 56.425134518695906
+      },
+      "field_grid": [
+        16,
+        12
+      ],
+      "field_quality_label": "representative_probe",
+      "field_hashes_float64_be": {
+        "received_power_dbm": "sha256:9155cb7ac3fd0eef15c3f56eb0c62790032a7455596fb68dc74c93f0c63c4df9",
+        "snr_db": "sha256:dee044d1205da3e8ae4588785fc83d755c5fac4b4cf4948df0d4376aaa11f5cc",
+        "baseline_power_dbm": "sha256:e7efbf8570a78118a88d55b73a401e05a46f49632d5d4687d29f535fcf9a4afa",
+        "ris_gain_db": "sha256:050f4bee360361c91ab1b340a7b35e04ed62713a57302791fae3361a7db7f4e8"
+      },
+      "coverage_percent": 79.6875,
+      "dead_zone_percent": 20.3125
+    },
+    "Future": {
+      "scenario": {
+        "scene": "Future Smart Space",
+        "profile": "IndoorDeterministicProfile",
+        "world": "ControllerModel",
+        "random_seed": 20260901,
+        "frequency_hz": 5000000000.0,
+        "bandwidth_hz": 100000000.0,
+        "ris": {
+          "generation": "Future",
+          "width_m": 3.0,
+          "height_m": 2.0,
+          "nx": 64,
+          "ny": 48,
+          "control_count": 3072,
+          "phase_bits": null,
+          "reflection_efficiency": 0.95,
+          "production_quadrature": "midpoint_8x8_per_control_patch",
+          "production_sample_count": 196608
+        }
+      },
+      "pattern_sha256_float64_be": "sha256:da85fcb20b26fc368d479b80cf40e5a84a3eaf3c21b785d99d6c56ae3867c4f5",
+      "channel": {
+        "total_real": 0.010053114813444343,
+        "total_imag": -4.373425575502106e-05,
+        "los_real": -8.736588170968655e-06,
+        "los_imag": 1.78407925524692e-05,
+        "wall_real": -0.00016354166982295363,
+        "wall_imag": -1.8452526220173337e-05,
+        "ris_real": 0.010225393071438266,
+        "ris_imag": -4.3122522087316926e-05,
+        "received_power_dbm": -19.953904958890114,
+        "snr_db": 67.04609504110988
+      },
+      "field_grid": [
+        8,
+        6
+      ],
+      "field_quality_label": "representative_probe",
+      "field_hashes_float64_be": {
+        "received_power_dbm": "sha256:e672ff1ba581ce96ebb6d6d1168c092663200afa8f077412c87276937a5d4fbf",
+        "snr_db": "sha256:010a28eede6d51a984957a735dedaaab62ace220a4ebe094955568d0cc722eaf",
+        "baseline_power_dbm": "sha256:7ec5de337cbca0ffb332d2871231d2ad62776d38a7389a4d3d45a47a0fa08fec",
+        "ris_gain_db": "sha256:0a42566cc298a6f1dd9f2b767b635b94704941fc2f99609bc494fc4c054611aa"
+      },
+      "coverage_percent": 83.33333333333334,
+      "dead_zone_percent": 16.666666666666657
+    }
+  },
+  "xr": {
+    "scenario": {
+      "scene": "XR Dynamic Room MVP",
+      "profile": "IndoorDeterministicProfile",
+      "world": "ControllerModel",
+      "random_seed": 20260901,
+      "frequency_hz": 5000000000.0,
+      "bandwidth_hz": 100000000.0,
+      "ris": {
+        "generation": "Current",
+        "width_m": 0.8,
+        "height_m": 0.8,
+        "nx": 8,
+        "ny": 8,
+        "control_count": 64,
+        "phase_bits": 1,
+        "reflection_efficiency": 0.7,
+        "production_quadrature": "midpoint_8x8_per_control_patch",
+        "production_sample_count": 4096
+      }
+    },
+    "trajectory_sample_count": 11,
+    "link_result_count": 33,
+    "link_precompute_wall_clock_s": 10.041820600000392,
+    "link_evaluation_runtime_sum_s": 0.14400380000279256,
+    "adaptive_focus_and_overhead_s": 9.8978167999976,
+    "field_cache_key_build_s": 0.0001038999998854706,
+    "cache_miss_lookup_s": 6.000000212225132e-07,
+    "cache_hit_lookup_s": 7.999997251317836e-07,
+    "cache_miss_confirmed": true,
+    "cache_hit_confirmed": true,
+    "static_field_wall_clock_s": 2.6688913999996657,
+    "static_field_engine_runtime_s": 2.66888310000013,
+    "adaptive_cache_miss_field_wall_clock_s": 2.6629241000000548,
+    "adaptive_cache_miss_engine_runtime_s": 2.6629168999998,
+    "cache_size_after_miss": 2,
+    "cache_semantics": "cache hits do not run physics; misses enqueue one serialized XRAdaptiveFieldWorker in the GUI"
+  },
+  "gui_worker": {
+    "worker": "MapWorker",
+    "scenario": "Current Fast 80x60",
+    "queue_to_physics_start_s": 0.006724199999553093,
+    "cancel_request_after_physics_start_s": 0.010469700000612647,
+    "cancel_to_runnable_termination_s": 0.04104969999934838,
+    "queue_backend": "real local QThreadPool with one worker thread",
+    "cancellation_boundary": "SimulationEngine.compute_field_map checks once per completed row; an in-progress point evaluation is not interrupted"
+  },
+  "measurement_finished_utc": "2026-09-08T02:31:03Z"
+}
