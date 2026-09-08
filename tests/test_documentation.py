@@ -312,6 +312,36 @@ def test_c2_status_is_consistent_with_current_verified_fact() -> None:
     assert "C2 provenance/no-overwrite 已 Verified" in status
 
 
+def test_foundation_external_dependency_closure_is_authoritative() -> None:
+    plan = (DOCS / "foundation_0_1_1_plan.md").read_text(encoding="utf-8")
+    roadmap = (DOCS / "roadmap.md").read_text(encoding="utf-8")
+    requirements = (DOCS / "requirements.md").read_text(encoding="utf-8")
+    strategy = (DOCS / "test_strategy.md").read_text(encoding="utf-8")
+    status = (ROOT / "DEVELOPMENT_STATUS.md").read_text(encoding="utf-8")
+    narrowband = (
+        DOCS / "work_items" / "foundation_0_1_1_narrowband_contract.md"
+    ).read_text(encoding="utf-8")
+    qa_ap = (
+        DOCS / "work_items" / "foundation_0_1_1_qa_ap.md"
+    ).read_text(encoding="utf-8")
+
+    assert "| `FND-PHY-NB` 冻结 center-frequency flat-channel contract | Verified |" in plan
+    assert "FND-PHY-NB 已在 prototype 后补回并 Verified" in roadmap
+    assert "| AMF-PHY-007 |" in requirements
+    assert "| Verified |" in next(
+        line for line in requirements.splitlines() if "| AMF-PHY-007 |" in line
+    )
+    assert "| FND-T20 |" in strategy
+    assert "Verified：PR #19" in next(
+        line for line in strategy.splitlines() if "| FND-T20 |" in line
+    )
+    assert "FND-PHY-NB、AMF-PHY-007 和 FND-T20 签署为 **Verified**" in status
+    assert "FND-PHY-NB、AMF-PHY-007 和 FND-T20 签署为 **Verified**" in narrowband
+    assert 'quadrature_policy_id = "midpoint_8x8_per_control_patch"' in qa_ap
+    assert 'quadrature_policy_version = "1"' in qa_ap
+    assert "唯一权威文档定义" in qa_ap
+
+
 def test_phase_bits_result_schema_contains_required_tracking_fields() -> None:
     required = {
         "provenance_schema_id",

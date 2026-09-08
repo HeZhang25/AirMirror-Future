@@ -54,7 +54,31 @@ M4 未达到全局 adequacy；M8 在 84/84 series 通过原 frozen production ga
 
 FND-QA-CC 仍须在已完成的 production migration 后另行最终 closure；本 QA-AP 结果不单独
 签署 Focus、Controller simulator 与 production coefficient builder 的组合一致性，也不解除
-FND-PHY-NB、FND-QA-CC 或 P1A gate。
+FND-QA-CC 或 P1A gate。
+
+### Production canonical quadrature identity（唯一权威契约）
+
+2026-09-08 维护者签署 production identity：
+
+```text
+quadrature_policy_id = "midpoint_8x8_per_control_patch"
+quadrature_policy_version = "1"
+```
+
+版本 1 的完整语义是：每个既有 equivalent RIS control patch 内使用 tensor-product midpoint
+`8×8`，每 patch 64 个 integration subpoints；每个归一化权重为 `1/64`，实体 control-patch
+area 由 production evaluator 恰好应用一次。control flatten 为 x-index fastest；subpoint 顺序为
+parent-major、local-y、local-x；canonical mapping 为
+`parent_control_index = repeat(arange(control_count), 64)`，同一 parent 的所有 subpoints 继承
+同一个 commanded Gamma。该 policy 不增加 control cells 或独立控制自由度，不改变 command
+vector shape、pattern semantics 或 Scene v1。
+
+本节是该 ID/version 语义的唯一权威文档定义；其他文档和 provenance 只引用，不另行定义。
+唯一代码来源是 `physics/ris_scattering.py` 的 production policy constants 与
+`_production_quadrature_spec()`。rule/order、nodes、weights、ordering、parent inheritance 或
+area ownership 任一语义改变都必须使用新 version 或新 ID。QA-AP 历史 runner 的
+`fnd_qa_ap_candidate/1` 继续只表示候选评价；历史 artifacts 不回填。该 identity 不等于、也不
+替代仍由 FND-QA-CC 拥有的 `coefficient_model_identity`。
 
 ## 状态与授权边界
 
@@ -66,7 +90,7 @@ FND-PHY-NB、FND-QA-CC 或 P1A gate。
 - 若候选 policy 均未通过，Foundation 保持 In Progress，P1A 不得开始；
 - 不修改当前 `.py`、GUI、场景或默认 1×1 行为，除非后续独立 implementation Work Item 和 ADR
   明确授权。
-- 本工作项 Verified 不自动授权 P1A；FND-PHY-NB、FND-QA-CC 与 Foundation final review 仍须完成。
+- 本工作项 Verified 不自动授权 P1A；FND-QA-CC 与 Foundation final review 仍须完成。
 
 ## In / Out
 

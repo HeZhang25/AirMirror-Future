@@ -126,8 +126,10 @@ def test_c2_run_wires_single_controller_and_writes_schema_v1(
         assert row["provenance_schema_id"] == "airmirror_experiment_provenance"
         assert row["provenance_schema_version"] == "1"
         assert row["provenance_status"] == "partial"
-        assert row["pending_contracts_json"] == '["FND-PHY-NB","FND-QA-CC"]'
+        assert row["pending_contracts_json"] == '["FND-QA-CC"]'
         assert row["channel_frequency_model_id"] == "narrowband_center_frequency_flat_v1"
+        assert row["quadrature_policy_id"] == "midpoint_8x8_per_control_patch"
+        assert row["quadrature_policy_version"] == "1"
         assert row["software_version"] == airmirror_future.__version__
         assert row["focus_mode_id"] == "ris_only_phase_conjugate"
         assert row["world_model_id"] == "controller_nominal"

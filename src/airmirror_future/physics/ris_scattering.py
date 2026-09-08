@@ -13,6 +13,8 @@ from airmirror_future.physics.free_space import wave_number_rad_m
 from airmirror_future.ris.quadrature import QuadratureSpec, midpoint_quadrature
 
 
+PRODUCTION_QUADRATURE_POLICY_ID = "midpoint_8x8_per_control_patch"
+PRODUCTION_QUADRATURE_POLICY_VERSION = "1"
 PRODUCTION_QUADRATURE_ORDER = 8
 _MAX_POINT_SAMPLE_PAIRS = 262_144
 
