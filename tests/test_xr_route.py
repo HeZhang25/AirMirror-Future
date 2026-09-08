@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import csv
 from dataclasses import replace
 import json
@@ -276,6 +277,404 @@ def test_json_round_trip_preserves_semantics_and_identities(tmp_path: Path) -> N
     assert copied.experiment_identity == loaded.experiment_identity
     with pytest.raises(FileExistsError):
         xr_route.save_route_experiment(loaded, copy_path)
+
+
+def test_in_memory_factory_owns_one_consistent_validated_snapshot() -> None:
+    scene = _scene()
+    route = xr_route.RouteDefinition(
+        (Vec3(1.0, 4.0, 1.2), Vec3(5.0, 4.0, 1.2)),
+        "explicit_times",
+        waypoint_times_s=(0.0, 2.0),
+    )
+    sampling = xr_route.RouteSamplingPolicy(0.75, 16)
+    validation = xr_route.RouteValidationPolicy(0.1)
+
+    experiment = xr_route.create_route_experiment(
+        scene,
+        route,
+        sampling,
+        validation,
+        experiment_id="editor-draft",
+    )
+    scene.name = "mutated caller scene"
+    scene.receivers[0] = replace(scene.receiver(), position=Vec3(9.0, 7.0, 1.2))
+
+    assert experiment.scene is not scene
+    assert experiment.scene.name == "XR route test scene"
+    assert experiment.route == route
+    assert experiment.sampling == sampling
+    assert experiment.validation == validation
+    assert experiment.scene_path is None
+    assert [sample.time_s for sample in experiment.trajectory] == [
+        0.0,
+        0.75,
+        1.5,
+        2.0,
+    ]
+    assert experiment.validation_report.is_valid
+    assert experiment.scene_identity.startswith("sha256:")
+    assert experiment.trajectory_identity.startswith("sha256:")
+    assert experiment.experiment_identity.startswith("sha256:")
+    with pytest.raises(TypeError):
+        xr_route.XRRouteExperiment(
+            "manual",
+            experiment.scene,
+            None,
+            route,
+            sampling,
+            validation,
+            (),
+            experiment.validation_report,
+            "bad",
+            "bad",
+            "bad",
+        )
+
+
+def test_in_memory_factory_rejects_invalid_route_and_sample_budget() -> None:
+    colliding = xr_route.RouteDefinition(
+        (Vec3(1.0, 2.0, 1.2), Vec3(5.0, 2.0, 1.2)),
+        "explicit_times",
+        waypoint_times_s=(0.0, 1.0),
+    )
+    with pytest.raises(xr_route.RouteValidationError, match="partition-low"):
+        xr_route.create_route_experiment(
+            _scene(),
+            colliding,
+            xr_route.RouteSamplingPolicy(1.0, 2),
+            xr_route.RouteValidationPolicy(),
+            experiment_id="invalid-route",
+        )
+
+    valid = replace(
+        colliding,
+        waypoints=(Vec3(1.0, 4.0, 1.2), Vec3(5.0, 4.0, 1.2)),
+    )
+    with pytest.raises(ValueError, match="exceeds max_samples"):
+        xr_route.create_route_experiment(
+            _scene(),
+            valid,
+            xr_route.RouteSamplingPolicy(0.25, 2),
+            xr_route.RouteValidationPolicy(),
+            experiment_id="invalid-budget",
+        )
+
+
+def test_in_memory_factory_revalidates_a_mutated_scene() -> None:
+    scene = _scene()
+    scene.frequency_hz = -1.0
+    route = xr_route.RouteDefinition(
+        (Vec3(1.0, 4.0, 1.2),),
+        "explicit_times",
+        waypoint_times_s=(0.0,),
+    )
+
+    with pytest.raises(ValueError, match="frequency_hz"):
+        xr_route.create_route_experiment(
+            scene,
+            route,
+            xr_route.RouteSamplingPolicy(1.0, 1),
+            xr_route.RouteValidationPolicy(),
+            experiment_id="invalid-scene",
+        )
+
+
+def test_explicit_speed_retime_shifts_later_arrivals_and_preserves_dwell() -> None:
+    route = xr_route.RouteDefinition(
+        (
+            Vec3(0.0, 0.0, 1.2),
+            Vec3(2.0, 0.0, 1.2),
+            Vec3(2.0, 0.0, 1.2),
+            Vec3(6.0, 0.0, 1.2),
+        ),
+        "explicit_times",
+        waypoint_times_s=(0.0, 2.0, 5.0, 9.0),
+    )
+
+    retimed = xr_route.retime_route_from_previous_speed(route, 1, 2.0)
+
+    assert retimed.waypoint_times_s == (0.0, 1.0, 4.0, 8.0)
+    assert retimed.waypoint_times_s[2] - retimed.waypoint_times_s[1] == 3.0
+    assert retimed.waypoint_times_s[3] - retimed.waypoint_times_s[2] == 4.0
+    assert route.waypoint_times_s == (0.0, 2.0, 5.0, 9.0)
+    with pytest.raises(ValueError, match="zero-length dwell"):
+        xr_route.retime_route_from_previous_speed(route, 2, 1.0)
+
+
+def test_speed_route_retime_changes_only_selected_segment() -> None:
+    route = xr_route.RouteDefinition(
+        (
+            Vec3(0.0, 0.0, 1.2),
+            Vec3(3.0, 0.0, 1.2),
+            Vec3(3.0, 4.0, 1.2),
+        ),
+        "speed",
+        default_speed_m_s=1.0,
+    )
+
+    retimed = xr_route.retime_route_from_previous_speed(route, 2, 2.0)
+
+    assert retimed.default_speed_m_s is None
+    assert retimed.segment_speeds_m_s == (1.0, 2.0)
+    samples = xr_route.sample_route(
+        retimed,
+        xr_route.RouteSamplingPolicy(1.0, 10),
+    )
+    assert samples[-1].time_s == 5.0
+
+
+@pytest.mark.parametrize("speed", (0.0, -1.0, float("inf"), float("nan")))
+def test_speed_retime_rejects_invalid_speed(speed: float) -> None:
+    route = xr_route.RouteDefinition(
+        (Vec3(0.0, 0.0, 1.2), Vec3(1.0, 0.0, 1.2)),
+        "explicit_times",
+        waypoint_times_s=(0.0, 1.0),
+    )
+    with pytest.raises(ValueError, match="speed_m_s must"):
+        xr_route.retime_route_from_previous_speed(route, 1, speed)
+
+
+@pytest.mark.parametrize("index", (0, 2, True))
+def test_speed_retime_rejects_invalid_or_single_point_index(index: int) -> None:
+    route = xr_route.RouteDefinition(
+        (Vec3(0.0, 0.0, 1.2), Vec3(1.0, 0.0, 1.2)),
+        "explicit_times",
+        waypoint_times_s=(0.0, 1.0),
+    )
+    with pytest.raises(ValueError, match="waypoint_index"):
+        xr_route.retime_route_from_previous_speed(route, index, 1.0)
+
+    single = xr_route.RouteDefinition(
+        (Vec3(0.0, 0.0, 1.2),),
+        "explicit_times",
+        waypoint_times_s=(0.0,),
+    )
+    with pytest.raises(ValueError, match="waypoint_index"):
+        xr_route.retime_route_from_previous_speed(single, 1, 1.0)
+
+
+def test_single_point_factory_obeys_sample_budget() -> None:
+    experiment = xr_route.create_route_experiment(
+        _scene(),
+        xr_route.RouteDefinition(
+            (Vec3(1.0, 4.0, 1.2),),
+            "explicit_times",
+            waypoint_times_s=(0.0,),
+        ),
+        xr_route.RouteSamplingPolicy(0.5, 1),
+        xr_route.RouteValidationPolicy(),
+        experiment_id="stationary",
+    )
+    assert experiment.trajectory == (
+        mvp.TrajectorySample(0, 0.0, Vec3(1.0, 4.0, 1.2)),
+    )
+
+
+def test_scene_path_binding_requires_the_same_scene_snapshot(tmp_path: Path) -> None:
+    scene = _scene()
+    route = xr_route.RouteDefinition(
+        (Vec3(1.0, 4.0, 1.2), Vec3(5.0, 4.0, 1.2)),
+        "explicit_times",
+        waypoint_times_s=(0.0, 2.0),
+    )
+    scene_path = tmp_path / "scene.json"
+    different_path = tmp_path / "different.json"
+    scene.save(scene_path)
+    replace(scene, name="different scene").save(different_path)
+
+    bound = xr_route.create_route_experiment(
+        scene,
+        route,
+        xr_route.RouteSamplingPolicy(1.0, 4),
+        xr_route.RouteValidationPolicy(),
+        experiment_id="bound",
+        scene_path=scene_path,
+    )
+    assert bound.scene_path == scene_path.resolve()
+    with pytest.raises(ValueError, match="same validated Scene v1"):
+        xr_route.create_route_experiment(
+            scene,
+            route,
+            xr_route.RouteSamplingPolicy(1.0, 4),
+            xr_route.RouteValidationPolicy(),
+            experiment_id="mismatch",
+            scene_path=different_path,
+        )
+    with pytest.raises(FileNotFoundError, match="does not exist"):
+        xr_route.create_route_experiment(
+            scene,
+            route,
+            xr_route.RouteSamplingPolicy(1.0, 4),
+            xr_route.RouteValidationPolicy(),
+            experiment_id="missing",
+            scene_path=tmp_path / "missing.json",
+        )
+
+
+def test_scene_identity_is_stable_across_scene_v1_numeric_round_trip(
+    tmp_path: Path,
+) -> None:
+    scene = _scene()
+    scene.room_size = Vec3(10, 8, 3)
+    scene.walls[0] = replace(
+        scene.walls[0],
+        start=Vec3(4, 0, 0),
+        end=Vec3(4, 3, 0),
+    )
+    route = xr_route.RouteDefinition(
+        (Vec3(1.0, 4.0, 1.2),),
+        "explicit_times",
+        waypoint_times_s=(0.0,),
+    )
+    experiment = xr_route.create_route_experiment(
+        scene,
+        route,
+        xr_route.RouteSamplingPolicy(1.0, 1),
+        xr_route.RouteValidationPolicy(),
+        experiment_id="numeric-normalization",
+    )
+    route_path = tmp_path / "route.json"
+
+    bound = xr_route.save_route_experiment_bundle(experiment, route_path)
+    loaded = xr_route.load_route_experiment(route_path)
+
+    assert loaded.scene == bound.scene == experiment.scene
+    assert loaded.scene_identity == bound.scene_identity == experiment.scene_identity
+    assert loaded.experiment_identity == experiment.experiment_identity
+
+
+def test_route_identity_is_stable_across_numeric_round_trip(tmp_path: Path) -> None:
+    experiment = xr_route.create_route_experiment(
+        _scene(),
+        xr_route.RouteDefinition(
+            (Vec3(1, 4, 1), Vec3(2, 4, 1)),
+            "explicit_times",
+            waypoint_times_s=(0, 2),
+        ),
+        xr_route.RouteSamplingPolicy(1, 3),
+        xr_route.RouteValidationPolicy(0),
+        experiment_id="route-numeric-normalization",
+    )
+    route_path = tmp_path / "route.json"
+
+    xr_route.save_route_experiment_bundle(experiment, route_path)
+    loaded = xr_route.load_route_experiment(route_path)
+
+    assert loaded.trajectory == experiment.trajectory
+    assert loaded.trajectory_identity == experiment.trajectory_identity
+    assert loaded.experiment_identity == experiment.experiment_identity
+
+
+def test_unbound_route_save_rejects_and_controlled_bundle_round_trips(
+    tmp_path: Path,
+) -> None:
+    experiment = xr_route.create_route_experiment(
+        _scene(),
+        xr_route.RouteDefinition(
+            (Vec3(1.0, 4.0, 1.2), Vec3(5.0, 4.0, 1.2)),
+            "explicit_times",
+            waypoint_times_s=(0.0, 2.0),
+        ),
+        xr_route.RouteSamplingPolicy(0.75, 8),
+        xr_route.RouteValidationPolicy(),
+        experiment_id="editor-bundle",
+    )
+    route_path = tmp_path / "saved-route.json"
+    with pytest.raises(ValueError, match="route-only save requires"):
+        xr_route.save_route_experiment(experiment, route_path)
+    assert not route_path.exists()
+
+    bound = xr_route.save_route_experiment_bundle(experiment, route_path)
+    assert bound.scene_path == (tmp_path / "saved-route.scene.json").resolve()
+    assert bound.scene_path.is_file()
+    loaded = xr_route.load_route_experiment(route_path)
+    assert loaded.scene == bound.scene == experiment.scene
+    assert loaded.route == bound.route == experiment.route
+    assert loaded.trajectory == bound.trajectory == experiment.trajectory
+    assert loaded.scene_identity == bound.scene_identity == experiment.scene_identity
+    assert (
+        loaded.trajectory_identity
+        == bound.trajectory_identity
+        == experiment.trajectory_identity
+    )
+    assert (
+        loaded.experiment_identity
+        == bound.experiment_identity
+        == experiment.experiment_identity
+    )
+
+
+def test_bundle_never_reuses_or_overwrites_a_different_scene(tmp_path: Path) -> None:
+    experiment = xr_route.create_route_experiment(
+        _scene(),
+        xr_route.RouteDefinition(
+            (Vec3(1.0, 4.0, 1.2),),
+            "explicit_times",
+            waypoint_times_s=(0.0,),
+        ),
+        xr_route.RouteSamplingPolicy(1.0, 1),
+        xr_route.RouteValidationPolicy(),
+        experiment_id="no-overwrite",
+    )
+    scene_path = tmp_path / "existing-scene.json"
+    different = replace(_scene(), name="different scene")
+    different.save(scene_path)
+    original = scene_path.read_bytes()
+
+    with pytest.raises(ValueError, match="same validated Scene v1"):
+        xr_route.save_route_experiment_bundle(
+            experiment,
+            tmp_path / "route.json",
+            scene_path=scene_path,
+        )
+    assert scene_path.read_bytes() == original
+    assert not (tmp_path / "route.json").exists()
+
+
+def test_bound_route_save_rejects_scene_file_changed_after_validation(
+    tmp_path: Path,
+) -> None:
+    scene = _scene()
+    scene_path = tmp_path / "scene.json"
+    scene.save(scene_path)
+    experiment = xr_route.create_route_experiment(
+        scene,
+        xr_route.RouteDefinition(
+            (Vec3(1.0, 4.0, 1.2),),
+            "explicit_times",
+            waypoint_times_s=(0.0,),
+        ),
+        xr_route.RouteSamplingPolicy(1.0, 1),
+        xr_route.RouteValidationPolicy(),
+        experiment_id="stale-scene-path",
+        scene_path=scene_path,
+    )
+    replace(scene, name="changed scene").save(scene_path)
+
+    with pytest.raises(ValueError, match="same validated Scene v1"):
+        xr_route.save_route_experiment(experiment, tmp_path / "route.json")
+    assert not (tmp_path / "route.json").exists()
+
+
+def test_saving_or_headless_compute_rejects_a_mutated_snapshot(tmp_path: Path) -> None:
+    experiment = xr_route.create_route_experiment(
+        _scene(),
+        xr_route.RouteDefinition(
+            (Vec3(1.0, 4.0, 1.2),),
+            "explicit_times",
+            waypoint_times_s=(0.0,),
+        ),
+        xr_route.RouteSamplingPolicy(1.0, 1),
+        xr_route.RouteValidationPolicy(),
+        experiment_id="mutation-guard",
+    )
+    corrupted = copy.deepcopy(experiment)
+    corrupted.scene.name = "mutated after validation"
+
+    with pytest.raises(ValueError, match="mutated or is inconsistent"):
+        xr_route.save_route_experiment_bundle(corrupted, tmp_path / "route.json")
+    with pytest.raises(ValueError, match="mutated or is inconsistent"):
+        xr_route_headless.compute_route_experiment(corrupted)
 
 
 def test_collision_validation_uses_continuous_3d_geometry_and_true_gap() -> None:

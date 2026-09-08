@@ -27,8 +27,11 @@ upper bound of 1,000,000.
 The direct data API is:
 
 - `load_route_experiment(path) -> XRRouteExperiment`
+- `create_route_experiment(scene, route, sampling, validation, *, experiment_id, scene_path=None)`
 - `save_route_experiment(experiment, path, overwrite=False)`
+- `save_route_experiment_bundle(experiment, path, *, scene_path=None, overwrite=False)`
 - `sample_route(route, sampling) -> tuple[TrajectorySample, ...]`
+- `retime_route_from_previous_speed(route, waypoint_index, speed_m_s) -> RouteDefinition`
 - `validate_route(scene, waypoints, policy) -> RouteValidationReport`
 - `compute_route_experiment(experiment, ...) -> MVPComputation`
 - `run_route_experiment(path, output=None, ...) -> XRRouteArtifacts`
@@ -41,6 +44,19 @@ structured collision records for a future visualizer. This task does not provide
 Scene identity is SHA-256 over the canonical validated Scene v1 dataclass. Trajectory identity covers
 the route definition, sampling policy, and exact sampled points. Experiment identity covers the
 semantic scene identity and all route policies, so moving equivalent files does not change identity.
+
+The in-memory factory deep-copies all inputs and is the only supported way to construct an
+`XRRouteExperiment`; callers cannot manually supply trajectory, validation, or identity fields. A
+provided `scene_path` must already contain the same validated Scene v1 semantics. Route-only saving
+rechecks that reference and rejects an unbound or changed Scene file. For an in-memory editor Scene,
+the controlled bundle saver writes an exclusive sibling `<route-stem>.scene.json` by default, then
+returns a snapshot bound to that exact file. An existing different Scene file is never overwritten.
+
+Speed retiming identifies the incoming segment by its destination waypoint index. The selected
+arrival changes to `previous_time + distance / speed`, and all later explicit arrivals shift by the
+same delta, preserving every downstream motion and dwell duration. A speed-timed route is converted
+to explicit per-segment speeds with only the selected value changed. The first waypoint, a selected
+zero-length dwell, a single-point route, and non-positive or non-finite speed are rejected.
 
 ## Headless semantics
 

@@ -36,6 +36,7 @@ from airmirror_future.experiments.xr_dynamic_room_mvp import (
 )
 from airmirror_future.experiments.xr_route import (
     XRRouteExperiment,
+    _assert_route_experiment_consistent,
     load_route_experiment,
 )
 from airmirror_future.optimization.coherent_focus import (
@@ -90,6 +91,7 @@ def compute_route_experiment(
     progress: Callable[[int, int], None] | None = None,
 ) -> MVPComputation:
     """Evaluate the loaded route with production No/Static/Adaptive semantics."""
+    _assert_route_experiment_consistent(experiment)
     if not experiment.trajectory:
         raise ValueError("XR route experiment has no trajectory samples")
     active_engine = engine or SimulationEngine()

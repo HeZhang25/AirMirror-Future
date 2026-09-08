@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 from dataclasses import asdict, dataclass
 import hashlib
 import json
@@ -16,6 +17,7 @@ from airmirror_future.experiments.xr_dynamic_room_mvp import TrajectorySample
 
 XR_ROUTE_SCHEMA_ID = "airmirror_xr_route_experiment"
 XR_ROUTE_SCHEMA_VERSION = 1
+XR_ROUTE_INTERFACE_VERSION = f"{XR_ROUTE_SCHEMA_ID}/{XR_ROUTE_SCHEMA_VERSION}"
 MAX_ROUTE_SAMPLE_BUDGET = 1_000_000
 _GEOMETRY_EPSILON_M = 1.0e-9
 
@@ -88,13 +90,13 @@ class RouteValidationError(ValueError):
         super().__init__("; ".join(report.errors))
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, init=False)
 class XRRouteExperiment:
-    """One loaded, validated, and sampled XR route experiment."""
+    """Opaque validated XR route snapshot created by the public factory."""
 
     experiment_id: str
     scene: Scene
-    scene_path: Path
+    scene_path: Path | None
     route: RouteDefinition
     sampling: RouteSamplingPolicy
     validation: RouteValidationPolicy
@@ -371,6 +373,63 @@ def sample_route(
     return tuple(samples)
 
 
+def retime_route_from_previous_speed(
+    route: RouteDefinition,
+    waypoint_index: int,
+    speed_m_s: float,
+) -> RouteDefinition:
+    """Set one incoming-segment speed while preserving later segment durations.
+
+    ``waypoint_index`` identifies the segment from ``index - 1`` to ``index``.
+    For explicit times, the selected arrival time is recomputed and the same
+    delta shifts every later arrival. Thus all downstream motion and dwell
+    durations remain unchanged. For speed timing, a per-segment speed tuple is
+    returned with only the selected segment changed.
+    """
+    speed = _positive_number(speed_m_s, "speed_m_s")
+    if (
+        isinstance(waypoint_index, bool)
+        or not isinstance(waypoint_index, int)
+        or not 1 <= waypoint_index < len(route.waypoints)
+    ):
+        raise ValueError("waypoint_index must identify a non-initial waypoint")
+    times = _waypoint_times(route)
+    previous = route.waypoints[waypoint_index - 1]
+    current = route.waypoints[waypoint_index]
+    distance = previous.distance_to(current)
+    if distance <= _GEOMETRY_EPSILON_M:
+        raise ValueError(
+            "cannot retime a zero-length dwell segment from speed; edit its "
+            "explicit arrival time instead"
+        )
+
+    if route.timing_kind == "explicit_times":
+        arrival = times[waypoint_index - 1] + distance / speed
+        delta = arrival - times[waypoint_index]
+        shifted = times[:waypoint_index] + tuple(
+            value + delta for value in times[waypoint_index:]
+        )
+        result = RouteDefinition(
+            route.waypoints,
+            "explicit_times",
+            waypoint_times_s=shifted,
+        )
+    else:
+        if route.default_speed_m_s is not None:
+            speeds = [route.default_speed_m_s] * (len(route.waypoints) - 1)
+        else:
+            assert route.segment_speeds_m_s is not None
+            speeds = list(route.segment_speeds_m_s)
+        speeds[waypoint_index - 1] = speed
+        result = RouteDefinition(
+            route.waypoints,
+            "speed",
+            segment_speeds_m_s=tuple(speeds),
+        )
+    _waypoint_times(result)
+    return result
+
+
 def _cross_2d(a: tuple[float, float], b: tuple[float, float]) -> float:
     return a[0] * b[1] - a[1] * b[0]
 
@@ -600,18 +659,40 @@ def _route_payload(route: RouteDefinition) -> dict[str, object]:
     timing: dict[str, object] = {"kind": route.timing_kind}
     if route.timing_kind == "explicit_times":
         assert route.waypoint_times_s is not None
-        timing["waypoint_times_s"] = list(route.waypoint_times_s)
+        timing["waypoint_times_s"] = [float(value) for value in route.waypoint_times_s]
     elif route.default_speed_m_s is not None:
-        timing["default_speed_m_s"] = route.default_speed_m_s
+        timing["default_speed_m_s"] = float(route.default_speed_m_s)
     else:
         assert route.segment_speeds_m_s is not None
-        timing["segment_speeds_m_s"] = list(route.segment_speeds_m_s)
+        timing["segment_speeds_m_s"] = [
+            float(value) for value in route.segment_speeds_m_s
+        ]
     return {
         "waypoints": [
-            {"position_m": {"x": point.x, "y": point.y, "z": point.z}}
+            {
+                "position_m": {
+                    "x": float(point.x),
+                    "y": float(point.y),
+                    "z": float(point.z),
+                }
+            }
             for point in route.waypoints
         ],
         "timing": timing,
+    }
+
+
+def _sampling_payload(sampling: RouteSamplingPolicy) -> dict[str, object]:
+    return {
+        "sample_interval_s": float(sampling.sample_interval_s),
+        "max_samples": int(sampling.max_samples),
+    }
+
+
+def _validation_payload(validation: RouteValidationPolicy) -> dict[str, object]:
+    return {
+        "clearance_warning_m": float(validation.clearance_warning_m),
+        "touch_is_collision": bool(validation.touch_is_collision),
     }
 
 
@@ -629,9 +710,287 @@ def _semantic_identity_payload(
         "experiment_id": experiment_id,
         "scene_identity": scene_identity,
         "trajectory": _route_payload(route),
-        "sampling": asdict(sampling),
-        "validation": asdict(validation),
+        "sampling": _sampling_payload(sampling),
+        "validation": _validation_payload(validation),
     }
+
+
+def _scene_identity(scene: Scene) -> str:
+    def vec(point: Vec3) -> dict[str, float]:
+        return {"x": float(point.x), "y": float(point.y), "z": float(point.z)}
+
+    payload = {
+        "name": scene.name,
+        "room_size": vec(scene.room_size),
+        "frequency_hz": float(scene.frequency_hz),
+        "bandwidth_hz": float(scene.bandwidth_hz),
+        "transmitters": [
+            {
+                "id": item.id,
+                "position": vec(item.position),
+                "power_w": float(item.power_w),
+                "gain_linear": float(item.gain_linear),
+            }
+            for item in scene.transmitters
+        ],
+        "receivers": [
+            {
+                "id": item.id,
+                "position": vec(item.position),
+                "gain_linear": float(item.gain_linear),
+                "noise_figure_db": float(item.noise_figure_db),
+            }
+            for item in scene.receivers
+        ],
+        "walls": [
+            {
+                "id": item.id,
+                "start": vec(item.start),
+                "end": vec(item.end),
+                "height_m": float(item.height_m),
+                "attenuation_db": float(item.attenuation_db),
+                "reflection_magnitude": float(item.reflection_magnitude),
+                "reflection_phase_rad": float(item.reflection_phase_rad),
+                "blocks_los": bool(item.blocks_los),
+            }
+            for item in scene.walls
+        ],
+        "obstacles": [
+            {
+                "id": item.id,
+                "min_corner": vec(item.min_corner),
+                "max_corner": vec(item.max_corner),
+                "attenuation_db": float(item.attenuation_db),
+                "fully_blocking": bool(item.fully_blocking),
+            }
+            for item in scene.obstacles
+        ],
+        "ris_surfaces": [
+            {
+                "id": item.id,
+                "position": vec(item.position),
+                "yaw_rad": float(item.yaw_rad),
+                "width_m": float(item.width_m),
+                "height_m": float(item.height_m),
+                "nx": int(item.nx),
+                "ny": int(item.ny),
+                "phase_bits": None if item.phase_bits is None else int(item.phase_bits),
+                "reflection_efficiency": float(item.reflection_efficiency),
+                "update_rate_hz": float(item.update_rate_hz),
+                "self_sensing": bool(item.self_sensing),
+                "generation": item.generation,
+                "enabled": bool(item.enabled),
+                "active": bool(item.active),
+                "direction_exponent": float(item.direction_exponent),
+            }
+            for item in scene.ris_surfaces
+        ],
+        "z_eval_m": float(scene.z_eval_m),
+        "coverage_threshold_db": float(scene.coverage_threshold_db),
+        "random_seed": int(scene.random_seed),
+        "schema_version": int(scene.schema_version),
+    }
+    return _identity(payload)
+
+
+def _trajectory_identity(
+    route: RouteDefinition,
+    sampling: RouteSamplingPolicy,
+    trajectory: tuple[TrajectorySample, ...],
+) -> str:
+    return _identity(
+        {
+            "trajectory": _route_payload(route),
+            "sampling": _sampling_payload(sampling),
+            "sampled_trajectory": [
+                {
+                    "sample_index": sample.sample_index,
+                    "time_s": float(sample.time_s),
+                    "position_m": {
+                        "x": float(sample.position.x),
+                        "y": float(sample.position.y),
+                        "z": float(sample.position.z),
+                    },
+                }
+                for sample in trajectory
+            ],
+        }
+    )
+
+
+def _new_route_experiment(
+    *,
+    experiment_id: str,
+    scene: Scene,
+    scene_path: Path | None,
+    route: RouteDefinition,
+    sampling: RouteSamplingPolicy,
+    validation: RouteValidationPolicy,
+    trajectory: tuple[TrajectorySample, ...],
+    report: RouteValidationReport,
+    scene_identity: str,
+    trajectory_identity: str,
+    experiment_identity: str,
+) -> XRRouteExperiment:
+    experiment = object.__new__(XRRouteExperiment)
+    for name, value in (
+        ("experiment_id", experiment_id),
+        ("scene", scene),
+        ("scene_path", scene_path),
+        ("route", route),
+        ("sampling", sampling),
+        ("validation", validation),
+        ("trajectory", trajectory),
+        ("validation_report", report),
+        ("scene_identity", scene_identity),
+        ("trajectory_identity", trajectory_identity),
+        ("experiment_identity", experiment_identity),
+    ):
+        object.__setattr__(experiment, name, value)
+    return experiment
+
+
+def _matching_scene_path(scene: Scene, scene_path: str | Path) -> Path:
+    resolved = Path(scene_path).resolve()
+    if not resolved.is_file():
+        raise FileNotFoundError(f"Scene v1 snapshot does not exist: {resolved}")
+    persisted = Scene.load(resolved)
+    if _scene_identity(persisted) != _scene_identity(scene):
+        raise ValueError(
+            "scene_path does not contain the same validated Scene v1 snapshot"
+        )
+    return resolved
+
+
+def _validated_scene_copy(scene: Scene) -> Scene:
+    if not isinstance(scene, Scene) or scene.schema_version != 1:
+        raise ValueError("XR route v1 requires an in-memory Scene v1")
+    snapshot = copy.deepcopy(scene)
+    entity_groups = (
+        (snapshot.transmitters, "transmitters"),
+        (snapshot.receivers, "receivers"),
+        (snapshot.walls, "walls"),
+        (snapshot.obstacles, "obstacles"),
+        (snapshot.ris_surfaces, "ris_surfaces"),
+    )
+    for entities, name in entity_groups:
+        if not isinstance(entities, list):
+            raise ValueError(f"Scene v1 {name} must be a list")
+        for entity in entities:
+            validator = getattr(entity, "__post_init__", None)
+            if not callable(validator):
+                raise ValueError(f"Scene v1 {name} contains an invalid entity")
+            validator()
+    snapshot.__post_init__()
+    return snapshot
+
+
+def create_route_experiment(
+    scene: Scene,
+    route: RouteDefinition,
+    sampling: RouteSamplingPolicy,
+    validation: RouteValidationPolicy,
+    *,
+    experiment_id: str,
+    scene_path: str | Path | None = None,
+) -> XRRouteExperiment:
+    """Create one internally consistent route snapshot from in-memory inputs.
+
+    Inputs are deep-copied before sampling, collision validation, and identity
+    construction. If ``scene_path`` is supplied, it must already contain the
+    same validated Scene v1 semantics. An in-memory-only snapshot is runnable
+    but route-only saving rejects until a Scene snapshot is bound or the
+    controlled bundle saver is used.
+    """
+    if not isinstance(experiment_id, str) or not experiment_id:
+        raise ValueError("experiment_id must be a non-empty string")
+    if not isinstance(route, RouteDefinition):
+        raise ValueError("route must be a RouteDefinition")
+    if not isinstance(sampling, RouteSamplingPolicy):
+        raise ValueError("sampling must be a RouteSamplingPolicy")
+    if not isinstance(validation, RouteValidationPolicy):
+        raise ValueError("validation must be a RouteValidationPolicy")
+
+    scene_snapshot = _validated_scene_copy(scene)
+    route_snapshot = copy.deepcopy(route)
+    sampling_snapshot = copy.deepcopy(sampling)
+    validation_snapshot = copy.deepcopy(validation)
+    trajectory = sample_route(route_snapshot, sampling_snapshot)
+    report = validate_route(
+        scene_snapshot,
+        route_snapshot.waypoints,
+        validation_snapshot,
+    )
+    if not report.is_valid:
+        raise RouteValidationError(report)
+    scene_identity = _scene_identity(scene_snapshot)
+    trajectory_identity = _trajectory_identity(
+        route_snapshot,
+        sampling_snapshot,
+        trajectory,
+    )
+    experiment_identity = _identity(
+        _semantic_identity_payload(
+            experiment_id=experiment_id,
+            scene_identity=scene_identity,
+            route=route_snapshot,
+            sampling=sampling_snapshot,
+            validation=validation_snapshot,
+        )
+    )
+    bound_scene_path = (
+        None
+        if scene_path is None
+        else _matching_scene_path(scene_snapshot, scene_path)
+    )
+    return _new_route_experiment(
+        experiment_id=experiment_id,
+        scene=scene_snapshot,
+        scene_path=bound_scene_path,
+        route=route_snapshot,
+        sampling=sampling_snapshot,
+        validation=validation_snapshot,
+        trajectory=trajectory,
+        report=report,
+        scene_identity=scene_identity,
+        trajectory_identity=trajectory_identity,
+        experiment_identity=experiment_identity,
+    )
+
+
+def _assert_route_experiment_consistent(experiment: XRRouteExperiment) -> None:
+    if not isinstance(experiment, XRRouteExperiment):
+        raise ValueError("experiment must be an XRRouteExperiment")
+    trajectory = sample_route(experiment.route, experiment.sampling)
+    report = validate_route(
+        experiment.scene,
+        experiment.route.waypoints,
+        experiment.validation,
+    )
+    scene_identity = _scene_identity(experiment.scene)
+    trajectory_identity = _trajectory_identity(
+        experiment.route,
+        experiment.sampling,
+        trajectory,
+    )
+    experiment_identity = _identity(
+        _semantic_identity_payload(
+            experiment_id=experiment.experiment_id,
+            scene_identity=scene_identity,
+            route=experiment.route,
+            sampling=experiment.sampling,
+            validation=experiment.validation,
+        )
+    )
+    if (
+        not report.is_valid
+        or trajectory != experiment.trajectory
+        or report != experiment.validation_report
+        or scene_identity != experiment.scene_identity
+        or trajectory_identity != experiment.trajectory_identity
+        or experiment_identity != experiment.experiment_identity
+    ):
+        raise ValueError("XR route experiment snapshot was mutated or is inconsistent")
 
 
 def load_route_experiment(path: str | Path) -> XRRouteExperiment:
@@ -680,47 +1039,13 @@ def load_route_experiment(path: str | Path) -> XRRouteExperiment:
         ),
         touch_is_collision,
     )
-    trajectory = sample_route(route, sampling)
-    report = validate_route(scene, route.waypoints, validation)
-    if not report.is_valid:
-        raise RouteValidationError(report)
-
-    scene_payload = asdict(scene)
-    scene_identity = _identity(scene_payload)
-    trajectory_payload = {
-        "trajectory": _route_payload(route),
-        "sampling": asdict(sampling),
-        "sampled_trajectory": [
-            {
-                "sample_index": sample.sample_index,
-                "time_s": sample.time_s,
-                "position_m": asdict(sample.position),
-            }
-            for sample in trajectory
-        ],
-    }
-    trajectory_identity = _identity(trajectory_payload)
-    experiment_identity = _identity(
-        _semantic_identity_payload(
-            experiment_id=experiment_id,
-            scene_identity=scene_identity,
-            route=route,
-            sampling=sampling,
-            validation=validation,
-        )
-    )
-    return XRRouteExperiment(
-        experiment_id,
+    return create_route_experiment(
         scene,
-        scene_path,
         route,
         sampling,
         validation,
-        trajectory,
-        report,
-        scene_identity,
-        trajectory_identity,
-        experiment_identity,
+        experiment_id=experiment_id,
+        scene_path=scene_path,
     )
 
 
@@ -731,12 +1056,19 @@ def save_route_experiment(
     overwrite: bool = False,
 ) -> None:
     """Save a route document while preserving the referenced Scene v1 identity."""
+    _assert_route_experiment_consistent(experiment)
+    if experiment.scene_path is None:
+        raise ValueError(
+            "route-only save requires a matching persisted Scene v1 snapshot; "
+            "use save_route_experiment_bundle for an in-memory Scene"
+        )
+    scene_path = _matching_scene_path(experiment.scene, experiment.scene_path)
     destination = Path(path)
     if destination.exists() and not overwrite:
         raise FileExistsError(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
     try:
-        reference = os.path.relpath(experiment.scene_path, destination.parent)
+        reference = os.path.relpath(scene_path, destination.parent)
     except ValueError as exc:
         raise ValueError("scene and route document must be on the same filesystem") from exc
     document = {
@@ -748,13 +1080,74 @@ def save_route_experiment(
             "path": Path(reference).as_posix(),
         },
         "trajectory": _route_payload(experiment.route),
-        "sampling": asdict(experiment.sampling),
-        "validation": asdict(experiment.validation),
+        "sampling": _sampling_payload(experiment.sampling),
+        "validation": _validation_payload(experiment.validation),
     }
     destination.write_text(
         json.dumps(document, allow_nan=False, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
+
+
+def save_route_experiment_bundle(
+    experiment: XRRouteExperiment,
+    path: str | Path,
+    *,
+    scene_path: str | Path | None = None,
+    overwrite: bool = False,
+) -> XRRouteExperiment:
+    """Persist an in-memory Scene v1 snapshot and its referencing route.
+
+    With no explicit ``scene_path``, an unbound experiment writes
+    ``<route-stem>.scene.json`` beside the route. Existing Scene files are
+    reused only when their validated identity matches; they are never silently
+    overwritten. The returned snapshot is bound to the persisted Scene path.
+    """
+    _assert_route_experiment_consistent(experiment)
+    destination = Path(path)
+    if destination.exists() and not overwrite:
+        raise FileExistsError(destination)
+    if scene_path is None:
+        candidate = experiment.scene_path
+        if candidate is None:
+            candidate = destination.with_name(destination.stem + ".scene.json")
+    else:
+        candidate = Path(scene_path)
+        if not candidate.is_absolute():
+            candidate = destination.parent / candidate
+    scene_destination = Path(candidate).resolve()
+    route_destination = destination.resolve()
+    if scene_destination == route_destination:
+        raise ValueError("route and Scene snapshot paths must differ")
+    try:
+        os.path.relpath(scene_destination, route_destination.parent)
+    except ValueError as exc:
+        raise ValueError("scene and route document must be on the same filesystem") from exc
+
+    if scene_destination.exists():
+        _matching_scene_path(experiment.scene, scene_destination)
+    else:
+        scene_destination.parent.mkdir(parents=True, exist_ok=True)
+        with scene_destination.open("x", encoding="utf-8") as handle:
+            handle.write(
+                json.dumps(
+                    asdict(experiment.scene),
+                    allow_nan=False,
+                    ensure_ascii=False,
+                    indent=2,
+                )
+                + "\n"
+            )
+    bound = create_route_experiment(
+        experiment.scene,
+        experiment.route,
+        experiment.sampling,
+        experiment.validation,
+        experiment_id=experiment.experiment_id,
+        scene_path=scene_destination,
+    )
+    save_route_experiment(bound, route_destination, overwrite=overwrite)
+    return bound
 
 
 __all__ = [
@@ -767,10 +1160,14 @@ __all__ = [
     "RouteValidationReport",
     "RouteWarning",
     "XRRouteExperiment",
+    "XR_ROUTE_INTERFACE_VERSION",
     "XR_ROUTE_SCHEMA_ID",
     "XR_ROUTE_SCHEMA_VERSION",
+    "create_route_experiment",
     "load_route_experiment",
+    "retime_route_from_previous_speed",
     "sample_route",
     "save_route_experiment",
+    "save_route_experiment_bundle",
     "validate_route",
 ]
