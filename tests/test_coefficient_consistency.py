@@ -15,6 +15,7 @@ from airmirror_future.optimization.coherent_focus import (
 )
 from airmirror_future.physics.ris_scattering import ris_control_coefficients
 from airmirror_future.ris.quadrature import midpoint_quadrature
+from airmirror_future.ris.quadrature import QuadratureSpec
 from airmirror_future.scenarios.smart_space import create_smart_space_scene
 from airmirror_future.simulation.coefficient_identity import (
     controller_ris_coefficient_identity,
@@ -150,6 +151,26 @@ def test_custom_profile_scene_dependency_invalidates_identity() -> None:
         changed, engine, changed.transmitter(), changed.receiver(), changed.ris_surfaces[0]
     )
     assert first != second
+
+
+def test_custom_quadrature_array_mutation_invalidates_identity() -> None:
+    scene = create_smart_space_scene("Current")
+    engine = SimulationEngine()
+    tx, rx, ris = scene.transmitter(), scene.receiver(), scene.ris_surfaces[0]
+    spec = midpoint_quadrature(ris, 2, 2)
+    coordinates = np.array(spec.sample_coordinates, copy=True)
+    coordinates[0, 0] += 1.0e-5
+    changed = QuadratureSpec(
+        spec.rule, spec.order_x, spec.order_y, coordinates,
+        np.array(spec.weights, copy=True),
+        np.array(spec.parent_control_index, copy=True),
+    )
+    kwargs = {"quadrature_policy_id": "test_quadrature", "quadrature_policy_version": "1"}
+    assert controller_ris_coefficient_identity(
+        scene, engine, tx, rx, ris, quadrature_spec=spec, **kwargs
+    ) != controller_ris_coefficient_identity(
+        scene, engine, tx, rx, ris, quadrature_spec=changed, **kwargs
+    )
 
 
 def test_fnd_t21_matrix_covers_three_generations_and_four_geometries() -> None:

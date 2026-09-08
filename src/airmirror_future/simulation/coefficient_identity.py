@@ -34,6 +34,21 @@ def _canonical(value: object) -> object:
     raise ValueError(f"unsupported coefficient identity value: {type(value).__name__}")
 
 
+def _quadrature_array_identity(spec: QuadratureSpec) -> str:
+    """Hash the exact custom quadrature arrays with the canonical JSON rules."""
+    payload = {
+        "schema": "airmirror_quadrature_arrays/1",
+        "sample_coordinates": spec.sample_coordinates.tolist(),
+        "weights": spec.weights.tolist(),
+        "parent_control_index": spec.parent_control_index.tolist(),
+    }
+    encoded = json.dumps(
+        _canonical(payload), ensure_ascii=False, allow_nan=False,
+        sort_keys=True, separators=(",", ":"),
+    ).encode("utf-8")
+    return "sha256:" + hashlib.sha256(encoded).hexdigest()
+
+
 def controller_ris_coefficient_identity(
     scene: Scene,
     engine: object,
@@ -55,6 +70,7 @@ def controller_ris_coefficient_identity(
         spec = _production_quadrature_spec(ris)
         policy_id = PRODUCTION_QUADRATURE_POLICY_ID
         policy_version = PRODUCTION_QUADRATURE_POLICY_VERSION
+        array_identity = "derived_by_signed_production_policy"
         if quadrature_policy_id not in (None, policy_id) or quadrature_policy_version not in (
             None,
             policy_version,
@@ -70,6 +86,7 @@ def controller_ris_coefficient_identity(
             raise ValueError("custom quadrature identity requires a non-empty policy version")
         policy_id = quadrature_policy_id
         policy_version = quadrature_policy_version
+        array_identity = _quadrature_array_identity(spec)
 
     before_context = PropagationPathContext(
         "ris_incident", tx.position, ris.position, ris_id=ris.id
@@ -122,6 +139,7 @@ def controller_ris_coefficient_identity(
             "order_y": spec.order_y,
             "flatten_order": "ris_cell_centers_meshgrid_xy_c_v1",
             "parent_control_index": spec.parent_control_index.tolist(),
+            "array_identity": array_identity,
         },
         "tx": [tx.position.x, tx.position.y, tx.position.z, tx.gain_linear],
         "rx": [rx.position.x, rx.position.y, rx.position.z, rx.gain_linear],
