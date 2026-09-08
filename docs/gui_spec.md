@@ -188,6 +188,44 @@ coefficient/A@Gamma cache。timeline/Play/Pause 采用 `650 ms` settle debounce�
 Gain 为 N/A。任一 field result 只有在 task version 及当前 mode/sample command identity 都匹配时
 才能绘制，退出 XR 后清空 prototype 缓存并恢复进入前的 Smart Space 状态。
 
+### 6.2 XR Scene & Route Editor GUI seam（XR-EDITOR-01A）
+
+场景选择器额外提供 `XR Scene & Route Editor · Prototype`。该入口仍是 non-release prototype，
+不改变 Foundation、P1A 或 formal v0.2 状态。第一批静态 Scene v1 模板包含复杂办公室与现有
+Smart Space；复杂办公室复用 SceneView 已有 wall、obstacle、TX、RX、RIS 绘制，不增加新传播
+语义。任意 wall/obstacle CAD 编辑、mesh/BIM 和自动寻路不属于本项。
+
+路线画布支持控制点选择、拖动、添加、插入、删除，以及 X/Y/Z/到达时间表单；上一点/下一点、
+表单 Apply 和按钮操作是完整的非拖拽替代。速度输入必须委托给轨迹 owner 的重定时接口，GUI
+不得自行实现插值或另建 coefficient/trajectory system。
+
+GUI 私有 `RouteDraft` 只表示未持久化的编辑控件状态，不是轨迹 schema 或 headless 数据模型。
+B 已在独立任务中冻结版本化数据契约 `airmirror_xr_route_experiment/1`，其中公开
+`RouteDefinition`、`RouteSamplingPolicy`、`RouteValidationPolicy`、`validate_route()`、
+`sample_route()`、`load_route_experiment()` 和 `save_route_experiment()`。A 侧通过私有
+`TrajectoryEditorBackend` seam 隔离 GUI 编辑状态与该数据契约：
+
+```text
+interface_version
+validate(Scene, RouteDraft) -> opaque immutable snapshot
+sample(snapshot) -> tuple[TrajectorySample, ...]
+save(snapshot, path)
+load(path, Scene) -> LoadedRoute
+retime_from_previous_speed(RouteDraft, index, speed_m_s) -> RouteDraft
+```
+
+当前 B 分支尚未进入 main，而且公开 API 尚没有“由内存中的新编辑草稿构造可保存
+`XRRouteExperiment`”或“按上一段速度重定时草稿”的入口。A 不复制其身份计算、序列化或
+速度换时算法；在双方补齐并验证 adapter 前，路线 draft 仍可编辑，但 Run/Save/Load 和速度
+重定时保持禁用或明确失败，并显示 `pending B interface`。不得使用 GUI 插值、旧固定轨迹或
+占位结果冒充已接入。测试可以注入不进入生产的 fake backend 验证交互与 worker seam。
+
+真实运行接入后，每次 Run 必须把 deep-copied Scene 和 owner 返回的不可变 samples 交给一个
+versioned XR worker，并继续复用现有 No RIS / Static RIS / Adaptive RIS 计算。编辑 Scene 或路线
+必须立即递增 task version、请求取消、清除旧命令/metrics/field/cache 并显示 pending；快速连续
+Run 仍由实际 `terminated` 信号串行启动最新请求。`cancel requested` 与 worker 已 `terminated`
+必须使用不同状态文案。Show RIS Pattern 偏好在 pending、结果应用和模式切换中保持不变。
+
 ## 7. 场景保存和加载
 
 - Save 只保存 Scene v1，不保存 current pattern、algorithm、Ground Truth sigma、窗口状态或

@@ -59,9 +59,17 @@ from airmirror_future.experiments.xr_dynamic_room_mvp import (
     MVPComputation,
     NO_RIS_MODE,
     STATIC_RIS_MODE,
+    TrajectorySample,
     _pattern_hash,
     build_trajectory,
     create_mvp_scene,
+)
+from airmirror_future.gui.xr_trajectory_seam import (
+    EXPECTED_TRAJECTORY_INTERFACE_VERSION,
+    RouteDraft,
+    RoutePointDraft,
+    TrajectoryBackendUnavailable,
+    TrajectoryEditorBackend,
 )
 from airmirror_future.ris.generations import generation_preset
 from airmirror_future.ris.aperture import equivalent_patch_diagnostics
@@ -70,18 +78,28 @@ from airmirror_future.optimization.coherent_focus import generate_coherent_targe
 from airmirror_future.physics.noise import noise_power_dbm
 from airmirror_future.simulation.engine import SimulationEngine
 from airmirror_future.simulation.ground_truth import ControllerModel, GroundTruthModel
+from airmirror_future.scenarios.xr_editor import (
+    XR_EDITOR_SCENE_TEMPLATES,
+    create_xr_editor_scene,
+)
 
 
 class MainWindow(QMainWindow):
     """AirMirror Future v0.1 Smart Space desktop application."""
 
-    def __init__(self, scene: Scene) -> None:
+    def __init__(
+        self,
+        scene: Scene,
+        *,
+        trajectory_backend: TrajectoryEditorBackend | None = None,
+    ) -> None:
         super().__init__()
         self.setWindowTitle("AirMirror Future · 可编程电磁空间仿真平台")
         self.resize(1460, 900)
         self.scene_model = scene
         self.engine = SimulationEngine()
         self.controller_model = ControllerModel()
+        self.trajectory_backend = trajectory_backend
         self.ground_truth = GroundTruthModel(seed=scene.random_seed)
         self.patterns: dict[str, np.ndarray] = {}
         self.latest_field: FieldMapResult | None = None
@@ -100,6 +118,14 @@ class MainWindow(QMainWindow):
         self._pattern_source = "Coherent Target Focus"
         self._pattern_context: tuple[object, ...] | None = None
         self._xr_demo_active = False
+        self._xr_editor_active = False
+        self._xr_editor_scene: Scene | None = None
+        self._xr_trajectory: RouteDraft | None = None
+        self._xr_selected_waypoint_index = 0
+        self._xr_pending_run_request: (
+            tuple[Scene, tuple[TrajectorySample, ...]] | None
+        ) = None
+        self._xr_cancel_waiting_for_termination = False
         self._xr_result: MVPComputation | None = None
         self._xr_static_field: FieldMapResult | None = None
         self._xr_no_ris_field: FieldMapResult | None = None
@@ -133,6 +159,8 @@ class MainWindow(QMainWindow):
 
         self.scene_view = SceneView()
         self.scene_view.on_entity_moved = self._entity_moved
+        self.scene_view.on_route_point_moved = self._xr_route_point_moved
+        self.scene_view.on_route_point_selected = self._xr_route_point_selected
         self.pattern_view = PhasePatternView()
         self._build_ui()
         self._set_pending(False)
@@ -150,7 +178,7 @@ class MainWindow(QMainWindow):
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
         splitter.setStretchFactor(2, 0)
-        splitter.setSizes([230, 900, 320])
+        splitter.setSizes([280, 860, 320])
 
         central = QWidget()
         layout = QVBoxLayout(central)
@@ -169,8 +197,11 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("System-level electromagnetic approximation")
 
     def _build_left_panel(self) -> QWidget:
+        container = QScrollArea()
+        container.setWidgetResizable(True)
+        container.setMinimumWidth(260)
         panel = QWidget()
-        panel.setMinimumWidth(220)
+        panel.setMinimumWidth(240)
         layout = QVBoxLayout(panel)
         layout.addWidget(QLabel("<b>场景 / Scenario</b>"))
         self.scenario_combo = QComboBox()
@@ -179,18 +210,119 @@ class MainWindow(QMainWindow):
             "XR Dynamic Room MVP · Prototype",
             "xr_dynamic_room_mvp",
         )
+        self.scenario_combo.addItem(
+            "XR Scene & Route Editor · Prototype",
+            "xr_route_editor",
+        )
         self.scenario_combo.currentIndexChanged.connect(self._scenario_changed)
         layout.addWidget(self.scenario_combo)
         roadmap = QLabel(
-            "XR Dynamic Room MVP：non-release result playback\n"
+            "XR Dynamic Room：non-release playback / route editor\n"
             "Smart Factory · Future City：尚未实现"
         )
         roadmap.setWordWrap(True)
         roadmap.setStyleSheet("color:#64748b")
         layout.addWidget(roadmap)
 
-        self.xr_controls = QGroupBox("XR MVP Playback")
+        self.xr_controls = QGroupBox("XR Playback / Editor")
         xr_layout = QVBoxLayout(self.xr_controls)
+
+        self.xr_editor_group = QGroupBox(
+            f"Scene & Route · {EXPECTED_TRAJECTORY_INTERFACE_VERSION} pending"
+        )
+        editor_layout = QVBoxLayout(self.xr_editor_group)
+        self.xr_template_combo = QComboBox()
+        for template_id, display_name in XR_EDITOR_SCENE_TEMPLATES:
+            self.xr_template_combo.addItem(display_name, template_id)
+        editor_layout.addWidget(self.xr_template_combo)
+        scene_buttons = QHBoxLayout()
+        self.xr_load_template_button = QPushButton("Load Template")
+        self.xr_load_scene_button = QPushButton("Load Scene")
+        self.xr_load_template_button.clicked.connect(self._xr_load_template)
+        self.xr_load_scene_button.clicked.connect(self._xr_load_scene)
+        scene_buttons.addWidget(self.xr_load_template_button)
+        scene_buttons.addWidget(self.xr_load_scene_button)
+        editor_layout.addLayout(scene_buttons)
+
+        select_buttons = QHBoxLayout()
+        self.xr_previous_point_button = QPushButton("◀ Point")
+        self.xr_next_point_button = QPushButton("Point ▶")
+        self.xr_previous_point_button.clicked.connect(
+            lambda: self._xr_select_relative_point(-1)
+        )
+        self.xr_next_point_button.clicked.connect(
+            lambda: self._xr_select_relative_point(1)
+        )
+        select_buttons.addWidget(self.xr_previous_point_button)
+        select_buttons.addWidget(self.xr_next_point_button)
+        editor_layout.addLayout(select_buttons)
+
+        point_actions = QHBoxLayout()
+        self.xr_add_point_button = QPushButton("Add")
+        self.xr_insert_point_button = QPushButton("Insert")
+        self.xr_delete_point_button = QPushButton("Delete")
+        self.xr_add_point_button.clicked.connect(self._xr_add_route_point)
+        self.xr_insert_point_button.clicked.connect(self._xr_insert_route_point)
+        self.xr_delete_point_button.clicked.connect(self._xr_delete_route_point)
+        point_actions.addWidget(self.xr_add_point_button)
+        point_actions.addWidget(self.xr_insert_point_button)
+        point_actions.addWidget(self.xr_delete_point_button)
+        editor_layout.addLayout(point_actions)
+
+        self.xr_point_label = QLabel("Point: —")
+        editor_layout.addWidget(self.xr_point_label)
+        point_form = QFormLayout()
+        self.xr_point_x = self._double_spin(0.0, 1000.0, 0.0, 0.1, " m")
+        self.xr_point_y = self._double_spin(0.0, 1000.0, 0.0, 0.1, " m")
+        self.xr_point_z = self._double_spin(0.0, 1000.0, 1.2, 0.1, " m")
+        self.xr_point_time = self._double_spin(0.0, 86400.0, 0.0, 0.5, " s")
+        self.xr_timing_mode = QComboBox()
+        self.xr_timing_mode.addItem("Arrival time", "time")
+        self.xr_timing_mode.addItem("Speed from previous", "speed")
+        self.xr_point_speed = self._double_spin(0.01, 100.0, 1.0, 0.1, " m/s")
+        self.xr_timing_mode.currentIndexChanged.connect(
+            self._xr_update_timing_controls
+        )
+        point_form.addRow("X", self.xr_point_x)
+        point_form.addRow("Y", self.xr_point_y)
+        point_form.addRow("Z", self.xr_point_z)
+        point_form.addRow("Timing", self.xr_timing_mode)
+        point_form.addRow("Arrival", self.xr_point_time)
+        point_form.addRow("Speed", self.xr_point_speed)
+        editor_layout.addLayout(point_form)
+        self.xr_apply_point_button = QPushButton("Apply Point")
+        self.xr_apply_point_button.clicked.connect(self._xr_apply_route_point)
+        editor_layout.addWidget(self.xr_apply_point_button)
+
+        route_files = QHBoxLayout()
+        self.xr_load_route_button = QPushButton("Load Route")
+        self.xr_save_route_button = QPushButton("Save Route")
+        self.xr_load_route_button.clicked.connect(self._xr_load_route)
+        self.xr_save_route_button.clicked.connect(self._xr_save_route)
+        route_files.addWidget(self.xr_load_route_button)
+        route_files.addWidget(self.xr_save_route_button)
+        editor_layout.addLayout(route_files)
+        self.xr_route_status = QLabel("Route: pending")
+        self.xr_route_status.setWordWrap(True)
+        self.xr_route_status.setStyleSheet("color:#b45309")
+        editor_layout.addWidget(self.xr_route_status)
+
+        run_buttons = QHBoxLayout()
+        self.xr_run_button = QPushButton("Run 3 Modes")
+        self.xr_cancel_button = QPushButton("Cancel")
+        self.xr_cancel_button.setEnabled(False)
+        self.xr_run_button.clicked.connect(self._run_xr_editor)
+        self.xr_cancel_button.clicked.connect(self._cancel_xr_editor_run)
+        run_buttons.addWidget(self.xr_run_button)
+        run_buttons.addWidget(self.xr_cancel_button)
+        editor_layout.addLayout(run_buttons)
+        self.xr_command_status = QLabel("Command: pending")
+        self.xr_command_status.setWordWrap(True)
+        self.xr_command_status.setStyleSheet("color:#64748b")
+        editor_layout.addWidget(self.xr_command_status)
+        self.xr_editor_group.setVisible(False)
+        xr_layout.addWidget(self.xr_editor_group)
+
         self.xr_mode_combo = QComboBox()
         self.xr_mode_combo.addItems(ADAPTIVE_MVP_MODES)
         self.xr_mode_combo.currentTextChanged.connect(self._xr_mode_changed)
@@ -223,6 +355,10 @@ class MainWindow(QMainWindow):
         self.xr_field_status.setWordWrap(True)
         self.xr_field_status.setStyleSheet("color:#64748b")
         xr_layout.addWidget(self.xr_field_status)
+        self.xr_command_status = QLabel("Command: —")
+        self.xr_command_status.setWordWrap(True)
+        self.xr_command_status.setStyleSheet("color:#64748b")
+        xr_layout.addWidget(self.xr_command_status)
         self.xr_controls.setVisible(False)
         self._set_xr_controls_ready(False)
         layout.addWidget(self.xr_controls)
@@ -268,7 +404,8 @@ class MainWindow(QMainWindow):
         info.clicked.connect(self._show_model_info)
         layout.addWidget(info)
         layout.addStretch()
-        return panel
+        container.setWidget(panel)
+        return container
 
     @staticmethod
     def _double_spin(minimum: float, maximum: float, value: float, step: float, suffix: str) -> QDoubleSpinBox:
@@ -511,16 +648,586 @@ class MainWindow(QMainWindow):
         self.xr_pause_button.setEnabled(ready and self._xr_playback_timer.isActive())
         self.xr_reset_button.setEnabled(ready)
         self.xr_timeline.setEnabled(ready)
+        if self._xr_editor_active:
+            backend_ready = self.trajectory_backend is not None
+            self.xr_run_button.setEnabled(
+                backend_ready
+                and self._xr_trajectory is not None
+                and not self._xr_demo_start_pending
+            )
+            self.xr_cancel_button.setEnabled(
+                self._xr_demo_start_pending or self._xr_active_worker is not None
+            )
+            self.xr_load_route_button.setEnabled(backend_ready)
+            self.xr_save_route_button.setEnabled(backend_ready)
 
     def _set_smart_space_widgets_enabled(self, enabled: bool) -> None:
         self.files_group.setEnabled(enabled)
         self.layers_group.setEnabled(enabled)
         self.right_panel.setEnabled(enabled)
 
+    @staticmethod
+    def _default_xr_editor_trajectory(scene: Scene) -> RouteDraft:
+        """Build GUI draft control points; B's sampler owns interpolation."""
+        width = scene.room_size.x
+        height = scene.room_size.y
+        z = scene.z_eval_m
+        positions = (
+            Vec3(0.14 * width, 0.20 * height, z),
+            Vec3(0.34 * width, 0.74 * height, z),
+            Vec3(0.62 * width, 0.36 * height, z),
+            Vec3(0.86 * width, 0.76 * height, z),
+        )
+        return RouteDraft(
+            name=f"{scene.name} route",
+            points=tuple(
+                RoutePointDraft(
+                    id=f"point-{index + 1}",
+                    time_s=float(index * 3),
+                    position=position,
+                )
+                for index, position in enumerate(positions)
+            ),
+            sample_interval_s=0.5,
+        )
+
+    @staticmethod
+    def _validate_xr_editor_scene(scene: Scene) -> None:
+        if len(scene.transmitters) != 1 or len(scene.receivers) != 1:
+            raise ValueError("XR Route Editor requires exactly one TX and one RX")
+        enabled = [ris for ris in scene.ris_surfaces if ris.enabled]
+        if len(scene.ris_surfaces) != 1 or len(enabled) != 1:
+            raise ValueError("XR Route Editor requires exactly one enabled RIS")
+
+    def _render_xr_editor_inputs(self) -> None:
+        if (
+            not self._xr_editor_active
+            or self._xr_editor_scene is None
+            or self._xr_trajectory is None
+        ):
+            return
+        self.scene_view.load_scene(self._xr_editor_scene)
+        self.scene_view.set_entities_draggable(False)
+        self.scene_view.show_editable_route(
+            [waypoint.position for waypoint in self._xr_trajectory.points],
+            selected_index=self._xr_selected_waypoint_index,
+        )
+        self._sync_xr_point_form()
+
+    def _sync_xr_point_form(self) -> None:
+        if self._xr_trajectory is None or self._xr_editor_scene is None:
+            return
+        index = max(
+            0,
+            min(self._xr_selected_waypoint_index, len(self._xr_trajectory.points) - 1),
+        )
+        self._xr_selected_waypoint_index = index
+        waypoint = self._xr_trajectory.points[index]
+        self.xr_point_x.setRange(0.0, self._xr_editor_scene.room_size.x)
+        self.xr_point_y.setRange(0.0, self._xr_editor_scene.room_size.y)
+        self.xr_point_z.setRange(0.0, self._xr_editor_scene.room_size.z)
+        for widget in (
+            self.xr_point_x,
+            self.xr_point_y,
+            self.xr_point_z,
+            self.xr_point_time,
+            self.xr_point_speed,
+        ):
+            widget.blockSignals(True)
+        try:
+            self.xr_point_x.setValue(waypoint.position.x)
+            self.xr_point_y.setValue(waypoint.position.y)
+            self.xr_point_z.setValue(waypoint.position.z)
+            self.xr_point_time.setValue(waypoint.time_s)
+            if index > 0:
+                previous = self._xr_trajectory.points[index - 1]
+                distance = waypoint.position.distance_to(previous.position)
+                duration = waypoint.time_s - previous.time_s
+                self.xr_point_speed.setValue(distance / duration)
+        finally:
+            for widget in (
+                self.xr_point_x,
+                self.xr_point_y,
+                self.xr_point_z,
+                self.xr_point_time,
+                self.xr_point_speed,
+            ):
+                widget.blockSignals(False)
+        self.xr_point_label.setText(
+            f"Point {index + 1}/{len(self._xr_trajectory.points)} · {waypoint.id}"
+        )
+        self.scene_view.select_route_point(index)
+        self._xr_update_timing_controls()
+
+    def _xr_update_timing_controls(self, *_args: object) -> None:
+        use_speed = self.xr_timing_mode.currentData() == "speed"
+        first = self._xr_selected_waypoint_index == 0
+        self.xr_point_time.setEnabled(not use_speed and not first)
+        self.xr_point_speed.setEnabled(
+            use_speed and not first and self.trajectory_backend is not None
+        )
+
+    def _xr_route_point_selected(self, index: int) -> None:
+        if not self._xr_editor_active or self._xr_trajectory is None:
+            return
+        if not 0 <= index < len(self._xr_trajectory.points):
+            return
+        self._xr_selected_waypoint_index = index
+        self._sync_xr_point_form()
+
+    def _xr_select_relative_point(self, offset: int) -> None:
+        if self._xr_trajectory is None:
+            return
+        count = len(self._xr_trajectory.points)
+        self._xr_selected_waypoint_index = (
+            self._xr_selected_waypoint_index + offset
+        ) % count
+        self._sync_xr_point_form()
+
+    def _xr_route_point_moved(self, index: int, position: Vec3) -> None:
+        if not self._xr_editor_active or self._xr_trajectory is None:
+            return
+        waypoints = list(self._xr_trajectory.points)
+        waypoints[index] = replace(waypoints[index], position=position)
+        candidate = replace(self._xr_trajectory, points=tuple(waypoints))
+        if self.trajectory_backend is not None and self._xr_editor_scene is not None:
+            try:
+                self.trajectory_backend.validate(self._xr_editor_scene, candidate)
+            except Exception as exc:
+                self.statusBar().showMessage(f"Route point move rejected: {exc}")
+                self._render_xr_editor_inputs()
+                return
+        self._xr_trajectory = candidate
+        self._xr_selected_waypoint_index = index
+        self._xr_editor_inputs_changed("route point moved", render=False)
+
+    def _next_xr_waypoint_id(self) -> str:
+        assert self._xr_trajectory is not None
+        used = {waypoint.id for waypoint in self._xr_trajectory.points}
+        number = 1
+        while f"point-{number}" in used:
+            number += 1
+        return f"point-{number}"
+
+    def _xr_add_route_point(self) -> None:
+        if self._xr_trajectory is None or self._xr_editor_scene is None:
+            return
+        last = self._xr_trajectory.points[-1]
+        dx = max(self._xr_editor_scene.room_size.x * 0.08, 0.1)
+        dy = max(self._xr_editor_scene.room_size.y * 0.05, 0.1)
+        x = last.position.x + dx
+        if x > self._xr_editor_scene.room_size.x:
+            x = max(0.0, last.position.x - dx)
+        y = last.position.y + dy
+        if y > self._xr_editor_scene.room_size.y:
+            y = max(0.0, last.position.y - dy)
+        waypoint = RoutePointDraft(
+            id=self._next_xr_waypoint_id(),
+            time_s=last.time_s + max(1.0, self._xr_trajectory.sample_interval_s),
+            position=Vec3(x, y, last.position.z),
+        )
+        self._xr_trajectory = replace(
+            self._xr_trajectory,
+            points=(*self._xr_trajectory.points, waypoint),
+        )
+        self._xr_selected_waypoint_index = len(self._xr_trajectory.points) - 1
+        self._xr_editor_inputs_changed("route point added")
+
+    def _xr_insert_route_point(self) -> None:
+        if self._xr_trajectory is None:
+            return
+        index = self._xr_selected_waypoint_index
+        if index >= len(self._xr_trajectory.points) - 1:
+            self._xr_add_route_point()
+            return
+        before = self._xr_trajectory.points[index]
+        after = self._xr_trajectory.points[index + 1]
+        waypoint = RoutePointDraft(
+            id=self._next_xr_waypoint_id(),
+            time_s=(before.time_s + after.time_s) / 2.0,
+            position=Vec3(
+                (before.position.x + after.position.x) / 2.0,
+                (before.position.y + after.position.y) / 2.0,
+                (before.position.z + after.position.z) / 2.0,
+            ),
+        )
+        waypoints = list(self._xr_trajectory.points)
+        waypoints.insert(index + 1, waypoint)
+        self._xr_trajectory = replace(self._xr_trajectory, points=tuple(waypoints))
+        self._xr_selected_waypoint_index = index + 1
+        self._xr_editor_inputs_changed("route point inserted")
+
+    def _xr_delete_route_point(self) -> None:
+        if self._xr_trajectory is None:
+            return
+        if len(self._xr_trajectory.points) <= 2:
+            QMessageBox.warning(
+                self,
+                "Cannot delete point",
+                "A trajectory requires at least two route points.",
+            )
+            return
+        waypoints = list(self._xr_trajectory.points)
+        del waypoints[self._xr_selected_waypoint_index]
+        self._xr_trajectory = replace(self._xr_trajectory, points=tuple(waypoints))
+        self._xr_selected_waypoint_index = min(
+            self._xr_selected_waypoint_index,
+            len(waypoints) - 1,
+        )
+        self._xr_editor_inputs_changed("route point deleted")
+
+    def _xr_apply_route_point(self) -> None:
+        if self._xr_trajectory is None or self._xr_editor_scene is None:
+            return
+        index = self._xr_selected_waypoint_index
+        try:
+            old = self._xr_trajectory.points[index]
+            time_s = 0.0 if index == 0 else self.xr_point_time.value()
+            updated = replace(
+                old,
+                position=Vec3(
+                    self.xr_point_x.value(),
+                    self.xr_point_y.value(),
+                    self.xr_point_z.value(),
+                ),
+                time_s=time_s,
+            )
+            waypoints = list(self._xr_trajectory.points)
+            waypoints[index] = updated
+            candidate = replace(self._xr_trajectory, points=tuple(waypoints))
+            if self.xr_timing_mode.currentData() == "speed" and index > 0:
+                if self.trajectory_backend is None:
+                    raise TrajectoryBackendUnavailable(
+                        "speed retiming waits for the external B trajectory backend"
+                    )
+                candidate = self.trajectory_backend.retime_from_previous_speed(
+                    candidate, index, self.xr_point_speed.value()
+                )
+            if self.trajectory_backend is not None:
+                self.trajectory_backend.validate(self._xr_editor_scene, candidate)
+        except Exception as exc:
+            QMessageBox.critical(self, "Invalid route point", str(exc))
+            self.xr_route_status.setText(f"Route invalid: {exc}")
+            self.xr_route_status.setStyleSheet("color:#b91c1c;font-weight:600")
+            return
+        self._xr_trajectory = candidate
+        self._xr_editor_inputs_changed("route point form applied")
+
+    def _xr_editor_inputs_changed(self, reason: str, *, render: bool = True) -> None:
+        if not self._xr_editor_active:
+            return
+        self._xr_playback_timer.stop()
+        self._xr_field_debounce.stop()
+        self._debounce.stop()
+        self._version += 1
+        self._xr_demo_start_pending = False
+        self._xr_pending_run_request = None
+        self._xr_pending_field_request = None
+        self._cancel_active()
+        self._xr_result = None
+        self._xr_static_field = None
+        self._xr_no_ris_field = None
+        self._xr_field_scales = {}
+        self._xr_field_cache = {}
+        self._xr_static_field_key = None
+        self._xr_field_inflight_key = None
+        self._xr_sample_lookup = {}
+        self.scene_view.clear_field_overlays()
+        self.pattern_view.set_status(
+            "Command pending",
+            "Scene/route changed; old commands and fields were invalidated. Run three modes again.",
+        )
+        self.pattern_view.setVisible(self.show_pattern.isChecked())
+        self.power_metric.setText("Power: pending")
+        self.snr_metric.setText("SNR: pending")
+        self.gain_metric.setText("RIS Gain: pending")
+        self.coverage_metric.setText("Time: —")
+        self.dead_zone_metric.setText("RX: —")
+        self.runtime_metric.setText("Sample: —")
+        self.xr_command_status.setText("Command: pending · no stale command displayed")
+        self.xr_field_status.setText("Field map: pending · no stale field displayed")
+        try:
+            if self.trajectory_backend is None:
+                raise TrajectoryBackendUnavailable(
+                    f"{EXPECTED_TRAJECTORY_INTERFACE_VERSION} adapter is not connected"
+                )
+            snapshot = self.trajectory_backend.validate(
+                self._xr_editor_scene,
+                self._xr_trajectory,
+            )
+            samples = self.trajectory_backend.sample(snapshot)
+            self.xr_route_status.setText(
+                f"Route valid · {self.trajectory_backend.interface_version} · "
+                f"{len(self._xr_trajectory.points)} points · {len(samples)} samples"
+            )
+            self.xr_route_status.setStyleSheet("color:#15803d")
+            self.xr_run_button.setEnabled(True)
+        except TrajectoryBackendUnavailable as exc:
+            self.xr_route_status.setText(
+                f"Route draft editable · pending B interface: {exc}"
+            )
+            self.xr_route_status.setStyleSheet("color:#b45309;font-weight:600")
+            self.xr_run_button.setEnabled(False)
+        except Exception as exc:
+            self.xr_route_status.setText(f"Route invalid: {exc}")
+            self.xr_route_status.setStyleSheet("color:#b91c1c;font-weight:600")
+            self.xr_run_button.setEnabled(False)
+        self.xr_sample_label.setText(f"Pending run · {reason}")
+        self._set_xr_controls_ready(False)
+        if render:
+            self._render_xr_editor_inputs()
+        else:
+            self._sync_xr_point_form()
+        self.statusBar().showMessage(
+            f"XR editor input changed ({reason}) · previous result invalidated"
+        )
+
+    def _xr_load_template(self) -> None:
+        try:
+            scene = create_xr_editor_scene(str(self.xr_template_combo.currentData()))
+            self._validate_xr_editor_scene(scene)
+            trajectory = self._default_xr_editor_trajectory(scene)
+            if self.trajectory_backend is not None:
+                self.trajectory_backend.validate(scene, trajectory)
+        except Exception as exc:
+            QMessageBox.critical(self, "Template load failed", str(exc))
+            return
+        self._xr_editor_scene = scene
+        self._xr_trajectory = trajectory
+        self._xr_selected_waypoint_index = 0
+        self._xr_editor_inputs_changed("scene template loaded")
+
+    def _xr_load_scene(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Load XR Scene v1",
+            "",
+            "JSON (*.json)",
+        )
+        if not path:
+            return
+        try:
+            scene = Scene.load(path)
+            self._validate_xr_editor_scene(scene)
+            trajectory = self._xr_trajectory
+            if trajectory is None:
+                trajectory = self._default_xr_editor_trajectory(scene)
+            if self.trajectory_backend is None:
+                trajectory = self._default_xr_editor_trajectory(scene)
+            else:
+                try:
+                    self.trajectory_backend.validate(scene, trajectory)
+                except ValueError:
+                    trajectory = self._default_xr_editor_trajectory(scene)
+                self.trajectory_backend.validate(scene, trajectory)
+        except Exception as exc:
+            QMessageBox.critical(self, "Scene load failed", str(exc))
+            return
+        self._xr_editor_scene = scene
+        self._xr_trajectory = trajectory
+        self._xr_selected_waypoint_index = 0
+        self._xr_editor_inputs_changed("Scene v1 loaded")
+
+    def _xr_save_route(self) -> None:
+        if self._xr_trajectory is None or self._xr_editor_scene is None:
+            return
+        try:
+            if self.trajectory_backend is None:
+                raise TrajectoryBackendUnavailable(
+                    "route save waits for the external B trajectory backend"
+                )
+            snapshot = self.trajectory_backend.validate(
+                self._xr_editor_scene,
+                self._xr_trajectory,
+            )
+        except Exception as exc:
+            QMessageBox.critical(self, "Route save failed", str(exc))
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            f"Save {self.trajectory_backend.interface_version}",
+            "xr_route.json",
+            "JSON (*.json)",
+        )
+        if not path:
+            return
+        try:
+            self.trajectory_backend.save(snapshot, path)
+            self.statusBar().showMessage(
+                f"{self.trajectory_backend.interface_version} saved: {path}"
+            )
+        except Exception as exc:
+            QMessageBox.critical(self, "Route save failed", str(exc))
+
+    def _xr_load_route(self) -> None:
+        if self._xr_editor_scene is None:
+            return
+        if self.trajectory_backend is None:
+            QMessageBox.information(
+                self,
+                "Trajectory backend pending",
+                "Route loading waits for the external B trajectory backend.",
+            )
+            return
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            f"Load {self.trajectory_backend.interface_version}",
+            "",
+            "JSON (*.json)",
+        )
+        if not path:
+            return
+        try:
+            loaded = self.trajectory_backend.load(path, self._xr_editor_scene)
+        except Exception as exc:
+            QMessageBox.critical(self, "Route load failed", str(exc))
+            return
+        self._xr_trajectory = loaded.draft
+        self._xr_selected_waypoint_index = 0
+        self._xr_editor_inputs_changed("versioned trajectory loaded")
+
+    def _run_xr_editor(self) -> None:
+        if self._xr_editor_scene is None or self._xr_trajectory is None:
+            return
+        try:
+            if self.trajectory_backend is None:
+                raise TrajectoryBackendUnavailable(
+                    "three-mode run waits for the external B trajectory backend"
+                )
+            snapshot = self.trajectory_backend.validate(
+                self._xr_editor_scene,
+                self._xr_trajectory,
+            )
+            trajectory = self.trajectory_backend.sample(snapshot)
+            if not trajectory:
+                raise ValueError("trajectory backend returned no samples")
+            scene = copy.deepcopy(self._xr_editor_scene)
+            scene.receivers = [
+                replace(scene.receiver(), position=trajectory[0].position)
+            ]
+        except Exception as exc:
+            QMessageBox.critical(self, "Cannot run trajectory", str(exc))
+            return
+        self._xr_playback_timer.stop()
+        self._xr_field_debounce.stop()
+        self._version += 1
+        self._cancel_active()
+        self._xr_pending_run_request = (scene, trajectory)
+        self._xr_demo_start_pending = True
+        self._xr_cancel_waiting_for_termination = False
+        self._xr_result = None
+        self._xr_static_field = None
+        self._xr_no_ris_field = None
+        self._xr_field_scales = {}
+        self._xr_field_cache = {}
+        self._xr_static_field_key = None
+        self._xr_pending_field_request = None
+        self._xr_field_inflight_key = None
+        self._xr_sample_lookup = {}
+        self.scene_view.clear_field_overlays()
+        self.pattern_view.set_status(
+            "Command calculating…",
+            "Worker owns deep-copied Scene and immutable trajectory samples.",
+        )
+        self.xr_command_status.setText("Command: calculating from run snapshot")
+        self.xr_field_status.setText("Field map: pending behind three-mode links")
+        self.xr_sample_label.setText(
+            f"Running {len(trajectory)} samples × 3 modes…"
+        )
+        self._set_xr_controls_ready(False)
+        self.progress.setRange(0, 0)
+        self.statusBar().showMessage("XR three-mode run queued…")
+        self._start_xr_demo_worker()
+
+    def _cancel_xr_editor_run(self) -> None:
+        if not self._xr_editor_active:
+            return
+        worker_active = self._xr_active_worker is not None
+        self._version += 1
+        self._xr_demo_start_pending = False
+        self._xr_pending_run_request = None
+        self._xr_pending_field_request = None
+        self._xr_field_debounce.stop()
+        self._cancel_active()
+        self._xr_cancel_waiting_for_termination = worker_active
+        self.xr_cancel_button.setEnabled(False)
+        self.xr_run_button.setEnabled(True)
+        if worker_active:
+            self.xr_sample_label.setText(
+                "Cancellation requested · waiting for worker termination"
+            )
+            self.statusBar().showMessage(
+                "XR cancellation requested; worker has not terminated yet"
+            )
+        else:
+            self.xr_sample_label.setText("Run cancelled · no active worker")
+            self.statusBar().showMessage("XR queued run cancelled")
+
+    def _enter_xr_editor(self) -> None:
+        if self._xr_demo_active:
+            return
+        self._xr_resume_smart_space_refresh = self._smart_space_refresh_pending
+        self._xr_demo_active = True
+        self._xr_editor_active = True
+        self._smart_metric_texts = tuple(
+            widget.text()
+            for widget in (
+                self.power_metric,
+                self.snr_metric,
+                self.gain_metric,
+                self.coverage_metric,
+                self.dead_zone_metric,
+                self.runtime_metric,
+            )
+        )
+        self._xr_result = None
+        self._xr_pending_run_request = None
+        self._xr_demo_start_pending = False
+        self._xr_cancel_waiting_for_termination = False
+        self._xr_editor_scene = create_xr_editor_scene("complex_office")
+        self._validate_xr_editor_scene(self._xr_editor_scene)
+        self._xr_trajectory = self._default_xr_editor_trajectory(
+            self._xr_editor_scene
+        )
+        self._xr_selected_waypoint_index = 0
+        self.xr_template_combo.setCurrentIndex(
+            self.xr_template_combo.findData("complex_office")
+        )
+        self.xr_mode_combo.blockSignals(True)
+        self.xr_mode_combo.setCurrentText(NO_RIS_MODE)
+        self.xr_mode_combo.blockSignals(False)
+        self.xr_quantity_combo.blockSignals(True)
+        self.xr_quantity_combo.setCurrentText("接收功率")
+        self.xr_quantity_combo.blockSignals(False)
+        self._xr_playback_timer.stop()
+        self._xr_field_debounce.stop()
+        self._debounce.stop()
+        self._debounced_action = None
+        self._version += 1
+        self._cancel_active()
+        self._set_smart_space_widgets_enabled(False)
+        self.xr_controls.setTitle("XR Scene & Route Editor · non-release")
+        interface_label = (
+            self.trajectory_backend.interface_version
+            if self.trajectory_backend is not None
+            else f"{EXPECTED_TRAJECTORY_INTERFACE_VERSION} pending"
+        )
+        self.xr_editor_group.setTitle(f"Scene & Route · {interface_label}")
+        self.xr_controls.setVisible(True)
+        self.xr_editor_group.setVisible(True)
+        self.future_badge.setText("Non-release XR Editor Prototype")
+        self._xr_editor_inputs_changed("editor opened")
+
     def _scenario_changed(self, index: int) -> None:
         mode = self.scenario_combo.itemData(index)
         if mode == "xr_dynamic_room_mvp":
+            if self._xr_editor_active:
+                self._leave_xr_demo()
             self._enter_xr_demo()
+        elif mode == "xr_route_editor":
+            if self._xr_demo_active and not self._xr_editor_active:
+                self._leave_xr_demo()
+            self._enter_xr_editor()
         else:
             self._leave_xr_demo()
 
@@ -529,6 +1236,11 @@ class MainWindow(QMainWindow):
             return
         self._xr_resume_smart_space_refresh = self._smart_space_refresh_pending
         self._xr_demo_active = True
+        self._xr_editor_active = False
+        self._xr_editor_scene = None
+        self._xr_trajectory = None
+        self._xr_pending_run_request = None
+        self._xr_cancel_waiting_for_termination = False
         self._smart_metric_texts = tuple(
             widget.text()
             for widget in (
@@ -564,7 +1276,9 @@ class MainWindow(QMainWindow):
         self._version += 1
         self._cancel_active()
         self._set_smart_space_widgets_enabled(False)
+        self.xr_controls.setTitle("XR MVP Playback")
         self.xr_controls.setVisible(True)
+        self.xr_editor_group.setVisible(False)
         self._set_xr_controls_ready(False)
         self.future_badge.setText("Non-release XR Prototype · Adaptive provisional")
 
@@ -612,7 +1326,17 @@ class MainWindow(QMainWindow):
         ):
             return
         self._xr_demo_start_pending = False
-        worker = XRDynamicRoomWorker(self._version)
+        request = self._xr_pending_run_request
+        if request is None:
+            worker = XRDynamicRoomWorker(self._version)
+        else:
+            scene, trajectory = request
+            worker = XRDynamicRoomWorker(
+                self._version,
+                scene=scene,
+                trajectory=trajectory,
+            )
+        self._xr_pending_run_request = None
         worker.signals.progress.connect(self._xr_link_progress)
         worker.signals.partial.connect(self._xr_links_ready)
         worker.signals.finished.connect(self._xr_demo_ready)
@@ -646,11 +1370,18 @@ class MainWindow(QMainWindow):
             (sample.trajectory.sample_index, sample.mode): sample
             for sample in result.samples
         }
+        self._xr_field_cache_limit = len(result.trajectory) + 1
         self.scene_view.load_scene(result.scene)
         self.scene_view.set_entities_draggable(False)
-        self.scene_view.show_trajectory(
-            [sample.position for sample in result.trajectory]
-        )
+        if self._xr_editor_active and self._xr_trajectory is not None:
+            self.scene_view.show_editable_route(
+                [waypoint.position for waypoint in self._xr_trajectory.points],
+                selected_index=self._xr_selected_waypoint_index,
+            )
+        else:
+            self.scene_view.show_trajectory(
+                [sample.position for sample in result.trajectory]
+            )
         self.xr_timeline.setRange(0, len(result.trajectory) - 1)
         self._set_xr_controls_ready(True)
         self.progress.setRange(0, 100)
@@ -698,6 +1429,17 @@ class MainWindow(QMainWindow):
             "Field map cached · Fast 80×60 · "
             f"{result.field_map.runtime_s:.2f} s · Adaptive fields on demand"
         )
+        if self._xr_editor_active:
+            interface_version = (
+                self.trajectory_backend.interface_version
+                if self.trajectory_backend is not None
+                else f"{EXPECTED_TRAJECTORY_INTERFACE_VERSION} pending"
+            )
+            self.xr_route_status.setText(
+                f"Run snapshot complete · {interface_version} · "
+                f"{len(result.mvp.trajectory)} samples"
+            )
+            self.xr_route_status.setStyleSheet("color:#15803d")
         self.statusBar().showMessage(
             "XR Adaptive prototype ready · Static field cached; Adaptive fields on demand"
         )
@@ -748,7 +1490,9 @@ class MainWindow(QMainWindow):
             self._xr_field_debounce.stop()
             self._xr_pending_field_request = None
             self.xr_field_status.setText(
-                f"Adaptive field calculating… · sample {sample.trajectory.sample_index + 1}/11"
+                "Adaptive field calculating… · sample "
+                f"{sample.trajectory.sample_index + 1}/"
+                f"{len(self._xr_result.trajectory) if self._xr_result else '?'}"
             )
             return
         self._xr_pending_field_request = (
@@ -797,7 +1541,8 @@ class MainWindow(QMainWindow):
         self._workers.append(worker)
         self.progress.setRange(0, 0)
         self.xr_field_status.setText(
-            f"Adaptive field calculating… · sample {sample_index + 1}/11 · Fast 80×60"
+            f"Adaptive field calculating… · sample {sample_index + 1}/"
+            f"{len(self._xr_result.trajectory)} · Fast 80×60"
         )
         self.thread_pool.start(worker)
 
@@ -819,7 +1564,10 @@ class MainWindow(QMainWindow):
             self._redraw_xr_field()
         else:
             self.statusBar().showMessage(
-                f"Adaptive field cached for sample {result.sample_index + 1}/11; current snapshot unchanged"
+                "Adaptive field cached for sample "
+                f"{result.sample_index + 1}/"
+                f"{len(self._xr_result.trajectory) if self._xr_result else '?'}; "
+                "current snapshot unchanged"
             )
         if (
             self._xr_pending_field_request is not None
@@ -842,6 +1590,15 @@ class MainWindow(QMainWindow):
             self._xr_field_inflight_key = None
         if self._closing:
             return
+        if self._xr_cancel_waiting_for_termination:
+            self._xr_cancel_waiting_for_termination = False
+            if self._xr_editor_active:
+                self.xr_sample_label.setText("Run cancelled · worker terminated")
+                self.statusBar().showMessage(
+                    "XR run cancelled; background worker terminated"
+                )
+                self._set_xr_controls_ready(self._xr_result is not None)
+            return
         if self._xr_demo_start_pending:
             self._start_xr_demo_worker()
             return
@@ -857,6 +1614,8 @@ class MainWindow(QMainWindow):
             and self._smart_space_active_worker is None
         ):
             self.start_smart_space_refresh()
+        elif self._xr_editor_active:
+            self._set_xr_controls_ready(self._xr_result is not None)
 
     @staticmethod
     def _derive_no_ris_field(
@@ -932,7 +1691,7 @@ class MainWindow(QMainWindow):
             quantity,
             value_range=self._xr_field_scales.get(quantity),
         )
-        self.scene_view.set_field_visible(True)
+        self.scene_view.set_field_visible(self.show_field.isChecked())
         if mode == ADAPTIVE_RIS_MODE:
             self.xr_field_status.setText(
                 "Adaptive field cached · exact sample command · Fast 80×60 · "
@@ -958,7 +1717,8 @@ class MainWindow(QMainWindow):
         self.xr_timeline.blockSignals(True)
         self.xr_timeline.setValue(index)
         self.xr_timeline.blockSignals(False)
-        self.scene_view.set_trajectory_index(index)
+        if not self._xr_editor_active:
+            self.scene_view.set_trajectory_index(index)
         self.scene_view.set_entity_visual_position(
             self._xr_result.scene.receiver().id,
             sample.trajectory.position,
@@ -987,6 +1747,14 @@ class MainWindow(QMainWindow):
             pattern_source=pattern_source,
             diagnostics=self._pattern_diagnostics(ris, scene=self._xr_result.scene),
         )
+        self.pattern_view.setVisible(self.show_pattern.isChecked())
+        if self._xr_editor_active:
+            command_text = (
+                "Command: none · RIS contribution disabled"
+                if not sample.command_hash
+                else f"Command: {sample.command_kind} · {sample.command_hash[:23]}…"
+            )
+            self.xr_command_status.setText(command_text)
 
         point = sample.trajectory.position
         self.power_metric.setText(
@@ -1035,7 +1803,9 @@ class MainWindow(QMainWindow):
         self._pause_xr_demo()
         self._set_xr_sample(0)
         if self._xr_demo_active and self._xr_result is not None:
-            self.statusBar().showMessage("XR MVP reset to sample 1/11")
+            self.statusBar().showMessage(
+                f"XR playback reset to sample 1/{len(self._xr_result.trajectory)}"
+            )
 
     def _advance_xr_sample(self) -> None:
         if not self._xr_demo_active or self._xr_result is None:
@@ -1058,6 +1828,11 @@ class MainWindow(QMainWindow):
         if self._active_worker is self._xr_active_worker:
             self._active_worker = None
         self._xr_demo_active = False
+        self._xr_editor_active = False
+        self._xr_editor_scene = None
+        self._xr_trajectory = None
+        self._xr_pending_run_request = None
+        self._xr_cancel_waiting_for_termination = False
         self._xr_result = None
         self._xr_static_field = None
         self._xr_no_ris_field = None
@@ -1070,6 +1845,8 @@ class MainWindow(QMainWindow):
         self._xr_sample_lookup = {}
         self._xr_sample_index = 0
         self.xr_controls.setVisible(False)
+        self.xr_editor_group.setVisible(False)
+        self.xr_controls.setTitle("XR Playback / Editor")
         self._set_smart_space_widgets_enabled(True)
         self.scene_view.set_options(
             show_labels=self.show_labels.isChecked(),
@@ -1938,6 +2715,9 @@ class MainWindow(QMainWindow):
         self._closing = True
         self._version += 1
         self._xr_demo_active = False
+        self._xr_editor_active = False
+        self._xr_demo_start_pending = False
+        self._xr_pending_run_request = None
         self._xr_playback_timer.stop()
         self._xr_field_debounce.stop()
         self._xr_pending_field_request = None
@@ -1968,10 +2748,14 @@ def configure_application_font(app: QApplication) -> None:
     app.setFont(QFont(family or app.font().family(), 9))
 
 
-def run_gui(scene: Scene) -> int:
+def run_gui(
+    scene: Scene,
+    *,
+    trajectory_backend: TrajectoryEditorBackend | None = None,
+) -> int:
     app = QApplication.instance() or QApplication(sys.argv)
     app.setApplicationName("AirMirror Future")
     configure_application_font(app)
-    window = MainWindow(scene)
+    window = MainWindow(scene, trajectory_backend=trajectory_backend)
     window.show()
     return app.exec()
