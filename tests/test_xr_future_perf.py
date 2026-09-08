@@ -179,6 +179,25 @@ def test_prepared_field_matches_reference_for_multiple_patterns() -> None:
         np.testing.assert_allclose(actual.snr_db, reference.snr_db, rtol=2e-13, atol=2e-12)
 
 
+def test_prepared_field_applies_scene_profile_modifiers() -> None:
+    scene = create_smart_space_scene("Current")
+    config = SimulationConfig(8, 6, batch_size=4)
+    engine = SimulationEngine()
+    pattern = generate_coherent_target_pattern(scene, engine=engine)
+    reference = engine.compute_field_map(
+        scene, config, {scene.ris_surfaces[0].id: pattern}
+    )
+    actual = prepare_controller_field(
+        scene, config, engine=engine, receiver_batch_size=4
+    ).evaluate(pattern)
+    np.testing.assert_allclose(
+        actual.received_power_dbm,
+        reference.received_power_dbm,
+        rtol=2e-13,
+        atol=2e-12,
+    )
+
+
 def test_prepared_field_enforces_coefficient_memory_budget() -> None:
     scene = create_smart_space_scene("Future")
     with pytest.raises(MemoryError, match="exceeding budget"):

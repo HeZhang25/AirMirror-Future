@@ -30,6 +30,7 @@ from airmirror_future.simulation.coefficient_identity import (
 )
 from airmirror_future.simulation.engine import SimulationEngine
 from airmirror_future.simulation.ground_truth import ControllerModel, GroundTruthModel
+from airmirror_future.simulation.profiles import PropagationPathContext
 
 
 DEFAULT_COEFFICIENT_MEMORY_BUDGET_BYTES = 128 * 1024 * 1024
@@ -244,6 +245,12 @@ def prepare_controller_field(
         (xx.reshape(-1), yy.reshape(-1), np.full(point_count, scene.z_eval_m))
     )
     spec = _production_quadrature_spec(ris)
+    incident_modifier = active_engine._environment_modifier(
+        scene,
+        PropagationPathContext(
+            "ris_incident", tx.position, ris.position, ris_id=ris.id
+        ),
+    ).value
     coefficients = np.empty((point_count, ris.cell_count), dtype=complex)
     baselines = np.empty(point_count, dtype=complex)
     identities: list[str] = []
@@ -262,6 +269,13 @@ def prepare_controller_field(
         )
         for index, point in enumerate(points, start=start):
             receiver = replace(rx_template, position=Vec3(*point.tolist()))
+            scattered_modifier = active_engine._environment_modifier(
+                scene,
+                PropagationPathContext(
+                    "ris_scattered", ris.position, receiver.position, ris_id=ris.id
+                ),
+            ).value
+            coefficients[index] *= incident_modifier * scattered_modifier
             no_ris = active_engine.compute_channel(
                 scene, tx=tx, rx=receiver, ris_patterns={}, model=ControllerModel()
             )
