@@ -286,7 +286,9 @@ def test_adaptive_csv_png_provenance_and_lossless_command_replay(
     assert {row["channel_frequency_model_id"] for row in rows} == {
         "narrowband_center_frequency_flat_v1"
     }
-    assert {row["coefficient_model_identity"] for row in rows} == {""}
+    identities = {row["coefficient_model_identity"] for row in rows}
+    assert len(identities) == 1
+    assert next(iter(identities)).startswith("sha256:")
     assert {row["quadrature_policy_id"] for row in rows} == {
         "midpoint_8x8_per_control_patch"
     }

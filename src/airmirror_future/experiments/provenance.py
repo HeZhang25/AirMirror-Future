@@ -21,8 +21,14 @@ from airmirror_future.ris.phase import (
     generate_focus_pattern,
     generate_ris_only_focus_pattern,
 )
-from airmirror_future.optimization.coherent_focus import generate_coherent_target_pattern
+from airmirror_future.optimization.coherent_focus import (
+    generate_coherent_target_pattern,
+    generate_scene_aware_ris_only_pattern,
+)
 from airmirror_future.simulation.ground_truth import ControllerModel, GroundTruthModel
+from airmirror_future.simulation.coefficient_identity import (
+    controller_ris_coefficient_identity,
+)
 from airmirror_future.simulation.profiles import (
     PropagationProfile,
     _tagged_scalar,
@@ -40,6 +46,7 @@ _FOCUS_MODES: dict[object, tuple[str, str]] = {
     generate_focus_pattern: ("ris_only_phase_conjugate", "1"),
     generate_ris_only_focus_pattern: ("ris_only_phase_conjugate", "1"),
     generate_coherent_target_pattern: ("coherent_target", "1"),
+    generate_scene_aware_ris_only_pattern: ("scene_aware_ris_only", "1"),
 }
 _GROUND_TRUTH_KEYS = (
     "ris_phase_error_sigma_rad",
@@ -221,6 +228,20 @@ def _build_provenance_fields(
     # C2 remains partial until the remaining owner Work Items sign their
     # contracts. Callers cannot remove mandatory pending owners or manufacture
     # a complete result.
+    if not coefficient and isinstance(world, ControllerModel) and not isinstance(world, GroundTruthModel):
+        try:
+            tx = scene.transmitter()
+            rx = scene.receiver()
+            enabled = [ris for ris in scene.ris_surfaces if ris.enabled]
+            if len(enabled) == 1:
+                coefficient = controller_ris_coefficient_identity(
+                    scene, engine, tx, rx, enabled[0]
+                )
+        except (AttributeError, ValueError):
+            coefficient = ""
+    # A canonical identity can be emitted by the production candidate, but C
+    # cannot self-sign QA-CC closure.  The pending owner is removed only by the
+    # later authoritative closure change.
     pending = DEFAULT_PENDING_CONTRACTS
 
     return {

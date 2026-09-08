@@ -35,7 +35,7 @@ from airmirror_future.core.types import Receiver, Scene, Vec3
 from airmirror_future.core.units import watts_to_dbm
 from airmirror_future.experiments.provenance import _build_provenance_fields
 from airmirror_future.experiments.run_output import _REPOSITORY_ROOT
-from airmirror_future.physics.ris_scattering import _ris_aperture_point_contributions
+from airmirror_future.physics.ris_scattering import _ris_control_coefficients_for_quadrature
 from airmirror_future.ris.generations import generation_preset
 from airmirror_future.ris.phase import generate_ris_only_focus_pattern
 from airmirror_future.ris.quadrature import QuadratureSpec, midpoint_quadrature, tensor_product_gauss_legendre
@@ -345,16 +345,9 @@ def evaluate_quadrature(
     tx = scene.transmitter()
     rx = scene.receiver()
     pattern = validate_commanded_pattern(ris, pattern)
-    coefficient_ris = replace(ris, reflection_efficiency=1.0)
-    # QuadratureSpec weights are normalized within a control patch; the
-    # production kernel's area-normalized amplitude is applied here.
-    physical_weights = spec.weights * ris.cell_area_m2
-    zero_phase = np.zeros(ris.cell_count, dtype=float)
-    samples = _ris_aperture_point_contributions(
-        tx, np.asarray([rx.position.as_array()]), rx.gain_linear, coefficient_ris,
-        spec.sample_coordinates, spec.parent_control_index, physical_weights,
-        zero_phase, scene.frequency_hz,
-    )[0]
+    coefficients = _ris_control_coefficients_for_quadrature(
+        tx, rx.position, rx.gain_linear, ris, scene.frequency_hz, spec
+    )
     incident = active_engine.profile.environment_modifier(
         scene=scene,
         context=PropagationPathContext("ris_incident", tx.position, ris.position, ris_id=ris.id),
@@ -363,8 +356,6 @@ def evaluate_quadrature(
         scene=scene,
         context=PropagationPathContext("ris_scattered", ris.position, rx.position, ris_id=ris.id),
     ).value
-    coefficients = np.zeros(ris.cell_count, dtype=complex)
-    np.add.at(coefficients, spec.parent_control_index, samples)
     coefficients *= complex(incident) * complex(scattered)
     gamma = math.sqrt(ris.reflection_efficiency) * np.exp(1j * pattern)
     _require_finite_array(coefficients, "quadrature coefficient vector")

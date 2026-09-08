@@ -117,6 +117,26 @@ def test_production_m8_preserves_control_and_pattern_mapping() -> None:
     assert np.array_equal(pattern, original_pattern)
 
 
+def test_control_coefficients_recompose_production_controller_channel() -> None:
+    scene = create_smart_space_scene("Current")
+    ris, pattern = _focus(scene)
+    coefficients = ris_scattering.ris_control_coefficients(
+        scene.transmitter(),
+        scene.receiver().position,
+        scene.receiver().gain_linear,
+        ris,
+        scene.frequency_hz,
+    )
+    gamma = np.sqrt(ris.reflection_efficiency) * np.exp(1j * pattern)
+    expected = np.dot(coefficients, gamma)
+    actual = SimulationEngine().compute_channel(
+        scene, ris_patterns={ris.id: pattern}
+    ).ris_channel
+
+    assert coefficients.shape == (ris.cell_count,)
+    assert actual == expected
+
+
 def test_field_map_reuses_one_m8_sample_table_per_ris_call(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

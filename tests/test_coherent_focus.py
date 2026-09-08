@@ -13,6 +13,7 @@ from airmirror_future.core.types import Scene
 from airmirror_future.optimization.coherent_focus import (
     coherent_common_phase_offset,
     generate_coherent_target_pattern,
+    generate_scene_aware_ris_only_pattern,
 )
 from airmirror_future.ris.phase import (
     apply_common_phase_offset,
@@ -187,9 +188,10 @@ def test_quantized_coherent_focus_keeps_unshifted_pattern_on_tie() -> None:
         scene.ris_surfaces[0], yaw_rad=scene.ris_surfaces[0].yaw_rad + np.pi
     )
     scene = replace(scene, ris_surfaces=[back_facing])
-    ideal = generate_unquantized_ris_only_focus_pattern(
-        back_facing, scene.transmitter(), scene.receiver(), scene.frequency_hz
-    )
+    coefficients, _ = SimulationEngine().controller_focus_terms(scene, ris=back_facing)
+    ideal = np.zeros(coefficients.size)
+    nonzero = coefficients != 0.0
+    ideal[nonzero] = np.mod(-np.angle(coefficients[nonzero]), 2.0 * np.pi)
     unshifted = apply_common_phase_offset(ideal, 0.0, back_facing.phase_bits)
 
     result = generate_coherent_target_pattern(scene)
@@ -198,6 +200,34 @@ def test_quantized_coherent_focus_keeps_unshifted_pattern_on_tie() -> None:
     )
     assert channel.ris_channel == 0.0j
     assert np.array_equal(result, unshifted)
+
+
+def test_scene_aware_ris_only_uses_controller_coefficients_and_ris_only_objective() -> None:
+    scene = create_smart_space_scene("Current")
+    engine = SimulationEngine()
+    ris = scene.ris_surfaces[0]
+    coefficients, _ = engine.controller_focus_terms(scene, ris=ris)
+    pattern = generate_scene_aware_ris_only_pattern(scene, engine=engine)
+
+    assert pattern.shape == (ris.cell_count,)
+    base = np.zeros(coefficients.size)
+    nonzero = coefficients != 0.0
+    base[nonzero] = np.mod(-np.angle(coefficients[nonzero]), 2.0 * np.pi)
+    offsets = common_phase_offset_candidates(base, ris.phase_bits)
+    powers = []
+    patterns = []
+    for offset in offsets:
+        candidate = apply_common_phase_offset(base, float(offset), ris.phase_bits)
+        patterns.append(candidate)
+        powers.append(abs(np.dot(coefficients, np.exp(1j * candidate))) ** 2)
+    selected = next(index for index, candidate in enumerate(patterns) if np.array_equal(candidate, pattern))
+    assert powers[selected] == pytest.approx(max(powers), rel=1e-14, abs=0.0)
+
+
+def test_scene_aware_focus_rejects_ground_truth_without_reading_it() -> None:
+    scene = create_smart_space_scene("Current")
+    with pytest.raises(ValueError, match="ControllerModel"):
+        generate_scene_aware_ris_only_pattern(scene, GroundTruthModel())
 
 
 @pytest.mark.parametrize("bits", (1, 2, 3, 4))
