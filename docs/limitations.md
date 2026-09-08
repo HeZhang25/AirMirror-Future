@@ -65,9 +65,10 @@
   RIS 的 truthy non-string ID 也须显式赋名并更新 pattern key；disabled/uncommanded 不能绕过
   preflight。不新增 RIS/global uniqueness，也不借此收紧 TX/RX。
 - C2 schema Verified 不使现有 `results/phase_bits` 获得 Profile/Reflection/channel/quadrature/
-  coefficient identity；这些文件仍是只读 `legacy_v0_1_unversioned`，不得回填。C2 及 QA-AP-01
-  签署后的新结果仍必须对未完成的 FND-PHY-NB/FND-QA-AP/FND-QA-CC owner contract 保持
-  partial/pending；QA-AP-01 Ready 不等于 QA runner/production/Verified。
+  coefficient identity；这些文件仍是只读 `legacy_v0_1_unversioned`，不得回填。普通新结果记录
+  已签署的 FND-PHY-NB frequency identity 与 FND-QA-AP production quadrature identity；在
+  FND-QA-CC 未完成时继续保持 partial/pending，`coefficient_model_identity` 为空。QA-AP 历史
+  runner 的 candidate identity 与结果保持不变。
 
 ## 使用限制
 

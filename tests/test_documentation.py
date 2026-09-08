@@ -321,6 +321,7 @@ def test_foundation_external_dependency_closure_is_authoritative() -> None:
     definition_of_done = (DOCS / "definition_of_done.md").read_text(
         encoding="utf-8"
     )
+    limitations = (DOCS / "limitations.md").read_text(encoding="utf-8")
     status = (ROOT / "DEVELOPMENT_STATUS.md").read_text(encoding="utf-8")
     narrowband = (
         DOCS / "work_items" / "foundation_0_1_1_narrowband_contract.md"
@@ -349,6 +350,8 @@ def test_foundation_external_dependency_closure_is_authoritative() -> None:
     assert 'quadrature_policy_version = "1"' in qa_ap
     assert "唯一权威文档定义" in qa_ap
     assert "FND-PHY-NB 与 FND-QA-AP 已签署" in definition_of_done
+    assert "已签署的 FND-PHY-NB frequency identity" in limitations
+    assert "FND-QA-CC 未完成时继续保持 partial/pending" in limitations
     assert "当前 FND-PHY-NB 已在 prototype 后补回并 Verified" in xr_mvp
     assert "- FND-QA-CC — Planned / **deferred for scene-first MVP**" in xr_mvp
 
