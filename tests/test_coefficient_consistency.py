@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from dataclasses import dataclass
 import subprocess
 import sys
 
@@ -20,6 +21,8 @@ from airmirror_future.simulation.coefficient_identity import (
 )
 from airmirror_future.simulation.engine import SimulationEngine
 from airmirror_future.simulation.ground_truth import GroundTruthModel
+from airmirror_future.simulation.profiles import PropagationModifier
+from airmirror_future.experiments.fnd_qa_ap_01 import _scene_for_case
 
 
 def _scalar_oracle(scene, ris) -> np.ndarray:
@@ -124,6 +127,64 @@ def test_coefficient_identity_mutation_and_exclusion_contract() -> None:
     ) == identity
 
 
+@dataclass(frozen=True)
+class _RoomSizeProfile:
+    profile_id: str = "room_size_profile"
+    profile_version: str = "1"
+    canonical_parameters: tuple = (("mode", "room_size_x"),)
+
+    def environment_modifier(self, *, scene, context):
+        # Legitimate custom Profile dependency used to guard conservative
+        # identity fallback: the scene collection is part of the input.
+        return PropagationModifier(complex(1.0 + 1.0e-4 * scene.room_size.x, 0.0))
+
+
+def test_custom_profile_scene_dependency_invalidates_identity() -> None:
+    scene = create_smart_space_scene("Current")
+    tx, rx, ris = scene.transmitter(), scene.receiver(), scene.ris_surfaces[0]
+    from dataclasses import replace
+    engine = SimulationEngine(_RoomSizeProfile())
+    first = controller_ris_coefficient_identity(scene, engine, tx, rx, ris)
+    changed = replace(scene, room_size=replace(scene.room_size, x=scene.room_size.x + 0.5))
+    second = controller_ris_coefficient_identity(
+        changed, engine, changed.transmitter(), changed.receiver(), changed.ris_surfaces[0]
+    )
+    assert first != second
+
+
+def test_fnd_t21_matrix_covers_three_generations_and_four_geometries() -> None:
+    engine = SimulationEngine()
+    for generation in ("Current", "Advanced", "Future"):
+        for geometry in ("default_target", "near_field", "oblique_incidence", "off_focus_receiver"):
+            scene, focus, evaluation = _scene_for_case(generation, geometry)
+            focus_scene = replace(scene, receivers=[focus])
+            ris = scene.ris_surfaces[0]
+            coefficients, _ = engine.controller_focus_terms(focus_scene, ris=ris)
+            pattern = generate_scene_aware_ris_only_pattern(focus_scene, engine=engine)
+            gamma = np.sqrt(ris.reflection_efficiency) * np.exp(1j * pattern)
+            result = engine.compute_channel(focus_scene, ris_patterns={ris.id: pattern})
+            assert result.ris_channel == np.dot(coefficients, gamma)
+            identity = controller_ris_coefficient_identity(
+                focus_scene, engine, focus_scene.transmitter(), focus, ris
+            )
+            assert identity.startswith("sha256:")
+
+
+def test_fnd_t22_continuous_and_finite_bit_objectives_are_separate() -> None:
+    for generation in ("Current", "Advanced", "Future"):
+        for geometry in ("default_target", "near_field", "oblique_incidence", "off_focus_receiver"):
+            scene, focus, evaluation = _scene_for_case(generation, geometry)
+            focus_scene = replace(scene, receivers=[focus])
+            engine = SimulationEngine()
+            ris = focus_scene.ris_surfaces[0]
+            pattern = generate_scene_aware_ris_only_pattern(focus_scene, engine=engine)
+            validate_commanded_pattern(ris, pattern)
+            if ris.phase_bits is None:
+                assert pattern.shape == (ris.cell_count,)
+            else:
+                from airmirror_future.ris.phase import common_phase_offset_candidates
+                base = _coefficient_phase_conjugate(engine.controller_focus_terms(focus_scene, ris=ris)[0])
+                assert common_phase_offset_candidates(base, ris.phase_bits)[0] == 0.0
 def test_coefficient_identity_is_cross_process_stable() -> None:
     script = (
         "from airmirror_future.scenarios.smart_space import create_smart_space_scene as c;"

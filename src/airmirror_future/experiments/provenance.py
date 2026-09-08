@@ -228,7 +228,8 @@ def _build_provenance_fields(
     # C2 remains partial until the remaining owner Work Items sign their
     # contracts. Callers cannot remove mandatory pending owners or manufacture
     # a complete result.
-    if not coefficient and isinstance(world, ControllerModel) and not isinstance(world, GroundTruthModel):
+    if (coefficient_model_identity is None and not coefficient
+            and isinstance(world, ControllerModel) and not isinstance(world, GroundTruthModel)):
         try:
             tx = scene.transmitter()
             rx = scene.receiver()

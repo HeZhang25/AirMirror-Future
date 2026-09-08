@@ -41,6 +41,7 @@ from airmirror_future.ris.phase import generate_ris_only_focus_pattern
 from airmirror_future.ris.quadrature import QuadratureSpec, midpoint_quadrature, tensor_product_gauss_legendre
 from airmirror_future.scenarios.smart_space import create_smart_space_scene
 from airmirror_future.simulation.engine import SimulationEngine
+from airmirror_future.simulation.coefficient_identity import controller_ris_coefficient_identity
 from airmirror_future.simulation.ground_truth import ControllerModel
 from airmirror_future.simulation.profiles import PropagationPathContext
 from airmirror_future.optimization.coherent_focus import generate_coherent_target_pattern
@@ -516,6 +517,8 @@ def _derive_gain_and_reason(
 RAW_COLUMNS = [
     "qa_schema_id", "qa_schema_version", "provenance_schema_id", "provenance_schema_version", "provenance_status", "pending_contracts_json", "run_id", "generation", "geometry_case", "focus_target_rx_x_m", "focus_target_rx_y_m", "focus_target_rx_z_m", "evaluation_rx_x_m", "evaluation_rx_y_m", "evaluation_rx_z_m", "tx_x_m", "tx_y_m", "tx_z_m", "ris_center_x_m", "ris_center_y_m", "ris_center_z_m", "frequency_hz", "width_m", "height_m", "nx", "ny", "pattern_class", "pattern_seed", "pattern_hash", "series_identity", "random_seed", "world_model_id", "profile_id", "profile_version", "profile_identity", "reflection_model_id", "reflection_model_version", "channel_frequency_model_id", "quadrature_policy_id", "quadrature_policy_version", "quadrature_rule", "quadrature_order_x", "quadrature_order_y", "reference_label", "reference_row_id", "a_reference_artifact_identity", "reference_a_inf_norm", "a_inf_abs_error", "a_inf_robust_rel_error", "a_normalization_floor_active", "a_successive_inf_robust_rel_error", "h_ris_real", "h_ris_imag", "h_total_real", "h_total_imag", "h_ris_abs_error", "h_total_abs_error", "complex_robust_rel_error_h_ris", "complex_robust_rel_error_h_total", "normalization_floor_active_h_ris", "normalization_floor_active_h_total", "successive_robust_rel_error_h_ris", "successive_robust_rel_error_h_total", "magnitude_error_db_h_ris", "magnitude_error_db_h_total", "phase_error_rad_h_ris", "phase_error_rad_h_total", "ris_only_power_dbm", "total_received_power_dbm", "ris_gain_db", "deep_null_ratio_h_ris", "deep_null_ratio_h_total", "status", "reason", "quadrature_runtime_s", "quadrature_peak_rss_mb"
 ]
+if "coefficient_model_identity" not in RAW_COLUMNS:
+    RAW_COLUMNS.insert(RAW_COLUMNS.index("quadrature_policy_id"), "coefficient_model_identity")
 
 
 def run(output: Path | None = None, *, generations: Iterable[str] = ("Current", "Advanced", "Future"), geometry_cases: Iterable[str] = tuple(GEOMETRY_CASES), include_random: bool = True) -> tuple[Path, Path, Path]:
@@ -557,6 +560,9 @@ def run(output: Path | None = None, *, generations: Iterable[str] = ("Current", 
                     pattern, focus_callable = _pattern_for_series(scene, focus_rx, geometry_case, pattern_class, pattern_seed, engine)
                 series_meter.sample()
                 series_fields = {"generation": generation, "geometry_case": geometry_case, "pattern_class": pattern_class, "pattern_seed": pattern_seed, "pattern_hash": canonical_pattern_hash(ris, pattern), "frequency_hz": scene.frequency_hz, "profile_identity": engine.profile_identity, "world_model_id": "controller_nominal", "random_seed": scene.random_seed, "baseline_identity": "controller_baseline_v1", "aperture_identity": [ris.width_m, ris.height_m], "control_grid_identity": [ris.nx, ris.ny]}
+                series_coefficient_identity = controller_ris_coefficient_identity(
+                    scene, engine, scene.transmitter(), scene.receiver(), ris
+                )
                 series_identity = tagged_series_identity(series_fields)
                 rows: list[dict[str, Any]] = []
                 previous: dict[str, Any] | None = None
@@ -660,6 +666,9 @@ def run(output: Path | None = None, *, generations: Iterable[str] = ("Current", 
                         candidate_status=candidate_status,
                     )
                     raw_rows.append({"qa_schema_id": QA_SCHEMA_ID, "qa_schema_version": QA_SCHEMA_VERSION, "run_id": run_id, "generation": generation, "geometry_case": geometry_case, "focus_target_rx_x_m": focus_rx.position.x, "focus_target_rx_y_m": focus_rx.position.y, "focus_target_rx_z_m": focus_rx.position.z, "evaluation_rx_x_m": evaluation_rx.position.x, "evaluation_rx_y_m": evaluation_rx.position.y, "evaluation_rx_z_m": evaluation_rx.position.z, "tx_x_m": scene.transmitter().position.x, "tx_y_m": scene.transmitter().position.y, "tx_z_m": scene.transmitter().position.z, "ris_center_x_m": ris.position.x, "ris_center_y_m": ris.position.y, "ris_center_z_m": ris.position.z, "frequency_hz": scene.frequency_hz, "width_m": ris.width_m, "height_m": ris.height_m, "nx": ris.nx, "ny": ris.ny, "pattern_class": pattern_class, "pattern_seed": "" if pattern_seed is None else pattern_seed, "pattern_hash": series_fields["pattern_hash"], "series_identity": series_identity, "random_seed": scene.random_seed, "world_model_id": "controller_nominal", "profile_id": "", "profile_version": "", "profile_identity": "", "reflection_model_id": "", "reflection_model_version": "", "channel_frequency_model_id": "", "quadrature_policy_id": QUADRATURE_POLICY_ID, "quadrature_policy_version": QUADRATURE_POLICY_VERSION, "quadrature_rule": row["quadrature_rule"], "quadrature_order_x": row["quadrature_order_x"], "quadrature_order_y": row["quadrature_order_y"], "reference_label": reference_label if row is reference else "", "reference_row_id": ref_id, "reference_a_inf_norm": metrics["reference_a_inf_norm"], "a_inf_abs_error": metrics["a_inf_abs_error"], "a_inf_robust_rel_error": metrics["a_inf_robust_rel_error"], "a_normalization_floor_active": metrics["a_normalization_floor_active"], "a_successive_inf_robust_rel_error": successive.get("a_inf_robust_rel_error", ""), "h_ris_real": row["h_ris"].real, "h_ris_imag": row["h_ris"].imag, "h_total_real": row["h_total"].real, "h_total_imag": row["h_total"].imag, "h_ris_abs_error": abs(row["h_ris"] - reference["h_ris"]), "h_total_abs_error": abs(row["h_total"] - reference["h_total"]), "complex_robust_rel_error_h_ris": metrics["complex_robust_rel_error_h_ris"], "complex_robust_rel_error_h_total": metrics["complex_robust_rel_error_h_total"], "normalization_floor_active_h_ris": metrics["normalization_floor_active_h_ris"], "normalization_floor_active_h_total": metrics["normalization_floor_active_h_total"], "successive_robust_rel_error_h_ris": successive.get("complex_robust_rel_error_h_ris", ""), "successive_robust_rel_error_h_total": successive.get("complex_robust_rel_error_h_total", ""), "magnitude_error_db_h_ris": metrics["magnitude_error_db_h_ris"], "magnitude_error_db_h_total": metrics["magnitude_error_db_h_total"], "phase_error_rad_h_ris": metrics["phase_error_rad_h_ris"], "phase_error_rad_h_total": metrics["phase_error_rad_h_total"], "ris_only_power_dbm": ris_power_dbm, "total_received_power_dbm": total_power_dbm, "ris_gain_db": None if gain_null else total_power_dbm - baseline_power_dbm, "deep_null_ratio_h_ris": DEEP_NULL_RATIO, "deep_null_ratio_h_total": DEEP_NULL_RATIO, "status": "pass" if candidate_status else "fail", "reason": reason, "quadrature_runtime_s": row["quadrature_runtime_s"], "quadrature_peak_rss_mb": row["quadrature_peak_rss_mb"]})
+                for raw_row in raw_rows:
+                    if raw_row.get("series_identity") == series_identity:
+                        raw_row["coefficient_model_identity"] = series_coefficient_identity
                 series_runtime_by_identity[series_identity] = time.perf_counter() - series_started
                 series_peak_rss_by_identity[series_identity] = series_meter.finish(
                     include_current=not series_had_conditional,
@@ -683,7 +692,7 @@ def run(output: Path | None = None, *, generations: Iterable[str] = ("Current", 
                     run_meter._capture_os_peak()
     if provenance_engine is None or provenance_scene is None:
         raise ValueError("runner matrix is empty")
-    provenance = _build_provenance_fields(engine=provenance_engine, scene=provenance_scene, focus=generate_ris_only_focus_pattern, world=ControllerModel(), run_id=run_id, quadrature_policy_id=QUADRATURE_POLICY_ID, quadrature_policy_version=QUADRATURE_POLICY_VERSION, coefficient_model_identity="candidate:controller_coefficient_v1")
+    provenance = _build_provenance_fields(engine=provenance_engine, scene=provenance_scene, focus=generate_ris_only_focus_pattern, world=ControllerModel(), run_id=run_id, quadrature_policy_id=QUADRATURE_POLICY_ID, quadrature_policy_version=QUADRATURE_POLICY_VERSION, coefficient_model_identity="")
     for row in raw_rows:
         row.update({k: provenance.get(k, "") for k in ("provenance_schema_id", "provenance_schema_version", "provenance_status", "pending_contracts_json", "profile_id", "profile_version", "profile_identity", "reflection_model_id", "reflection_model_version", "channel_frequency_model_id")})
     _assert_json_finite(artifact_records)

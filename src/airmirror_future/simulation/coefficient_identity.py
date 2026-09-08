@@ -10,7 +10,9 @@ from airmirror_future.core.types import RISSurface, Scene, Transmitter, Receiver
 from airmirror_future.physics.ris_scattering import (
     PRODUCTION_QUADRATURE_POLICY_ID,
     PRODUCTION_QUADRATURE_POLICY_VERSION,
+    _production_quadrature_spec,
 )
+from airmirror_future.ris.quadrature import QuadratureSpec
 from airmirror_future.simulation.profiles import (
     IndoorDeterministicProfile,
     PropagationPathContext,
@@ -38,6 +40,10 @@ def controller_ris_coefficient_identity(
     tx: Transmitter,
     rx: Receiver,
     ris: RISSurface,
+    *,
+    quadrature_spec: QuadratureSpec | None = None,
+    quadrature_policy_id: str | None = None,
+    quadrature_policy_version: str | None = None,
 ) -> str:
     """Return a cross-process identity for nominal RIS ``a^C``.
 
@@ -45,22 +51,56 @@ def controller_ris_coefficient_identity(
     entities are conservatively included for custom Profile safety.
     Command state, efficiency, phase bits, Pt, B/NF, coverage, and RNG are excluded.
     """
+    if quadrature_spec is None:
+        spec = _production_quadrature_spec(ris)
+        policy_id = PRODUCTION_QUADRATURE_POLICY_ID
+        policy_version = PRODUCTION_QUADRATURE_POLICY_VERSION
+        if quadrature_policy_id not in (None, policy_id) or quadrature_policy_version not in (
+            None,
+            policy_version,
+        ):
+            raise ValueError("production quadrature identity does not accept another policy")
+    else:
+        spec = quadrature_spec
+        if spec.control_count != ris.cell_count:
+            raise ValueError("quadrature must have one parent group per control patch")
+        if not isinstance(quadrature_policy_id, str) or not quadrature_policy_id:
+            raise ValueError("custom quadrature identity requires a non-empty policy id")
+        if not isinstance(quadrature_policy_version, str) or not quadrature_policy_version:
+            raise ValueError("custom quadrature identity requires a non-empty policy version")
+        policy_id = quadrature_policy_id
+        policy_version = quadrature_policy_version
+
+    before_context = PropagationPathContext(
+        "ris_incident", tx.position, ris.position, ris_id=ris.id
+    )
+    after_context = PropagationPathContext(
+        "ris_scattered", ris.position, rx.position, ris_id=ris.id
+    )
+    before = engine._environment_modifier(scene, before_context)
+    after = engine._environment_modifier(scene, after_context)
+    modifiers = [
+        [before.value.real, before.value.imag, list(before.blocker_ids)],
+        [after.value.real, after.value.imag, list(after.blocker_ids)],
+    ]
+
     if isinstance(engine.profile, IndoorDeterministicProfile):
-        before = engine._environment_modifier(
-            scene, PropagationPathContext("ris_incident", tx.position, ris.position, ris_id=ris.id)
-        )
-        after = engine._environment_modifier(
-            scene, PropagationPathContext("ris_scattered", ris.position, rx.position, ris_id=ris.id)
-        )
         relevant_ids = set(before.blocker_ids + after.blocker_ids)
         walls = [w for w in scene.walls if w.id in relevant_ids]
         obstacles = [o for o in scene.obstacles if o.id in relevant_ids]
-        modifiers = [[before.value.real, before.value.imag, list(before.blocker_ids)],
-                     [after.value.real, after.value.imag, list(after.blocker_ids)]]
+        custom_environment = None
     else:
         walls = scene.walls
         obstacles = scene.obstacles
-        modifiers = None
+        # A custom Profile receives the complete Scene object.  In addition to
+        # recording its two actual outputs above, retain the complete canonical
+        # environment collection because it has no declared dependency
+        # projection comparable to IndoorDeterministicProfile.
+        custom_environment = {
+            "room_size": [scene.room_size.x, scene.room_size.y, scene.room_size.z],
+            "z_eval_m": scene.z_eval_m,
+            "schema_version": scene.schema_version,
+        }
     wall_rows = []
     for wall in walls:
         row = [wall.id, wall.start.x, wall.start.y, wall.start.z,
@@ -74,12 +114,21 @@ def controller_ris_coefficient_identity(
         "frequency_model": "narrowband_center_frequency_flat_v1",
         "frequency_hz": scene.frequency_hz,
         "profile_identity": profile_identity(engine.profile),
-        "quadrature": [PRODUCTION_QUADRATURE_POLICY_ID, PRODUCTION_QUADRATURE_POLICY_VERSION],
+        "quadrature": {
+            "policy_id": policy_id,
+            "policy_version": policy_version,
+            "rule": spec.rule,
+            "order_x": spec.order_x,
+            "order_y": spec.order_y,
+            "flatten_order": "ris_cell_centers_meshgrid_xy_c_v1",
+            "parent_control_index": spec.parent_control_index.tolist(),
+        },
         "tx": [tx.position.x, tx.position.y, tx.position.z, tx.gain_linear],
         "rx": [rx.position.x, rx.position.y, rx.position.z, rx.gain_linear],
         "ris": [ris.id, ris.position.x, ris.position.y, ris.position.z, ris.yaw_rad,
                 ris.width_m, ris.height_m, ris.nx, ris.ny, ris.direction_exponent],
         "path_modifiers": modifiers,
+        "custom_environment": custom_environment,
         "walls": wall_rows,
         "obstacles": [[o.id, o.min_corner.x, o.min_corner.y, o.min_corner.z,
                        o.max_corner.x, o.max_corner.y, o.max_corner.z,

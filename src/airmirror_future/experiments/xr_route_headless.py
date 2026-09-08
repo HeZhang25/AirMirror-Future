@@ -142,6 +142,7 @@ def _write_route_csv(
     provenance: dict[str, object],
     timestamp: str,
     route_source: Path,
+    engine: SimulationEngine,
 ) -> None:
     baseline = {
         sample.trajectory.sample_index: sample.received_power_dbm
@@ -170,6 +171,7 @@ def _write_route_csv(
                     baseline_received_power_dbm=baseline[
                         sample.trajectory.sample_index
                     ],
+                    engine=engine,
                 )
             )
             row["prototype_status"] = _ROUTE_PROTOTYPE_STATUS
@@ -288,6 +290,7 @@ def run_route_experiment(
         quadrature_policy_id=QUADRATURE_POLICY_ID,
         quadrature_policy_version=QUADRATURE_POLICY_VERSION,
     )
+    provenance["coefficient_model_identity"] = ""
     timestamp = datetime.now(timezone.utc).isoformat()
     csv_path = output_directory / "xr_route_three_mode.csv"
     png_path = output_directory / "xr_route_three_mode.png"
@@ -299,6 +302,7 @@ def run_route_experiment(
         provenance=provenance,
         timestamp=timestamp,
         route_source=route_source,
+        engine=active_engine,
     )
     _write_route_plot(png_path, computation)
     elapsed = time.perf_counter() - started
