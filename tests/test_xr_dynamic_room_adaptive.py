@@ -277,7 +277,7 @@ def test_adaptive_csv_png_provenance_and_lossless_command_replay(
     assert {row["provenance_schema_version"] for row in rows} == {"1"}
     assert {row["provenance_status"] for row in rows} == {"partial"}
     assert all(
-        {"FND-PHY-NB", "FND-QA-CC"}
+        {"FND-QA-CC"}
         == set(json.loads(row["pending_contracts_json"]))
         for row in rows
     )
@@ -288,7 +288,7 @@ def test_adaptive_csv_png_provenance_and_lossless_command_replay(
     }
     assert {row["coefficient_model_identity"] for row in rows} == {""}
     assert {row["quadrature_policy_id"] for row in rows} == {
-        "fnd_qa_ap_candidate"
+        "midpoint_8x8_per_control_patch"
     }
     assert {row["quadrature_policy_version"] for row in rows} == {"1"}
     assert {row["production_quadrature"] for row in rows} == {

@@ -21,11 +21,11 @@
 [Foundation 0.1.1 物理模型契约计划](docs/foundation_0_1_1_plan.md)，校准 Focus objective、
 RIS 网格语义、Commanded Pattern 硬件约束、优化搜索分辨率、GUI 状态和传播 Profile。
 在 Foundation final exit/P1A 缓存前，[FND-QA-AP 最小孔径求积有效性门禁](docs/work_items/foundation_0_1_1_qa_ap.md)
-已 Verified，signed midpoint `8×8` policy 也已独立接入 production RIS scattering；后续仍须依次关闭
-[中心频率窄带语义](docs/work_items/foundation_0_1_1_narrowband_contract.md) 和
+已 Verified，signed midpoint `8×8` policy 也已独立接入 production RIS scattering；
+[中心频率窄带语义](docs/work_items/foundation_0_1_1_narrowband_contract.md) 已 Verified，后续仍须关闭
 [Controller coefficient/Focus 一致性](docs/work_items/foundation_0_1_1_coefficient_consistency.md)。
 Foundation 当前为 In Progress：Foundation 0.1.1A、A1/A2/A3、FND-FIX-WALL、B1/B2/B3、
-C1/C2 与 FND-QA-AP 已 Verified；C overall、FND-PHY-NB、FND-QA-CC 和 Foundation Final 尚未
+C1/C2、FND-QA-AP 与 FND-PHY-NB 已 Verified；C overall、FND-QA-CC 和 Foundation Final 尚未
 完成。未达到
 Implemented 的计划项不得描述为当前功能。
 
@@ -93,8 +93,8 @@ Future 参数始终显示 `Future Scenario Assumption`，不表示当前产品�
 更准确地说，当前 `frequency_hz` 是中心频率 `fc`，引擎只计算 `h(fc)` 并假定其在
 `bandwidth_hz` 内平坦；带宽用于接收噪声和 flat-channel Shannon upper bound，不表示已实现
 OFDM 或频率选择性信道。当前所有场景仍使用同一固定传播编排；Foundation C1 已接入
-environment-only PropagationProfile，C2 experiment provenance 与 FND-QA-AP 已 Verified，signed
-midpoint `8×8` 已接入 production；FND-PHY-NB、FND-QA-CC 与其余 Foundation gates 尚未完成。
+environment-only PropagationProfile，C2 experiment provenance、FND-QA-AP 与 FND-PHY-NB 已
+Verified，signed midpoint `8×8` 已接入 production；FND-QA-CC 与其余 Foundation gates 尚未完成。
 
 详细公式与适用边界见 [docs/physics_model.md](docs/physics_model.md)。
 

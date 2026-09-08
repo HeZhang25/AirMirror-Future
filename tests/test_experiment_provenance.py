@@ -11,6 +11,10 @@ from airmirror_future.experiments.provenance import _build_provenance_fields
 from airmirror_future.experiments.provenance import CHANNEL_FREQUENCY_MODEL_ID
 from airmirror_future.optimization.coherent_focus import generate_coherent_target_pattern
 from airmirror_future.physics import reflections
+from airmirror_future.physics.ris_scattering import (
+    PRODUCTION_QUADRATURE_POLICY_ID,
+    PRODUCTION_QUADRATURE_POLICY_VERSION,
+)
 from airmirror_future.ris.phase import (
     generate_focus_pattern,
     generate_ris_only_focus_pattern,
@@ -66,7 +70,7 @@ def test_builds_default_partial_provenance_from_actual_inputs() -> None:
         "provenance_schema_id": "airmirror_experiment_provenance",
         "provenance_schema_version": 1,
         "provenance_status": "partial",
-        "pending_contracts_json": '["FND-PHY-NB","FND-QA-CC"]',
+        "pending_contracts_json": '["FND-QA-CC"]',
         "run_id": "20260904T010203.123456Z-1a2b3c4d",
         "software_version": airmirror_future.__version__,
         "focus_mode_id": "ris_only_phase_conjugate",
@@ -83,8 +87,8 @@ def test_builds_default_partial_provenance_from_actual_inputs() -> None:
         "world_model_parameters_json": "{}",
         "random_seed": 20260901,
         "channel_frequency_model_id": CHANNEL_FREQUENCY_MODEL_ID,
-        "quadrature_policy_id": "",
-        "quadrature_policy_version": "",
+        "quadrature_policy_id": PRODUCTION_QUADRATURE_POLICY_ID,
+        "quadrature_policy_version": PRODUCTION_QUADRATURE_POLICY_VERSION,
         "coefficient_model_identity": "",
     }
 
@@ -149,10 +153,10 @@ def test_candidate_owner_metadata_stays_partial_while_owners_are_pending() -> No
     )
 
     assert fields["provenance_status"] == "partial"
-    assert fields["pending_contracts_json"] == (
-        '["FND-PHY-NB","FND-QA-CC"]'
-    )
+    assert fields["pending_contracts_json"] == '["FND-QA-CC"]'
     assert fields["channel_frequency_model_id"] == CHANNEL_FREQUENCY_MODEL_ID
+    assert fields["quadrature_policy_id"] == "candidate_midpoint"
+    assert fields["quadrature_policy_version"] == "7"
 
 
 def test_frequency_model_identity_is_stable_and_candidate_values_are_rejected() -> None:
