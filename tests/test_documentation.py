@@ -312,6 +312,50 @@ def test_c2_status_is_consistent_with_current_verified_fact() -> None:
     assert "C2 provenance/no-overwrite 已 Verified" in status
 
 
+def test_foundation_external_dependency_closure_is_authoritative() -> None:
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    plan = (DOCS / "foundation_0_1_1_plan.md").read_text(encoding="utf-8")
+    roadmap = (DOCS / "roadmap.md").read_text(encoding="utf-8")
+    requirements = (DOCS / "requirements.md").read_text(encoding="utf-8")
+    strategy = (DOCS / "test_strategy.md").read_text(encoding="utf-8")
+    definition_of_done = (DOCS / "definition_of_done.md").read_text(
+        encoding="utf-8"
+    )
+    limitations = (DOCS / "limitations.md").read_text(encoding="utf-8")
+    status = (ROOT / "DEVELOPMENT_STATUS.md").read_text(encoding="utf-8")
+    narrowband = (
+        DOCS / "work_items" / "foundation_0_1_1_narrowband_contract.md"
+    ).read_text(encoding="utf-8")
+    qa_ap = (
+        DOCS / "work_items" / "foundation_0_1_1_qa_ap.md"
+    ).read_text(encoding="utf-8")
+    xr_mvp = (
+        DOCS / "work_items" / "xr_dynamic_room_mvp.md"
+    ).read_text(encoding="utf-8")
+
+    assert "C1/C2、FND-QA-AP 与 FND-PHY-NB 已 Verified" in readme
+    assert "| `FND-PHY-NB` 冻结 center-frequency flat-channel contract | Verified |" in plan
+    assert "FND-PHY-NB 已在 prototype 后补回并 Verified" in roadmap
+    assert "| AMF-PHY-007 |" in requirements
+    assert "| Verified |" in next(
+        line for line in requirements.splitlines() if "| AMF-PHY-007 |" in line
+    )
+    assert "| FND-T20 |" in strategy
+    assert "Verified：PR #19" in next(
+        line for line in strategy.splitlines() if "| FND-T20 |" in line
+    )
+    assert "FND-PHY-NB、AMF-PHY-007 和 FND-T20 签署为 **Verified**" in status
+    assert "FND-PHY-NB、AMF-PHY-007 和 FND-T20 签署为 **Verified**" in narrowband
+    assert 'quadrature_policy_id = "midpoint_8x8_per_control_patch"' in qa_ap
+    assert 'quadrature_policy_version = "1"' in qa_ap
+    assert "唯一权威文档定义" in qa_ap
+    assert "FND-PHY-NB 与 FND-QA-AP 已签署" in definition_of_done
+    assert "已签署的 FND-PHY-NB frequency identity" in limitations
+    assert "FND-QA-CC 未完成时继续保持 partial/pending" in limitations
+    assert "当前 FND-PHY-NB 已在 prototype 后补回并 Verified" in xr_mvp
+    assert "- FND-QA-CC — Planned / **deferred for scene-first MVP**" in xr_mvp
+
+
 def test_phase_bits_result_schema_contains_required_tracking_fields() -> None:
     required = {
         "provenance_schema_id",

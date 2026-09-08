@@ -3,7 +3,7 @@
 - 层级：L4 Task（cross-cutting physics/provenance closure）
 - Task ID：FND-PHY-NB
 - Requirement IDs：AMF-PHY-007
-- 状态：Planned / deferred for scene-first MVP
+- 状态：Verified（2026-09-08；PR #19 implementation、FND-T20 与独立复核通过）
 - 父项：Foundation 0.1.1 Final Exit Gate
 - 依赖：ADR-0010 Accepted；C2 minimum experiment provenance
 - 不属于：OFDM、frequency-selective channel、delay spread、beam squint、材料色散
@@ -56,10 +56,30 @@ C_flat_upper = B*log2(1+SNR(fc))
 
 | Task | 状态 | 预计 | 输出 |
 |---|---|---:|---|
-| `FND-PHY-NB-01` 对齐 data/API/GUI/CLI/experiment 标签 | Planned | 0.5–1 天 | 无歧义文案与字段定义 |
-| `FND-PHY-NB-02` 接入稳定 model ID 与 legacy 规则 | Planned | 0.5–1 天 | C2 provenance 字段 |
-| `FND-PHY-NB-03` 增加 fc/B 属性与序列化回归 | Planned | 0.5–1 天 | FND-T20 |
-| `FND-PHY-NB-04` 人工复核并记录适用域 | Planned | 0.5 天 | closure record |
+| `FND-PHY-NB-01` 对齐 data/API/GUI/CLI/experiment 标签 | Verified | 0.5–1 天 | 无歧义文案与字段定义 |
+| `FND-PHY-NB-02` 接入稳定 model ID 与 legacy 规则 | Verified | 0.5–1 天 | C2 provenance 字段 |
+| `FND-PHY-NB-03` 增加 fc/B 属性与序列化回归 | Verified | 0.5–1 天 | FND-T20 |
+| `FND-PHY-NB-04` 人工复核并记录适用域 | Verified | 0.5 天 | closure record |
+
+## Verification and authoritative closure
+
+2026-09-08 维护者依据 PR #19 merge `99cde97eefdecbcab41a68871663655c90dd1698`、
+implementation `62a1c7b511618d9febd29a24045b8b8cf998c6d3`、follow-up tests `99fd49d`
+与 `895bb13`，以及 D closure handoff `5e628696d677a858ef241dfe656a9c4e3a30bfe3`
+和独立复核提交 `617cd602c5e7f791d0f8801145a29db471e727bb`，
+将 FND-PHY-NB-01..04、FND-PHY-NB、AMF-PHY-007 和 FND-T20 签署为 **Verified**。
+
+证据确认：改变 `fc` 会重算 `lambda/k` 并改变 LOS、wall、RIS 和 total complex channel；固定
+commanded pattern 时该频率依赖仍来自 production propagation；仅改变 `B` 不改变上述复信道
+或 received power，只按公式改变 noise、SNR 和 capacity；新 provenance 使用 canonical
+`narrowband_center_frequency_flat_v1`；Scene v1 round-trip 不新增该 identity。已有 C2 完整
+回归 `372 passed, 1 skipped`、Current/Advanced/Future fast headless、documentation/diff-check
+证据保持有效；D 在 PR #19 精确基线上复核的 narrowband/C2/M8 focused suite 为 34 tests，扩大
+至 Focus/XR/GUI/documentation 为 100 tests，均 PASS。
+
+该 closure 只移除新 C2 provenance 的 `FND-PHY-NB` pending owner。FND-QA-CC 继续 pending，
+`coefficient_model_identity` 继续为空；历史结果不回填，Foundation overall 保持 In Progress，
+P1A gate 保持 closed。
 
 ## 验收证据
 
@@ -83,5 +103,5 @@ C_flat_upper = B*log2(1+SNR(fc))
 
 - [x] ADR-0010、requirements、Foundation plan、physics/data/API、GUI、experiments、limitations；
 - [x] architecture/cache identity、test strategy、DoD、roadmap、status；
-- [ ] code/tests：Planned，尚未实现；
+- [x] code/tests：PR #19 与 FND-T20 已实现并通过独立复核；
 - [ ] scene/results/cache：本工作项不修改。

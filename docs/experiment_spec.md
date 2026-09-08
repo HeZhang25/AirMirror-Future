@@ -99,12 +99,9 @@ provenance_schema_id = airmirror_experiment_provenance
 provenance_schema_version = 1
 ```
 
-C2 新运行必须把尚未签署或尚未完成独立 closure 的 owner 列入 `pending_contracts_json`；当前
-FND-PHY-NB 已接入 canonical frequency model 但仍等待本 Work Item 的独立审查/维护者 closure，
-FND-QA-AP 已有 signed policy，FND-QA-CC 仍 pending。NB owner 不能自行移除自身 pending 项，
-也不能把结果写成 `complete` 或 `Verified`。NB Verified 后，由 C2/Integration 或 Status Owner
-依据该 Work Item 的独立审查通过记录和维护者签署事实，统一更新 builder 的 pending 常量及相关
-事实源；不能由入口调用者或本地实验结果推断。若某后续 QA runner 正在评价显式 candidate，
+C2 新运行必须把尚未签署或尚未完成独立 closure 的 owner 列入 `pending_contracts_json`；
+FND-PHY-NB 与 FND-QA-AP 已由维护者签署，FND-QA-CC 仍 pending，因此普通新 run 的 pending
+owners 仅为 `FND-QA-CC`，结果继续为 `partial`。若某后续 QA runner 正在评价显式 candidate，
 可以记录 candidate ID/version，但 owner 仍留在 pending list，结果仍为 `partial`。只有 pending
 为空且本 run 必需 identity 均由 owner closure 签署并非空时才能写 `complete`。不得用 `default`、
 类名、ADR 目标值、0 或当前行为猜测 future identity/Verified provenance。
@@ -204,18 +201,16 @@ null/ill-conditioned 原因及 pass/fail。完整 Future `a_n` 向量如需保�
 不得塞入普通 summary CSV/JSON 单元格。
 
 输出复用 `airmirror_experiment_provenance/1` 的字段与 no-overwrite 规则。签署后的 QA policy
-identity 可写入 `quadrature_policy_id/version`；在 FND-QA-CC 尚未完成前，`provenance_status`
-仍为 `partial`，且新 C2 builder 的 pending owner 至少包含 `FND-PHY-NB`、`FND-QA-CC`。QA-AP runner 的历史
+identity 写入 `quadrature_policy_id/version`；在 FND-QA-CC 尚未完成前，`provenance_status`
+仍为 `partial`，且新 C2 builder 的 pending owner 包含 `FND-QA-CC`。QA-AP runner 的历史
 preregistration/summary 字段由 QA-AP owner 维护，不能在本 Work Item 中越权重写；coefficient
 identity 仍由 FND-QA-CC 拥有，不能伪造成 production default。
 
-当前已签署并迁入 production 的事实是每个 control patch 使用 midpoint `8×8`；实现位置是
-`physics/ris_scattering.py` 的 `PRODUCTION_QUADRATURE_ORDER` 与 `_production_quadrature_spec()`。
-仓库尚未冻结与该 production policy 一一对应的 canonical `quadrature_policy_id/version`，普通
-Foundation `phase_bits.py` runner 因此继续写空值；空值表示“本 run 未记录已签署的 policy identity”，
-不表示 midpoint `8×8` 未执行，也不能在下游推断或回填。QA-AP/C2 Integration Owner 必须先依据
-已签署 policy 冻结唯一 ID/version，再从实际 production 配置向普通新 runner 接线，并通过 C2
-provenance/production-policy 一致性测试验收。QA-AP 历史 runner 的
+production canonical identity 已签署为 `midpoint_8x8_per_control_patch/1`；其唯一权威语义由
+[FND-QA-AP Work Item](work_items/foundation_0_1_1_qa_ap.md#production-canonical-quadrature-identity唯一权威契约)
+定义。唯一代码来源是 `physics/ris_scattering.py` 的 production policy constants 与
+`_production_quadrature_spec()`；普通新 Foundation runner 和 XR 从该来源记录身份。
+QA-AP 历史 runner 的
 `fnd_qa_ap_candidate/1` 只标识当时的候选评价，不能复用为 production canonical identity；legacy
 结果保持不变。
 

@@ -1,0 +1,32 @@
+{
+  "schema_id": "airmirror_xr_route_experiment",
+  "schema_version": 1,
+  "experiment_id": "xr-multi-room-doorway-route-v1",
+  "scene": {
+    "kind": "scene_v1_reference",
+    "path": "../../scenes/xr_multi_room.json"
+  },
+  "trajectory": {
+    "waypoints": [
+      {"position_m": {"x": 2.0, "y": 2.0, "z": 1.2}},
+      {"position_m": {"x": 2.0, "y": 4.2, "z": 1.2}},
+      {"position_m": {"x": 5.5, "y": 4.2, "z": 1.2}},
+      {"position_m": {"x": 5.5, "y": 3.4, "z": 1.2}},
+      {"position_m": {"x": 10.5, "y": 3.4, "z": 1.2}},
+      {"position_m": {"x": 10.5, "y": 6.8, "z": 1.2}},
+      {"position_m": {"x": 12.5, "y": 8.2, "z": 1.2}}
+    ],
+    "timing": {
+      "kind": "explicit_times",
+      "waypoint_times_s": [0.0, 2.0, 5.0, 7.0, 11.0, 14.0, 17.0]
+    }
+  },
+  "sampling": {
+    "sample_interval_s": 2.0,
+    "max_samples": 64
+  },
+  "validation": {
+    "clearance_warning_m": 0.15,
+    "touch_is_collision": true
+  }
+}

@@ -17,9 +17,10 @@ Foundation result readers classify directories without modifying their CSV/PNG a
 An unknown non-empty schema ID or version is rejected rather than downgraded to legacy. Legacy,
 checkpoint, partial, and complete outputs are not silently combined into one evidence grade.
 
-Foundation `FND-QA-AP` 当前为 Planned，本目录尚无正式 aperture quadrature validity 结果。未来
-QA 必须写入新的 versioned/no-overwrite run 目录，并记录 model/Profile/pattern/quadrature
-policy identity。不得把一次临时复算或固定 16×16 输出标为 Ground Truth/EM truth。
+Foundation `FND-QA-AP` 已 Verified；正式 v1 run `20260906T094526-de4745c3` 与 continuation
+`20260906T123708-78615a33` 是只读历史证据。production canonical quadrature identity 已签署为
+`midpoint_8x8_per_control_patch/1`；不得回填或改写历史 runner 的
+`fnd_qa_ap_candidate/1`，也不得把内部 refined reference 标为 Ground Truth/EM truth。
 
 2026-09-03 的 `checkpoints/foundation_0_1_1_ab_checkpoint_20260903/` 是 Foundation 0.1.1
 A/B Interim Checkpoint 的隔离输出，仅标记为 checkpoint / non-formal provenance。它不是正式

@@ -1,4 +1,7 @@
 from dataclasses import replace
+import json
+import subprocess
+import sys
 
 import numpy as np
 import pytest
@@ -52,6 +55,23 @@ def test_production_path_builds_signed_midpoint_eight_rule(
     assert np.isfinite(result.ris_channel.imag)
 
 
+def test_production_quadrature_identity_is_stable_across_processes() -> None:
+    script = (
+        "import json; "
+        "from airmirror_future.physics.ris_scattering import "
+        "PRODUCTION_QUADRATURE_POLICY_ID as i, "
+        "PRODUCTION_QUADRATURE_POLICY_VERSION as v; "
+        "print(json.dumps([i, v], separators=(',', ':')))"
+    )
+    outputs = [
+        subprocess.check_output([sys.executable, "-c", script], text=True).strip()
+        for _ in range(2)
+    ]
+
+    assert outputs[0] == outputs[1]
+    assert json.loads(outputs[0]) == ["midpoint_8x8_per_control_patch", "1"]
+
+
 def test_production_m8_preserves_control_and_pattern_mapping() -> None:
     scene = create_smart_space_scene("Current")
     ris, pattern = _focus(scene)
@@ -59,6 +79,22 @@ def test_production_m8_preserves_control_and_pattern_mapping() -> None:
     spec = ris_scattering._production_quadrature_spec(ris)
 
     assert spec.control_count == ris.cell_count == ris.nx * ris.ny
+    assert ris_scattering.PRODUCTION_QUADRATURE_POLICY_ID == (
+        "midpoint_8x8_per_control_patch"
+    )
+    assert ris_scattering.PRODUCTION_QUADRATURE_POLICY_VERSION == "1"
+    assert spec.rule == "midpoint"
+    assert (spec.order_x, spec.order_y) == (8, 8)
+    np.testing.assert_array_equal(
+        spec.weights,
+        np.full(spec.sample_count, 1.0 / 64.0),
+    )
+    np.testing.assert_allclose(
+        spec.weights.reshape(ris.cell_count, 64).sum(axis=1),
+        np.ones(ris.cell_count),
+        rtol=0.0,
+        atol=0.0,
+    )
     assert pattern.shape == (ris.cell_count,)
     assert np.array_equal(
         spec.parent_control_index,
@@ -68,6 +104,14 @@ def test_production_m8_preserves_control_and_pattern_mapping() -> None:
         spec.inherited_commands(pattern),
         pattern[spec.parent_control_index],
     )
+
+    first_parent = spec.sample_coordinates[:64]
+    tangent = np.array((-np.sin(ris.yaw_rad), np.cos(ris.yaw_rad), 0.0))
+    local_x = first_parent @ tangent
+    local_y = first_parent[:, 2]
+    assert np.all(np.diff(local_x.reshape(8, 8), axis=1) > 0.0)
+    assert np.all(np.diff(local_y.reshape(8, 8), axis=0) > 0.0)
+    np.testing.assert_allclose(np.diff(local_y.reshape(8, 8), axis=1), 0.0)
 
     SimulationEngine().compute_channel(scene, ris_patterns={ris.id: pattern})
     assert np.array_equal(pattern, original_pattern)

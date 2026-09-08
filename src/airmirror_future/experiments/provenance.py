@@ -13,6 +13,10 @@ import math
 import re
 import airmirror_future
 from airmirror_future.physics import reflections
+from airmirror_future.physics.ris_scattering import (
+    PRODUCTION_QUADRATURE_POLICY_ID,
+    PRODUCTION_QUADRATURE_POLICY_VERSION,
+)
 from airmirror_future.ris.phase import (
     generate_focus_pattern,
     generate_ris_only_focus_pattern,
@@ -29,10 +33,7 @@ from airmirror_future.simulation.profiles import (
 PROVENANCE_SCHEMA_ID = "airmirror_experiment_provenance"
 PROVENANCE_SCHEMA_VERSION = 1
 CHANNEL_FREQUENCY_MODEL_ID = "narrowband_center_frequency_flat_v1"
-# The canonical narrowband model value is wired for new runs, but the Work Item
-# remains pending its independent closure review. Keep that owner visible until
-# the maintainer records formal verification.
-DEFAULT_PENDING_CONTRACTS = ("FND-PHY-NB", "FND-QA-CC")
+DEFAULT_PENDING_CONTRACTS = ("FND-QA-CC",)
 
 _RUN_ID_SAFE = re.compile(r"^[^\\/\x00]+$")
 _FOCUS_MODES: dict[object, tuple[str, str]] = {
@@ -151,10 +152,16 @@ def _validate_optional_owner_fields(
                 "channel_frequency_model_id must equal "
                 f"{CHANNEL_FREQUENCY_MODEL_ID!r}"
             )
-    quadrature_id = _optional_string(quadrature_policy_id, "quadrature_policy_id")
-    quadrature_version = _optional_string(
-        quadrature_policy_version, "quadrature_policy_version"
-    )
+    if quadrature_policy_id is None and quadrature_policy_version is None:
+        quadrature_id = PRODUCTION_QUADRATURE_POLICY_ID
+        quadrature_version = PRODUCTION_QUADRATURE_POLICY_VERSION
+    else:
+        quadrature_id = _optional_string(
+            quadrature_policy_id, "quadrature_policy_id"
+        )
+        quadrature_version = _optional_string(
+            quadrature_policy_version, "quadrature_policy_version"
+        )
     coefficient = _optional_string(coefficient_model_identity, "coefficient_model_identity")
     if bool(quadrature_id) != bool(quadrature_version):
         raise ValueError("quadrature policy id and version must both be empty or non-empty")
