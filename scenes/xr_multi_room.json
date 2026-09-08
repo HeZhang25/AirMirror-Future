@@ -1,0 +1,36 @@
+{
+  "name": "XR Multi-Room Route Prototype",
+  "room_size": {"x": 14.0, "y": 10.0, "z": 3.0},
+  "frequency_hz": 5000000000.0,
+  "bandwidth_hz": 100000000.0,
+  "transmitters": [
+    {"id": "tx-xr-1", "position": {"x": 1.0, "y": 7.8, "z": 2.4}, "power_w": 0.1, "gain_linear": 1.0}
+  ],
+  "receivers": [
+    {"id": "rx-xr-1", "position": {"x": 2.0, "y": 2.0, "z": 1.2}, "gain_linear": 1.0, "noise_figure_db": 7.0}
+  ],
+  "walls": [
+    {"id": "outer-north", "start": {"x": 0.0, "y": 10.0, "z": 0.0}, "end": {"x": 14.0, "y": 10.0, "z": 0.0}, "height_m": 3.0, "attenuation_db": 80.0, "reflection_magnitude": 0.35, "reflection_phase_rad": 3.141592653589793, "blocks_los": false},
+    {"id": "outer-south", "start": {"x": 0.0, "y": 0.0, "z": 0.0}, "end": {"x": 14.0, "y": 0.0, "z": 0.0}, "height_m": 3.0, "attenuation_db": 80.0, "reflection_magnitude": 0.35, "reflection_phase_rad": 3.141592653589793, "blocks_los": false},
+    {"id": "outer-west", "start": {"x": 0.0, "y": 0.0, "z": 0.0}, "end": {"x": 0.0, "y": 10.0, "z": 0.0}, "height_m": 3.0, "attenuation_db": 80.0, "reflection_magnitude": 0.35, "reflection_phase_rad": 3.141592653589793, "blocks_los": false},
+    {"id": "outer-east", "start": {"x": 14.0, "y": 0.0, "z": 0.0}, "end": {"x": 14.0, "y": 10.0, "z": 0.0}, "height_m": 3.0, "attenuation_db": 80.0, "reflection_magnitude": 0.35, "reflection_phase_rad": 3.141592653589793, "blocks_los": false},
+    {"id": "west-partition-south", "start": {"x": 4.0, "y": 0.0, "z": 0.0}, "end": {"x": 4.0, "y": 3.6, "z": 0.0}, "height_m": 3.0, "attenuation_db": 32.0, "reflection_magnitude": 0.42, "reflection_phase_rad": 2.8, "blocks_los": true},
+    {"id": "west-partition-north", "start": {"x": 4.0, "y": 4.8, "z": 0.0}, "end": {"x": 4.0, "y": 10.0, "z": 0.0}, "height_m": 3.0, "attenuation_db": 32.0, "reflection_magnitude": 0.42, "reflection_phase_rad": 2.8, "blocks_los": true},
+    {"id": "east-partition-south", "start": {"x": 9.0, "y": 0.0, "z": 0.0}, "end": {"x": 9.0, "y": 2.8, "z": 0.0}, "height_m": 3.0, "attenuation_db": 30.0, "reflection_magnitude": 0.4, "reflection_phase_rad": 2.6, "blocks_los": true},
+    {"id": "east-partition-north", "start": {"x": 9.0, "y": 4.0, "z": 0.0}, "end": {"x": 9.0, "y": 6.0, "z": 0.0}, "height_m": 3.0, "attenuation_db": 30.0, "reflection_magnitude": 0.4, "reflection_phase_rad": 2.6, "blocks_los": true},
+    {"id": "north-partition-west", "start": {"x": 4.0, "y": 6.0, "z": 0.0}, "end": {"x": 10.0, "y": 6.0, "z": 0.0}, "height_m": 3.0, "attenuation_db": 28.0, "reflection_magnitude": 0.38, "reflection_phase_rad": 2.7, "blocks_los": true},
+    {"id": "north-partition-east", "start": {"x": 11.2, "y": 6.0, "z": 0.0}, "end": {"x": 14.0, "y": 6.0, "z": 0.0}, "height_m": 3.0, "attenuation_db": 28.0, "reflection_magnitude": 0.38, "reflection_phase_rad": 2.7, "blocks_los": true}
+  ],
+  "obstacles": [
+    {"id": "conference-table", "min_corner": {"x": 5.8, "y": 7.2, "z": 0.0}, "max_corner": {"x": 8.5, "y": 8.8, "z": 0.9}, "attenuation_db": 12.0, "fully_blocking": false},
+    {"id": "server-rack", "min_corner": {"x": 11.8, "y": 1.0, "z": 0.0}, "max_corner": {"x": 13.2, "y": 2.5, "z": 2.4}, "attenuation_db": 24.0, "fully_blocking": true},
+    {"id": "storage-cabinets", "min_corner": {"x": 1.0, "y": 6.4, "z": 0.0}, "max_corner": {"x": 2.6, "y": 7.2, "z": 2.1}, "attenuation_db": 20.0, "fully_blocking": false}
+  ],
+  "ris_surfaces": [
+    {"id": "ris-xr-1", "position": {"x": 4.1, "y": 9.0, "z": 1.5}, "yaw_rad": -1.5707963267948966, "width_m": 0.8, "height_m": 0.8, "nx": 8, "ny": 8, "phase_bits": 1, "reflection_efficiency": 0.7, "update_rate_hz": 10.0, "self_sensing": false, "generation": "Current", "enabled": true, "active": false, "direction_exponent": 1.0}
+  ],
+  "z_eval_m": 1.2,
+  "coverage_threshold_db": 35.0,
+  "random_seed": 20260908,
+  "schema_version": 1
+}
