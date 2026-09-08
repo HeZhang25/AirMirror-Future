@@ -46,13 +46,13 @@ reviewer 不应运行或修改 C 本机的 `d_*` 目录，也不能把同一 Cod
 1. 低层 pure reduction 是否避免第二公式和反向依赖；
 2. `a^C/Gamma_cmd/a^GT/Gamma_actual/baseline` 因子是否有唯一 owner；
 3. legacy public RIS-only 与 scene-aware production migration 是否兼容 ADR-0006/0011；
-4. RIS-only finite-bit singleton `delta=0` 与 Coherent common-offset search 是否分层正确；
+4. ADR-0013 方案 A 的 RIS-only `P_RIS` common-offset search 与 Coherent total-power search 是否分层正确；
 5. identity 是否正确区分 coefficient、baseline、Gamma、Pt/link metrics、coverage、GT physical
    realization 和 measurement oracle；
 6. entity ID、custom Profile、relevant/irrelevant environment mutation 是否完整；
 7. T21/T22 的三代 production grids、独立 formula oracle 和 dynamic forward-error bounds 是否足以
    在实现前冻结；
-8. production canonical `quadrature_policy_id/version` 是否仍构成外部 owner blocker。
+8. PR #23 已签署的 production canonical `midpoint_8x8_per_control_patch/1` 是否被准确消费。
 
 ## 回复模板
 

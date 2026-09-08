@@ -4,8 +4,8 @@
 |---|---|
 | Work Item | `FND-QA-CC` / `AMF-RIS-012` |
 | 作者角色 | C / Coefficient Consistency Owner |
-| 审计基线 | `87d2dea8c3ca40774f754271d7b21743cefcc133` |
-| 基线关系 | `HEAD == origin/main`，2026-09-08 fetch 后 `0/0` |
+| Contract base SHA | `87d2dea8c3ca40774f754271d7b21743cefcc133` |
+| 当前集成基线 | `origin/main@a7271648d3d6d98d6af953eadcc4784b7776222f`（PR #23/#22） |
 | 本稿状态 | **Ready candidate / HOLD pending independent D review of final correction** |
 | 允许范围 | 阶段一实施契约和验证计划；不迁移 production，不提升状态，不进入 P1A |
 
@@ -20,13 +20,10 @@
 本稿尚未取得真正 D 的独立电脑、独立 checkout、命令日志或签署。真正 D 必须从本 task branch
 取得本稿和机器契约，在自己的环境审查同一 commit；C 不代签，不把代理模拟称为独立审查。
 
-当前基线已包含 FND-PHY-NB 代码提交和 `channel_frequency_model_id` 接线，但共享状态文档仍由其
-owner/维护者签署。本稿只消费代码事实，不替 NB owner 宣布正式 closure。
-
-另有一个外部 owner 输入尚未闭合：仓库规范明确说明当前尚未冻结与 production M8 一一对应的
-canonical `quadrature_policy_id/version`；QA-AP runner 的 `fnd_qa_ap_candidate/1` 只属于历史候选
-评价，不能冒充 production canonical identity。C 不在本稿中发明该 ID。QA-AP owner/维护者必须
-在阶段二 identity 接线前给出签署值，或明确授权一个独立命名决策。
+PR #23 merge `6bc64c5` 已在 main 正式签署 FND-PHY-NB Verified、
+`channel_frequency_model_id=narrowband_center_frequency_flat_v1`，以及 production M8 canonical
+identity `midpoint_8x8_per_control_patch/1`。本稿只消费该 authoritative closure，不替外部 owner
+扩大范围；QA-AP runner 的历史 `fnd_qa_ap_candidate/1` 仍不得冒充 production identity。
 
 ## 2. 当前生产分叉（本轮不重复开放式审计）
 
@@ -275,8 +272,8 @@ phase snapshot/pattern hash、nominal efficiency/calibration。它不替代 tran
 identity；默认 Profile 下非相交 blocker/无关 wall 不改变 RIS transfer identity；但 relevant baseline
 wall 必须改变 baseline identity。custom ID-sensitive Profile 下改 RIS ID 必须能够改变 modifier/`a`。
 
-在 production canonical quadrature policy ID 尚未由其 owner 签署前，完整 coefficient identity
-只能标为 candidate/partial；不得把 `fnd_qa_ap_candidate/1` 提升成 production 值。
+production canonical quadrature policy ID 已由 PR #23 签署；完整 coefficient identity 仍须在
+QA-CC 阶段二实现和验证。不得把 `fnd_qa_ap_candidate/1` 提升成 production 值。
 
 ## 7. 正式验证计划
 
@@ -384,12 +381,13 @@ version、quadrature/coefficient identity；不得覆盖、回填或把旧结果
 1. pure reduction 签名、control/subpoint ordering 和 dependency direction 是否足以避免第二公式；
 2. factor ownership 与 Controller/GT boundary 是否完整；
 3. legacy API + scene-aware production migration 是否符合 ADR-0006/0011；
-4. RIS-only finite-bit singleton `delta=0` 与 Coherent common-offset family 的分离是否正确；
+4. ADR-0013 方案 A 的 RIS-only `P_RIS` common-offset family 与 Coherent total-power family 是否正确分离；
 5. identity 分层、RIS/context entity IDs、relevant geometry 与 custom Profile fallback 是否安全；
 6. T21/T22 oracle 和 forward-error tolerance 是否可在结果前冻结。
 
-外部依赖还需确认：production M8 的 canonical `quadrature_policy_id/version`。这不是重新选择
-M8 policy，只是关闭已经由 `docs/experiment_spec.md` 明确记录的身份接线缺口。
+外部门禁已由 PR #23 关闭：FND-PHY-NB Verified，production M8 identity 为
+`midpoint_8x8_per_control_patch/1`。QA-CC 不重新选择 policy，只在阶段二消费并验证其接线。
 
 任一项有异议时，D 应给出最小 blocking decision，不参与 builder 核心实现后再充当独立 reviewer。
-在 D 对本 commit 正式 PASS 且维护者明确授权前，本 Work Item 继续 **Ready HOLD / Planned**。
+在 D 对当前最终设计差异正式 PASS 前，本 Work Item 继续 **Ready HOLD / Planned**。阶段二的
+FND-T21/T22、builder、migration 与完整回归是 Ready 后 closure 证据，不是 Ready 前置实现要求。

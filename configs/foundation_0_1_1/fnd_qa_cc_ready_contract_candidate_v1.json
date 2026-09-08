@@ -1,17 +1,19 @@
 {
   "config_kind": "fnd_qa_cc_ready_contract_candidate",
   "config_version": "1",
-  "status": "ready_hold_pending_independent_d_review_final_correction",
+  "status": "ready_hold_pending_independent_d_final_decision",
   "base_sha": "87d2dea8c3ca40774f754271d7b21743cefcc133",
-  "origin_main_sha": "87d2dea8c3ca40774f754271d7b21743cefcc133",
+  "origin_main_sha": "a7271648d3d6d98d6af953eadcc4784b7776222f",
   "production_modified": false,
   "p1a_authorized": false,
   "external_owner_inputs": {
     "canonical_production_quadrature_policy_id_version": {
-      "status": "pending_qa_ap_owner_or_maintainer_confirmation",
+      "status": "signed_on_origin_main",
+      "quadrature_policy_id": "midpoint_8x8_per_control_patch",
+      "quadrature_policy_version": "1",
       "forbidden_substitute": "fnd_qa_ap_candidate/1"
     },
-    "phy_nb_formal_closure": "pending_owner_or_maintainer_status_decision"
+    "phy_nb_formal_closure": "verified_on_origin_main"
   },
   "independent_d_review": {
     "verified_person_or_environment": false,
@@ -129,12 +131,10 @@
     "is_fnd_t21_t22": false,
     "is_full_regression": false
   },
-  "implementation_requires": [
-    "real independent D Ready PASS on the same commit",
-    "maintainer explicit authorization",
-    "PHY-NB owner closure or maintainer dependency decision",
-    "canonical production quadrature policy ID/version from QA-AP owner or maintainer"
-  ],
+    "implementation_requires": [
+        "real independent D Ready PASS on the reviewed commit",
+        "maintainer preauthorization remains limited to the approved QA-CC phase-two scope"
+    ],
   "forbidden_scope": [
     "P1A cache",
     "matrix storage",
