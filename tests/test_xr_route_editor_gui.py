@@ -286,6 +286,108 @@ def test_route_editing_supports_select_drag_add_insert_delete_and_form(windows) 
     assert window.xr_run_button.isEnabled()
 
 
+def test_route_drag_through_wall_keeps_invalid_draft_and_recovers(
+    windows,
+    qapp,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    window = windows(XRRouteTrajectoryBackend())
+    assert window._xr_trajectory is not None
+    window._xr_result = object()
+    old_snapshot_draft = copy.deepcopy(window._xr_trajectory)
+    item = window.scene_view._route_point_items[1]
+
+    item.setSelected(True)
+    item.setPos(window.scene_view._point(Vec3(4.48, 7.5, 1.2)))
+    qapp.processEvents()
+
+    assert item is window.scene_view._route_point_items[1]
+    assert window._xr_trajectory.points[1].position == Vec3(4.48, 7.5, 1.2)
+    assert "Route invalid" in window.xr_route_status.text()
+    assert "meeting-divider" in window.xr_route_status.text()
+    assert not window.xr_run_button.isEnabled()
+    assert not window.scene_view._editable_route_valid
+    assert window._xr_result is None
+    assert old_snapshot_draft.points[1].position == Vec3(4.48, 5.0, 1.2)
+
+    errors: list[str] = []
+    monkeypatch.setattr(
+        gui_main.QMessageBox,
+        "critical",
+        lambda _parent, _title, message: errors.append(message),
+    )
+    window._run_xr_editor()
+    assert "meeting-divider" in errors[-1]
+    assert not window._xr_demo_start_pending
+
+    item.setPos(window.scene_view._point(Vec3(4.48, 5.0, 1.2)))
+    qapp.processEvents()
+
+    assert item is window.scene_view._route_point_items[1]
+    assert window._xr_trajectory.points[1].position == Vec3(4.48, 5.0, 1.2)
+    assert "Route valid" in window.xr_route_status.text()
+    assert window.xr_run_button.isEnabled()
+    assert window.scene_view._editable_route_valid
+
+
+def test_continuous_route_drag_coalesces_and_clamps_with_form_sync(
+    windows,
+    qapp,
+) -> None:
+    backend = _FakeTrajectoryBackend()
+    window = windows(backend)
+    item = window.scene_view._route_point_items[2]
+    original_item_ids = tuple(map(id, window.scene_view._route_point_items))
+    validation_count = len(backend.validated)
+
+    item.setSelected(True)
+    item.setPos(QPointF(-100.0, 10_000.0))
+    item.setPos(QPointF(-50.0, 9_000.0))
+    assert len(backend.validated) == validation_count
+    qapp.processEvents()
+
+    assert tuple(map(id, window.scene_view._route_point_items)) == original_item_ids
+    assert window._xr_selected_waypoint_index == 2
+    assert window._xr_trajectory.points[2].position.x == 0.0
+    assert window._xr_trajectory.points[2].position.y == 0.0
+    assert item.pos() == window.scene_view._point(Vec3(0.0, 0.0, 1.2))
+    assert window.xr_point_x.value() == 0.0
+    assert window.xr_point_y.value() == 0.0
+    assert len(backend.validated) == validation_count + 1
+
+
+def test_pending_drag_is_isolated_from_route_rebuild_and_editor_exit(
+    windows,
+    qapp,
+) -> None:
+    backend = _FakeTrajectoryBackend()
+    window = windows(backend)
+    old_draft = window._xr_trajectory
+    old_item = window.scene_view._route_point_items[1]
+
+    old_item.setPos(old_item.pos() + QPointF(20.0, 0.0))
+    window.xr_template_combo.setCurrentIndex(
+        window.xr_template_combo.findData("smart_space")
+    )
+    window._xr_load_template()
+    template_draft = window._xr_trajectory
+    qapp.processEvents()
+
+    assert template_draft is window._xr_trajectory
+    assert window._xr_trajectory is not old_draft
+    assert old_item not in window.scene_view._route_point_items
+
+    current_item = window.scene_view._route_point_items[1]
+    current_item.setPos(current_item.pos() + QPointF(20.0, 0.0))
+    window.scenario_combo.setCurrentIndex(
+        window.scenario_combo.findData("smart_space")
+    )
+    qapp.processEvents()
+
+    assert not window._xr_editor_active
+    assert window.scene_view._route_point_items == []
+
+
 def test_route_save_load_and_invalid_form_delegate_to_backend(
     windows,
     monkeypatch: pytest.MonkeyPatch,

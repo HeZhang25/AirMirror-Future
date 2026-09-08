@@ -6,7 +6,7 @@ from collections.abc import Callable, Sequence
 import math
 
 import numpy as np
-from PySide6.QtCore import QPointF, Qt
+from PySide6.QtCore import QPointF, QTimer, Qt
 from PySide6.QtGui import QBrush, QColor, QImage, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (
     QGraphicsEllipseItem,
@@ -150,6 +150,11 @@ class SceneView(QGraphicsView):
         self._trajectory_markers: list[QGraphicsEllipseItem] = []
         self._route_positions: list[Vec3] = []
         self._route_point_items: list[_RoutePointItem] = []
+        self._route_event_generation = 0
+        self._pending_route_moves: dict[int, Vec3] = {}
+        self._route_move_delivery_scheduled = False
+        self._editable_route_valid = True
+        self._editable_route_error: str | None = None
 
     def _point(self, position: Vec3) -> QPointF:
         assert self.model_scene is not None
@@ -213,7 +218,24 @@ class SceneView(QGraphicsView):
             for route_point in points[1:]:
                 path.lineTo(route_point)
             self._trajectory_path.setPath(path)
-        self.on_route_point_moved(index, position)
+        self._pending_route_moves[index] = position
+        if not self._route_move_delivery_scheduled:
+            self._route_move_delivery_scheduled = True
+            generation = self._route_event_generation
+            QTimer.singleShot(0, lambda: self._deliver_route_moves(generation))
+
+    def _deliver_route_moves(self, generation: int) -> None:
+        """Notify the model only after the active QGraphicsItem callback returns."""
+        if generation != self._route_event_generation:
+            return
+        self._route_move_delivery_scheduled = False
+        pending = self._pending_route_moves
+        self._pending_route_moves = {}
+        callback = self.on_route_point_moved
+        if callback is None:
+            return
+        for index, position in pending.items():
+            callback(index, position)
 
     def _route_point_selected(self, index: int) -> None:
         if self._suppress_route_events or self.on_route_point_selected is None:
@@ -359,6 +381,9 @@ class SceneView(QGraphicsView):
 
     def clear_trajectory(self) -> None:
         """Remove the prototype trajectory overlay, if present."""
+        self._route_event_generation += 1
+        self._pending_route_moves = {}
+        self._route_move_delivery_scheduled = False
         if self._trajectory_path is not None:
             self.graphics_scene.removeItem(self._trajectory_path)
         for marker in self._trajectory_markers:
@@ -367,6 +392,8 @@ class SceneView(QGraphicsView):
         self._trajectory_markers = []
         self._route_positions = []
         self._route_point_items = []
+        self._editable_route_valid = True
+        self._editable_route_error = None
 
     def show_trajectory(self, positions: Sequence[Vec3]) -> None:
         """Draw one fixed top-down trajectory and all of its sample positions."""
@@ -445,6 +472,30 @@ class SceneView(QGraphicsView):
         finally:
             self._suppress_route_events = False
 
+    def set_editable_route_validity(
+        self,
+        valid: bool,
+        message: str | None = None,
+    ) -> None:
+        """Show validation state without rebuilding live route graphics items."""
+        self._editable_route_valid = bool(valid)
+        self._editable_route_error = message
+        if self._trajectory_path is not None and self._route_point_items:
+            color = QColor("#38bdf8" if valid else "#ef4444")
+            style = Qt.PenStyle.SolidLine if valid else Qt.PenStyle.DashLine
+            self._trajectory_path.setPen(QPen(color, 2.5, style))
+        for index, item in enumerate(self._route_point_items):
+            selected = item.isSelected()
+            if selected:
+                color = "#facc15"
+            else:
+                color = "#0ea5e9" if valid else "#ef4444"
+            item.setBrush(QBrush(QColor(color)))
+            if valid or not message:
+                item.setToolTip(f"Route point {index + 1} · drag or use the form")
+            else:
+                item.setToolTip(f"Route invalid: {message}")
+
     def select_route_point(self, index: int) -> None:
         """Select one route point without recreating the route."""
         if not 0 <= index < len(self._route_point_items):
@@ -454,7 +505,15 @@ class SceneView(QGraphicsView):
             for item_index, item in enumerate(self._route_point_items):
                 item.setSelected(item_index == index)
                 item.setBrush(
-                    QBrush(QColor("#facc15" if item_index == index else "#0ea5e9"))
+                    QBrush(
+                        QColor(
+                            "#facc15"
+                            if item_index == index
+                            else "#0ea5e9"
+                            if self._editable_route_valid
+                            else "#ef4444"
+                        )
+                    )
                 )
                 item.setZValue(14 if item_index == index else 13)
         finally:

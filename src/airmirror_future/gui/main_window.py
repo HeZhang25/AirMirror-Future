@@ -800,15 +800,7 @@ class MainWindow(QMainWindow):
             return
         waypoints = list(self._xr_trajectory.points)
         waypoints[index] = replace(waypoints[index], position=position)
-        candidate = replace(self._xr_trajectory, points=tuple(waypoints))
-        if self.trajectory_backend is not None and self._xr_editor_scene is not None:
-            try:
-                self.trajectory_backend.validate(self._xr_editor_scene, candidate)
-            except Exception as exc:
-                self.statusBar().showMessage(f"Route point move rejected: {exc}")
-                self._render_xr_editor_inputs()
-                return
-        self._xr_trajectory = candidate
+        self._xr_trajectory = replace(self._xr_trajectory, points=tuple(waypoints))
         self._xr_selected_waypoint_index = index
         self._xr_editor_inputs_changed("route point moved", render=False)
 
@@ -957,6 +949,8 @@ class MainWindow(QMainWindow):
         self.runtime_metric.setText("Sample: —")
         self.xr_command_status.setText("Command: pending · no stale command displayed")
         self.xr_field_status.setText("Field map: pending · no stale field displayed")
+        route_valid = False
+        route_error: str | None = None
         try:
             if self.trajectory_backend is None:
                 raise TrajectoryBackendUnavailable(
@@ -972,23 +966,25 @@ class MainWindow(QMainWindow):
                 f"{len(self._xr_trajectory.points)} points · {len(samples)} samples"
             )
             self.xr_route_status.setStyleSheet("color:#15803d")
-            self.xr_run_button.setEnabled(True)
+            route_valid = True
         except TrajectoryBackendUnavailable as exc:
             self.xr_route_status.setText(
                 f"Route draft editable · pending B interface: {exc}"
             )
             self.xr_route_status.setStyleSheet("color:#b45309;font-weight:600")
-            self.xr_run_button.setEnabled(False)
+            route_error = str(exc)
         except Exception as exc:
             self.xr_route_status.setText(f"Route invalid: {exc}")
             self.xr_route_status.setStyleSheet("color:#b91c1c;font-weight:600")
-            self.xr_run_button.setEnabled(False)
+            route_error = str(exc)
         self.xr_sample_label.setText(f"Pending run · {reason}")
         self._set_xr_controls_ready(False)
+        self.xr_run_button.setEnabled(route_valid)
         if render:
             self._render_xr_editor_inputs()
         else:
             self._sync_xr_point_form()
+        self.scene_view.set_editable_route_validity(route_valid, route_error)
         self.statusBar().showMessage(
             f"XR editor input changed ({reason}) · previous result invalidated"
         )
