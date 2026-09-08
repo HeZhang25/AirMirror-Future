@@ -249,6 +249,88 @@ def ris_control_coefficients(
     )
 
 
+def ris_control_coefficient_matrix(
+    tx: Transmitter,
+    receiver_points: np.ndarray,
+    receiver_gain_linear: float,
+    ris: RISSurface,
+    frequency_hz: float,
+    *,
+    quadrature_spec: QuadratureSpec | None = None,
+    max_point_sample_pairs: int = _MAX_POINT_SAMPLE_PAIRS,
+    receiver_batch_size: int = 16,
+) -> np.ndarray:
+    """Return the production M8 coefficient matrix ``[receiver, control]``.
+
+    The output is the multi-receiver form of :func:`ris_control_coefficients`.
+    Receiver and aperture-sample axes are both blocked, so no
+    ``receiver_count * production_sample_count`` array is materialized.  The
+    returned control matrix intentionally excludes reflection efficiency and
+    commanded/actual phase; those remain owned by ``Gamma``.
+    """
+    if ris.active:
+        raise NotImplementedError("active RIS requires an explicit power and noise model")
+    points = np.asarray(receiver_points, dtype=float)
+    if points.ndim != 2 or points.shape[1] != 3:
+        raise ValueError("receiver_points must have shape [N, 3]")
+    if not np.all(np.isfinite(points)):
+        raise ValueError("receiver_points must contain only finite values")
+    if max_point_sample_pairs <= 0:
+        raise ValueError("max_point_sample_pairs must be positive")
+    if receiver_batch_size <= 0:
+        raise ValueError("receiver_batch_size must be positive")
+    if not ris.enabled:
+        return np.zeros((len(points), ris.cell_count), dtype=complex)
+    if len(points) == 0:
+        return np.zeros((0, ris.cell_count), dtype=complex)
+    spec = _require_production_quadrature(
+        ris,
+        _production_quadrature_spec(ris) if quadrature_spec is None else quadrature_spec,
+    )
+    samples_per_control = PRODUCTION_QUADRATURE_ORDER ** 2
+    expected_parents = np.repeat(np.arange(ris.cell_count), samples_per_control)
+    if not np.array_equal(spec.parent_control_index, expected_parents):
+        raise ValueError("production quadrature parent ordering must be control-major")
+
+    result = np.empty((len(points), ris.cell_count), dtype=complex)
+    zero_phase = np.zeros(ris.cell_count, dtype=float)
+    weights_m2 = spec.weights * ris.cell_area_m2
+    point_step = min(
+        len(points),
+        receiver_batch_size,
+        max(1, max_point_sample_pairs // samples_per_control),
+    )
+    for point_start in range(0, len(points), point_step):
+        point_stop = min(point_start + point_step, len(points))
+        point_batch = points[point_start:point_stop]
+        controls_per_batch = max(
+            1,
+            max_point_sample_pairs // (len(point_batch) * samples_per_control),
+        )
+        for control_start in range(0, ris.cell_count, controls_per_batch):
+            control_stop = min(control_start + controls_per_batch, ris.cell_count)
+            sample_start = control_start * samples_per_control
+            sample_stop = control_stop * samples_per_control
+            terms = _ris_aperture_point_contributions(
+                tx,
+                point_batch,
+                receiver_gain_linear,
+                ris,
+                spec.sample_coordinates[sample_start:sample_stop],
+                spec.parent_control_index[sample_start:sample_stop],
+                weights_m2[sample_start:sample_stop],
+                zero_phase,
+                frequency_hz,
+                include_efficiency=False,
+            )
+            result[
+                point_start:point_stop, control_start:control_stop
+            ] = terms.reshape(
+                len(point_batch), control_stop - control_start, samples_per_control
+            ).sum(axis=2)
+    return result
+
+
 def _ris_control_coefficients_for_quadrature(
     tx: Transmitter,
     receiver_position: Vec3,
