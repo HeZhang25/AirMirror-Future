@@ -266,6 +266,10 @@ Ground Truth 随后把 `epsilon_phi_n` 加到已验证的 commanded phase 上形
 只让 RIS patch 在目标点互相相干。兼容函数 `generate_focus_pattern()` 保持相同语义。它不读取
 `h_LOS+h_wall` 的复相位，因此不是总接收功率目标。
 
+FND-QA-CC 阶段二候选新增内部 scene-aware 路径，改用 production M8 `a_n^C`。continuous 对
+非零元素使用 `-arg(a_n^C)`，零元素确定性使用 `0.0`；finite-bit 复用公共 offset 候选枚举，
+但只最大化 `Pt*|h_RIS^C|²`。legacy 公开函数、Scene v1 与历史结果不改变。
+
 ### Coherent Target Focus
 
 定义 nominal baseline 与未偏置 RIS 场：

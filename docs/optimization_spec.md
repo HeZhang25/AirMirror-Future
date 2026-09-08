@@ -52,7 +52,7 @@ continuous nominal、相位不改变幅度时，验收关系为
 可达 pattern 族内最优并且不差于 unshifted；不得宣称任意逐 patch 组合或 Ground Truth 全局
 最优。精确定义见 [ADR-0006](adr/0006-coherent-target-focus-objective.md)。
 
-### 3.3 最终 Controller coefficient 一致性（Planned）
+### 3.3 最终 Controller coefficient 一致性（production candidate）
 
 A1 在当时的 `1×1` center-point scalar model 上已 Verified；production scattering 现已独立迁移到
 signed midpoint `8×8`。ADR-0011 进一步要求 RIS-only 与 Coherent Focus 必须使用 Controller
@@ -64,8 +64,13 @@ h_RIS^C = sum_n a_n^C * sqrt(eta_n) * exp(j*phi_n)
 
 RIS-only 使用 `-arg(a_n^C)`；Coherent 使用 `arg(h_baseline^C)-arg(a_n^C)`，finite-bit 再遵守
 ADR-0006 的公共 offset/量化/tie-break 契约。Focus 不能读取 Ground Truth `a_n^GT`。该门禁由
-[FND-QA-CC](work_items/foundation_0_1_1_coefficient_consistency.md) 实施，当前仍为 Planned / deferred
-for scene-first MVP；M8 migration 本身不重开 A1，也不提前签署该一致性。
+[FND-QA-CC](work_items/foundation_0_1_1_coefficient_consistency.md) 阶段二候选已让 engine、Focus 和
+QA evaluator 复用同一 M8 coefficient reduction，并保留 Controller/GT 隔离；正式 closure 仍需
+独立代码复核与维护者签署。M8 migration 本身不重开 A1，也不提前签署该一致性。
+
+新增内部 `generate_scene_aware_ris_only_pattern()` 使用同一 `a^C`：continuous 为相位共轭；
+finite-bit 以 `P_RIS=Pt*|h_RIS^C|²` 比较 ADR-0006 common-offset 可达候选。它不顶层 export，
+不改变 legacy `generate_ris_only_focus_pattern()` 的 center-path 行为。
 
 ## 4. Algorithm B：Feedback Greedy
 

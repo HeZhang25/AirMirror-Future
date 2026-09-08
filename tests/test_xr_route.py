@@ -981,6 +981,7 @@ def test_route_csv_metadata_retain_actual_commands_identities_and_partial_proven
     assert set(json.loads(metadata["provenance"]["pending_contracts_json"])) == {
         "FND-QA-CC",
     }
+    assert metadata["provenance"]["coefficient_model_identity"] == ""
 
     with artifacts.csv_path.open("r", newline="", encoding="utf-8-sig") as handle:
         reader = csv.DictReader(handle)

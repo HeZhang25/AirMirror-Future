@@ -112,6 +112,7 @@ def _ris_aperture_point_contributions(
     *,
     cell_phase_error_rad: np.ndarray | None = None,
     efficiency_scale: np.ndarray | float = 1.0,
+    include_efficiency: bool = True,
 ) -> np.ndarray:
     """Return one contribution per receiver and aperture sample."""
     samples = np.asarray(aperture_points, dtype=float)
@@ -157,7 +158,7 @@ def _ris_aperture_point_contributions(
         eta_sample = np.sqrt(eta_values[parents])
     amplitude = (
         math.sqrt(tx.gain_linear * receiver_gain_linear)
-        * eta_sample[None, :] * weights[None, :]
+        * (eta_sample[None, :] if include_efficiency else 1.0) * weights[None, :]
         / (4.0 * math.pi * d1[None, :] * d2) * direction_amplitude
     )
     propagation_phase = -wave_number_rad_m(frequency_hz) * (d1[None, :] + d2)
@@ -218,6 +219,66 @@ def ris_channel(
             tx, points, receiver_gain_linear, ris, phase, frequency_hz, **kwargs
         )[0]
     )
+
+
+def ris_control_coefficients(
+    tx: Transmitter,
+    receiver_position: Vec3,
+    receiver_gain_linear: float,
+    ris: RISSurface,
+    frequency_hz: float,
+    *,
+    quadrature_spec: QuadratureSpec | None = None,
+) -> np.ndarray:
+    """Return the pure M8 geometry/propagation coefficient per control patch.
+
+    Reflection efficiency and commanded/actual phase belong to ``Gamma`` and
+    are intentionally excluded.  The reduction uses the same signed midpoint
+    8x8 aperture integration and parent-major ordering as production scattering.
+    """
+    if ris.active:
+        raise NotImplementedError("active RIS requires an explicit power and noise model")
+    if not ris.enabled:
+        return np.zeros(ris.cell_count, dtype=complex)
+    spec = _require_production_quadrature(
+        ris,
+        _production_quadrature_spec(ris) if quadrature_spec is None else quadrature_spec,
+    )
+    return _ris_control_coefficients_for_quadrature(
+        tx, receiver_position, receiver_gain_linear, ris, frequency_hz, spec
+    )
+
+
+def _ris_control_coefficients_for_quadrature(
+    tx: Transmitter,
+    receiver_position: Vec3,
+    receiver_gain_linear: float,
+    ris: RISSurface,
+    frequency_hz: float,
+    spec: QuadratureSpec,
+) -> np.ndarray:
+    """Shared pure reduction for a validated research or production rule."""
+    if spec.control_count != ris.cell_count:
+        raise ValueError("quadrature must have one parent group per control patch")
+    points = receiver_position.as_array()[None, :]
+    result = np.zeros(ris.cell_count, dtype=complex)
+    zero_phase = np.zeros(ris.cell_count, dtype=float)
+    for sample_start in range(0, spec.sample_count, _MAX_POINT_SAMPLE_PAIRS):
+        sample_stop = min(sample_start + _MAX_POINT_SAMPLE_PAIRS, spec.sample_count)
+        terms = _ris_aperture_point_contributions(
+            tx,
+            points,
+            receiver_gain_linear,
+            ris,
+            spec.sample_coordinates[sample_start:sample_stop],
+            spec.parent_control_index[sample_start:sample_stop],
+            (spec.weights[sample_start:sample_stop] * ris.cell_area_m2),
+            zero_phase,
+            frequency_hz,
+            include_efficiency=False,
+        )[0]
+        np.add.at(result, spec.parent_control_index[sample_start:sample_stop], terms)
+    return result
 
 
 def _ris_channel_from_validated_pattern(

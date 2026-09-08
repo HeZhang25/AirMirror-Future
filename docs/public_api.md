@@ -256,10 +256,10 @@ GroundTruthModel；它不读取 MeasurementOracle。unknown/disabled/ambiguous R
 `delta=0` 退化规则，并拒绝非有限复分量。完整 objective 与退化规则见
 [ADR-0006](adr/0006-coherent-target-focus-objective.md)。
 
-FND-QA-CC 将在最终 production quadrature policy 下证明该策略与 Controller simulator 使用同一
-control-level coefficient。production scattering 已迁移到 signed midpoint `8×8`，但 public
-phase-array API、pattern shape 和现有 Focus 路径未改变。FND-QA-CC 尚未实现；不得因 migration
-推断 M8/complex Profile 下的 Focus/coefficient 已自动一致。完整边界见
+FND-QA-CC 阶段二 production candidate 已让该策略与 Controller simulator 使用同一 M8
+control-level coefficient。新增 scene-aware RIS-only callable 保持内部可见，不属于本页公共 API；
+legacy phase-array API、pattern shape 与 center-path 行为未改变。正式 closure 仍需独立代码复核
+与维护者签署。完整边界见
 [ADR-0011](adr/0011-controller-coefficient-focus-consistency.md)。
 
 ```python
