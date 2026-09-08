@@ -5,7 +5,10 @@ import csv
 from dataclasses import replace
 import json
 import math
+import os
 from pathlib import Path
+import string
+import tempfile
 
 import numpy as np
 import pytest
@@ -277,6 +280,146 @@ def test_json_round_trip_preserves_semantics_and_identities(tmp_path: Path) -> N
     assert copied.experiment_identity == loaded.experiment_identity
     with pytest.raises(FileExistsError):
         xr_route.save_route_experiment(loaded, copy_path)
+
+
+def test_cross_filesystem_route_save_uses_portable_scene_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    loaded = xr_route.load_route_experiment(EXAMPLE_ROUTE)
+    route_path = tmp_path / "portable" / "route-copy.json"
+    real_relpath = xr_route.os.path.relpath
+    calls = 0
+
+    def cross_filesystem_once(path: object, start: object) -> str:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise ValueError("path is on a different Windows mount")
+        return real_relpath(path, start)
+
+    monkeypatch.setattr(xr_route.os.path, "relpath", cross_filesystem_once)
+
+    xr_route.save_route_experiment(loaded, route_path)
+    portable_scene = route_path.with_name("route-copy.scene.json")
+    document = json.loads(route_path.read_text(encoding="utf-8"))
+    copied = xr_route.load_route_experiment(route_path)
+
+    assert document["scene"] == {
+        "kind": "scene_v1_reference",
+        "path": "route-copy.scene.json",
+    }
+    assert portable_scene.is_file()
+    assert copied.scene == loaded.scene
+    assert copied.scene_identity == loaded.scene_identity
+    assert copied.trajectory_identity == loaded.trajectory_identity
+    assert copied.experiment_identity == loaded.experiment_identity
+
+
+def test_cross_filesystem_bundle_returns_portable_bound_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    experiment = xr_route.create_route_experiment(
+        _scene(),
+        xr_route.RouteDefinition(
+            (Vec3(1.0, 4.0, 1.2),),
+            "explicit_times",
+            waypoint_times_s=(0.0,),
+        ),
+        xr_route.RouteSamplingPolicy(1.0, 1),
+        xr_route.RouteValidationPolicy(),
+        experiment_id="portable-bundle",
+    )
+    route_path = tmp_path / "bundle.json"
+    requested_scene_path = tmp_path / "other-volume" / "scene.json"
+    real_relpath = xr_route.os.path.relpath
+    calls = 0
+
+    def cross_filesystem_once(path: object, start: object) -> str:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise ValueError("path is on a different Windows mount")
+        return real_relpath(path, start)
+
+    monkeypatch.setattr(xr_route.os.path, "relpath", cross_filesystem_once)
+
+    bound = xr_route.save_route_experiment_bundle(
+        experiment,
+        route_path,
+        scene_path=requested_scene_path,
+    )
+    loaded = xr_route.load_route_experiment(route_path)
+
+    assert not requested_scene_path.exists()
+    assert bound.scene_path == route_path.with_name("bundle.scene.json").resolve()
+    assert loaded.scene_path == bound.scene_path
+    assert loaded.scene_identity == experiment.scene_identity
+    assert loaded.trajectory_identity == experiment.trajectory_identity
+    assert loaded.experiment_identity == experiment.experiment_identity
+
+
+def test_cross_filesystem_fallback_never_overwrites_different_scene(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    loaded = xr_route.load_route_experiment(EXAMPLE_ROUTE)
+    route_path = tmp_path / "route.json"
+    portable_scene = tmp_path / "route.scene.json"
+    replace(loaded.scene, name="different scene").save(portable_scene)
+    original = portable_scene.read_bytes()
+
+    monkeypatch.setattr(
+        xr_route.os.path,
+        "relpath",
+        lambda *_args: (_ for _ in ()).throw(ValueError("different mount")),
+    )
+
+    with pytest.raises(ValueError, match="same validated Scene v1"):
+        xr_route.save_route_experiment(loaded, route_path)
+    assert portable_scene.read_bytes() == original
+    assert not route_path.exists()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="requires Windows drive semantics")
+def test_windows_cross_drive_route_round_trip_uses_portable_scene_snapshot(
+    tmp_path: Path,
+) -> None:
+    route_drive = tmp_path.drive.upper()
+    other_roots = [
+        Path(f"{letter}:/")
+        for letter in string.ascii_uppercase
+        if f"{letter}:" != route_drive and Path(f"{letter}:/").is_dir()
+    ]
+    if not other_roots:
+        pytest.skip("no second writable Windows drive is available")
+
+    loaded = xr_route.load_route_experiment(EXAMPLE_ROUTE)
+    with tempfile.TemporaryDirectory(
+        prefix="airmirror-xr-route-",
+        dir=other_roots[0],
+    ) as scene_directory:
+        scene_path = Path(scene_directory) / "scene.json"
+        loaded.scene.save(scene_path)
+        cross_drive = xr_route.create_route_experiment(
+            loaded.scene,
+            loaded.route,
+            loaded.sampling,
+            loaded.validation,
+            experiment_id=loaded.experiment_id,
+            scene_path=scene_path,
+        )
+        route_path = tmp_path / "cross-drive.json"
+
+        xr_route.save_route_experiment(cross_drive, route_path)
+        copied = xr_route.load_route_experiment(route_path)
+
+    assert route_path.with_name("cross-drive.scene.json").is_file()
+    assert copied.scene == cross_drive.scene
+    assert copied.scene_identity == cross_drive.scene_identity
+    assert copied.trajectory_identity == cross_drive.trajectory_identity
+    assert copied.experiment_identity == cross_drive.experiment_identity
 
 
 def test_in_memory_factory_owns_one_consistent_validated_snapshot() -> None:
@@ -836,7 +979,6 @@ def test_route_csv_metadata_retain_actual_commands_identities_and_partial_proven
     assert metadata["sample_count"] == len(experiment.trajectory)
     assert metadata["provenance"]["provenance_status"] == "partial"
     assert set(json.loads(metadata["provenance"]["pending_contracts_json"])) == {
-        "FND-PHY-NB",
         "FND-QA-CC",
     }
 

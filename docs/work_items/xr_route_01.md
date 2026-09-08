@@ -48,9 +48,12 @@ semantic scene identity and all route policies, so moving equivalent files does 
 The in-memory factory deep-copies all inputs and is the only supported way to construct an
 `XRRouteExperiment`; callers cannot manually supply trajectory, validation, or identity fields. A
 provided `scene_path` must already contain the same validated Scene v1 semantics. Route-only saving
-rechecks that reference and rejects an unbound or changed Scene file. For an in-memory editor Scene,
-the controlled bundle saver writes an exclusive sibling `<route-stem>.scene.json` by default, then
-returns a snapshot bound to that exact file. An existing different Scene file is never overwritten.
+rechecks that reference and rejects an unbound or changed Scene file. If the route destination cannot
+portably reference that file across Windows drives, saving creates or reuses an identity-matching
+`<route-stem>.scene.json` beside the route and keeps the route reference relative. For an in-memory
+editor Scene, the controlled bundle saver writes an exclusive sibling `<route-stem>.scene.json` by
+default, then returns a snapshot bound to that exact file. An existing different Scene file is never
+overwritten.
 
 Speed retiming identifies the incoming segment by its destination waypoint index. The selected
 arrival changes to `previous_time + distance / speed`, and all later explicit arrivals shift by the
