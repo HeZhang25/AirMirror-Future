@@ -12,6 +12,7 @@ from airmirror_future import (
     PRODUCTION_RIS_COEFFICIENT_MODEL,
 )
 from airmirror_future.core.types import FieldMapResult, SimulationConfig
+from airmirror_future.experiments.xr_dynamic_room_mvp import TrajectorySample
 from airmirror_future.gui import main_window as gui_main
 from airmirror_future.gui.main_window import MainWindow
 from airmirror_future.gui.workers import (
@@ -141,11 +142,12 @@ def _run_worker_with_fake_matrix(
     assert not partial
     assert len(finished) == 1
     receiver_total = config.grid_width * config.grid_height
+    adaptive_count = len(finished[0].adaptive_fields)
+    total = receiver_total + 1 + adaptive_count
     assert progress == [
-        (0, receiver_total + 2),
-        (receiver_total, receiver_total + 2),
-        (receiver_total + 1, receiver_total + 2),
-        (receiver_total + 2, receiver_total + 2),
+        (0, total),
+        (receiver_total, total),
+        *((receiver_total + index, total) for index in range(1, adaptive_count + 2)),
     ]
     return finished[0], evaluated
 
@@ -203,6 +205,44 @@ def test_future_worker_reuses_one_explicit_fast_matrix_for_two_commands(monkeypa
     assert not result.static_patterns[static_ris_id].flags.writeable
     with pytest.raises(TypeError):
         result.static_patterns["replacement"] = np.zeros(1)
+
+
+def test_future_worker_evaluates_and_reports_every_sampled_time(monkeypatch) -> None:
+    scene = create_xr_editor_scene("future_smart_space")
+    route = tuple(
+        TrajectorySample(
+            sample_index=index,
+            time_s=float(index),
+            position=replace(scene.receiver().position, x=6.0 + index, y=3.0 + index),
+        )
+        for index in range(3)
+    )
+    request = XRFutureFixedFieldRequest(
+        scene=scene,
+        static_position=route[0].position,
+        selected_position=route[1].position,
+        selected_point_id="point-2",
+        experiment_identity="sha256:route-experiment",
+        scene_identity="sha256:route-scene",
+        trajectory_identity="sha256:route-trajectory",
+        coefficient_model_identity=FAST_1X1_RIS_COEFFICIENT_MODEL.identity,
+        trajectory=route,
+    )
+
+    result, evaluated = _run_worker_with_fake_matrix(
+        monkeypatch,
+        request,
+        SimulationConfig(8, 6, batch_size=8),
+    )
+
+    adaptive_samples = [
+        sample for sample in result.mvp.samples if sample.mode == "Adaptive RIS"
+    ]
+    assert len(adaptive_samples) == len(route)
+    assert len(result.adaptive_fields) == len(route)
+    assert len(evaluated) == 1 + len(route)
+    cached_hashes = {key.command_hash for key, _field in result.adaptive_fields}
+    assert {sample.command_hash for sample in adaptive_samples} == cached_hashes
 
 
 def test_future_worker_keeps_explicit_production_m8_option(monkeypatch) -> None:
@@ -330,7 +370,7 @@ def test_gui_fixed_field_identity_timing_hot_modes_and_cancel(
     )
     assert len(manual.request.trajectory) > 1
     assert window.scene_view._heatmap_item is None
-    assert "not a whole-route" in window.xr_sample_label.text()
+    assert "19 sampled-time fields" in window.xr_sample_label.text()
 
     result, _ = _run_worker_with_fake_matrix(
         monkeypatch,
@@ -340,13 +380,20 @@ def test_gui_fixed_field_identity_timing_hot_modes_and_cancel(
     manual.signals.finished.emit(manual.version, result)
     manual.signals.terminated.emit(manual.version, manual)
 
+    assert window.xr_mode_combo.currentText() == "Adaptive RIS"
+    for sample_index in range(len(result.mvp.trajectory)):
+        sample = window._xr_sample_lookup[(sample_index, "Adaptive RIS")]
+        key = window._xr_field_key_for_sample(sample)
+        assert key in window._xr_field_cache
+    window._set_xr_sample(len(result.mvp.trajectory) - 1)
+    assert "Adaptive field hot-cached" in window.xr_field_status.text()
     assert "cold 12.50 s" in window.xr_field_status.text()
     assert "hot Static 5.00 ms" in window.xr_field_status.text()
     assert "hot Adaptive 6.00 ms" in window.xr_field_status.text()
     assert "playback 2.0 fps" in window.xr_field_status.text()
     assert "coefficients 2.2 MiB" in window.xr_field_status.text()
     assert "Fast 1×1" in window.xr_field_status.text()
-    assert "not a full-route matrix" in window.xr_route_status.text()
+    assert "every time is cached" in window.xr_route_status.text()
     assert len(window._xr_field_cache) == len(result.adaptive_fields)
 
     window.xr_mode_combo.setCurrentText("Adaptive RIS")

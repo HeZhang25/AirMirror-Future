@@ -810,7 +810,8 @@ class XRFuturePreparedFieldWorker(_XRPhysicsWorker):
                 tuple(dynamic_samples),
             )
             receiver_total = self.config.grid_width * self.config.grid_height
-            total = receiver_total + 2
+            evaluation_total = 1 + len(adaptive_patterns)
+            total = receiver_total + evaluation_total
             self._emit_progress(0, total)
 
             def build_progress(completed: int, build_total: int) -> None:
@@ -869,7 +870,10 @@ class XRFuturePreparedFieldWorker(_XRPhysicsWorker):
                 coefficient_identity=coefficient_identity,
             )
             adaptive_fields: list[tuple[XRFieldCacheKey, FieldMapResult]] = []
-            for command_hash, pattern in adaptive_patterns.items():
+            for evaluation_index, (command_hash, pattern) in enumerate(
+                adaptive_patterns.items(),
+                start=2,
+            ):
                 adaptive_field = prepared.evaluate(pattern)
                 if self._cancelled.is_set():
                     return
@@ -879,6 +883,7 @@ class XRFuturePreparedFieldWorker(_XRPhysicsWorker):
                         adaptive_field,
                     )
                 )
+                self._emit_progress(receiver_total + evaluation_index, total)
             adaptive_field_lookup = {
                 key.command_hash: field for key, field in adaptive_fields
             }
@@ -887,7 +892,6 @@ class XRFuturePreparedFieldWorker(_XRPhysicsWorker):
                 command_hash=selected_adaptive_hash,
             )
             adaptive_field = adaptive_field_lookup[selected_adaptive_hash]
-            self._emit_progress(receiver_total + 2, total)
             result = XRFuturePreparedFieldResult(
                 mvp=mvp,
                 static_key=static_key,

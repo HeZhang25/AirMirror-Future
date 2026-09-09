@@ -214,7 +214,7 @@ class MainWindow(QMainWindow):
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
         splitter.setStretchFactor(2, 0)
-        splitter.setSizes([280, 860, 320])
+        splitter.setSizes([380, 760, 320])
 
         central = QWidget()
         layout = QVBoxLayout(central)
@@ -235,9 +235,9 @@ class MainWindow(QMainWindow):
     def _build_left_panel(self) -> QWidget:
         container = QScrollArea()
         container.setWidgetResizable(True)
-        container.setMinimumWidth(260)
+        container.setMinimumWidth(350)
         panel = QWidget()
-        panel.setMinimumWidth(240)
+        panel.setMinimumWidth(330)
         layout = QVBoxLayout(panel)
         layout.addWidget(QLabel("<b>场景 / Scenario</b>"))
         self.scenario_combo = QComboBox()
@@ -386,11 +386,11 @@ class MainWindow(QMainWindow):
         run_buttons.addWidget(self.xr_cancel_button)
         editor_layout.addLayout(run_buttons)
         self.xr_future_field_button = QPushButton(
-            "Build field · fast 1×1 · 8×6"
+            "Build route fields · fast 1×1 · 8×6"
         )
         self.xr_future_field_button.setToolTip(
             "Build one fixed-grid coefficient matrix, then evaluate Static and "
-            "selected-point Adaptive commands. This is not a whole-route matrix."
+            "every unique Adaptive command along the sampled route."
         )
         self.xr_future_field_button.clicked.connect(
             self._run_xr_future_fixed_field
@@ -926,7 +926,7 @@ class MainWindow(QMainWindow):
         width, height = self._xr_future_grid()
         exact = self.xr_future_accuracy_combo.currentData() == XR_FUTURE_EXACT_M8
         self.xr_future_field_button.setText(
-            f"Build field · {'exact M8' if exact else 'fast 1×1'} · "
+            f"Build route fields · {'exact M8' if exact else 'fast 1×1'} · "
             f"{width}×{height}"
         )
         if exact:
@@ -1050,7 +1050,10 @@ class MainWindow(QMainWindow):
             self._xr_selected_ris_id = identifier
             self._sync_xr_ris_controls()
             if self._xr_result is not None:
-                self._set_xr_sample(self._xr_sample_index)
+                self._set_xr_sample(
+                    self._xr_sample_index,
+                    update_receiver_position=False,
+                )
 
     @staticmethod
     def _next_xr_ris_id(scene: Scene) -> str:
@@ -1560,7 +1563,7 @@ class MainWindow(QMainWindow):
         self._xr_editor_inputs_changed("versioned trajectory loaded")
 
     def _run_xr_future_fixed_field(self) -> None:
-        """Queue one selected-point exact M8 field batch, never a route-wide A."""
+        """Prepare one fixed grid and evaluate every sampled-route command."""
         if self._xr_editor_scene is None or self._xr_trajectory is None:
             return
         try:
@@ -1627,22 +1630,23 @@ class MainWindow(QMainWindow):
         self.scene_view.clear_field_overlays()
         self.pattern_view.set_status(
             "Future command batch pending",
-            "Static focuses route point 1; Adaptive focuses the selected point.",
+            "Static focuses route point 1; Adaptive covers every sampled time.",
         )
         self.xr_command_status.setText(
-            f"Commands: preparing exact M8 · selected {selected.id}"
+            f"Commands: preparing route · selected marker {selected.id}"
         )
         self.xr_field_status.setText(
-            "Future fixed field queued · Production M8 · "
+            "Future route fields queued · "
+            f"{self._xr_future_model_label(coefficient_model.identity)} · "
             f"Fixed grid {self._xr_future_grid()[0]}×{self._xr_future_grid()[1]} · "
             "no stale field displayed"
         )
         self.xr_sample_label.setText(
-            "Fixed-grid batch only · not a whole-route coefficient matrix"
+            f"Preparing one fixed grid + {len(trajectory)} sampled-time fields"
         )
         self._set_xr_controls_ready(False)
         self.progress.setRange(0, 0)
-        self.statusBar().showMessage("XR Future exact M8 fixed field queued…")
+        self.statusBar().showMessage("XR Future route field batch queued…")
         self._start_xr_demo_worker()
 
     def _run_xr_editor(self) -> None:
@@ -2155,25 +2159,28 @@ class MainWindow(QMainWindow):
             f"model {result.coefficient_model_identity} · "
             f"matrix {result.coefficient_identity[:23]}…"
         )
+        self.xr_mode_combo.blockSignals(True)
+        self.xr_mode_combo.setCurrentText(ADAPTIVE_RIS_MODE)
+        self.xr_mode_combo.blockSignals(False)
         self._set_xr_sample(0)
         self.progress.setRange(0, 100)
         self.progress.setValue(100)
         self.xr_field_status.setText(
-            "Future fixed field ready · "
+            "Future route fields ready · "
             f"{self._xr_future_model_label(result.coefficient_model_identity)} · "
             f"Fixed grid {result.static_key.grid_width}×"
             f"{result.static_key.grid_height} · "
             f"{self._xr_field_runtime_summary}"
         )
         self.xr_route_status.setText(
-            f"Fixed grid prepared once · selected {result.request.selected_point_id} · "
-            f"{len(result.mvp.trajectory)} route commands · experiment "
-            f"{result.request.experiment_identity[:23]}… · not a full-route matrix"
+            f"Fixed grid prepared once · {len(result.mvp.trajectory)} sampled times · "
+            f"{len(result.adaptive_fields)} unique Adaptive fields · experiment "
+            f"{result.request.experiment_identity[:23]}… · every time is cached"
         )
         self.xr_route_status.setStyleSheet("color:#15803d")
         self._set_xr_controls_ready(True)
         self.statusBar().showMessage(
-            "XR Future fixed-grid multi-command batch ready; no route-wide reuse claimed"
+            "XR Future route fields ready; sampled-time playback is cache-only"
         )
 
     def _xr_demo_ready(self, version: int, result: XRDynamicRoomResult) -> None:
@@ -2525,7 +2532,7 @@ class MainWindow(QMainWindow):
         if mode == ADAPTIVE_RIS_MODE:
             if self._xr_field_runtime_summary:
                 self.xr_field_status.setText(
-                    "Adaptive field hot-cached · exact selected-point command · "
+                    "Adaptive field hot-cached · exact sampled-time command · "
                     f"{self._xr_field_precision_label()} · "
                     f"{self._xr_field_runtime_summary}"
                 )
@@ -2581,7 +2588,12 @@ class MainWindow(QMainWindow):
                 self._xr_playback_timer.start()
         self._set_xr_sample(self._xr_sample_index)
 
-    def _set_xr_sample(self, index: int) -> None:
+    def _set_xr_sample(
+        self,
+        index: int,
+        *,
+        update_receiver_position: bool = True,
+    ) -> None:
         if not self._xr_demo_active or self._xr_result is None:
             return
         index = max(0, min(int(index), len(self._xr_result.trajectory) - 1))
@@ -2593,10 +2605,11 @@ class MainWindow(QMainWindow):
         self.xr_timeline.blockSignals(False)
         if not self._xr_editor_active:
             self.scene_view.set_trajectory_index(index)
-        self.scene_view.set_entity_visual_position(
-            self._xr_result.scene.receiver().id,
-            sample.trajectory.position,
-        )
+        if update_receiver_position:
+            self.scene_view.set_entity_visual_position(
+                self._xr_result.scene.receiver().id,
+                sample.trajectory.position,
+            )
 
         enabled_ris = [item for item in self._xr_result.scene.ris_surfaces if item.enabled]
         ris = next(
@@ -3038,7 +3051,10 @@ class MainWindow(QMainWindow):
         else:
             self._sync_xr_ris_controls()
             if self._xr_result is not None:
-                self._set_xr_sample(self._xr_sample_index)
+                self._set_xr_sample(
+                    self._xr_sample_index,
+                    update_receiver_position=False,
+                )
 
     def _entity_drag_started(self, identifier: str) -> None:
         """Invalidate stale output once, while graphics continue previewing cheaply."""
