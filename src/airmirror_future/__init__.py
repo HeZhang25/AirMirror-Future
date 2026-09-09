@@ -38,18 +38,30 @@ from airmirror_future.optimization.dual_ris_focus import (
     evaluate_dual_ris_command,
     generate_dual_ris_coordinated_patterns,
 )
+from airmirror_future.simulation.prepared_controller import (
+    DEFAULT_DUAL_RIS_COEFFICIENT_MEMORY_BUDGET_BYTES,
+    PreparedDualRISField,
+    PreparedDualRISLink,
+    prepare_controller_dual_ris_field,
+    prepare_controller_dual_ris_link,
+)
 
 __all__ = [
     "ChannelResult",
     "FieldMapResult",
     "FAST_1X1_RIS_COEFFICIENT_MODEL",
     "DualRISFocusResult",
+    "PreparedDualRISField",
+    "PreparedDualRISLink",
+    "DEFAULT_DUAL_RIS_COEFFICIENT_MEMORY_BUDGET_BYTES",
     "EquivalentPatchDiagnostics",
     "COMMANDED_PHASE_ATOL_RAD",
     "equivalent_patch_diagnostics",
     "evaluate_dual_ris_command",
     "generate_coherent_target_pattern",
     "generate_dual_ris_coordinated_patterns",
+    "prepare_controller_dual_ris_field",
+    "prepare_controller_dual_ris_link",
     "generate_ris_only_focus_pattern",
     "Obstacle",
     "OptimizationResult",
