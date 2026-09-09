@@ -330,6 +330,23 @@ def test_ris_drag_and_route_selection_are_visually_exclusive(windows, qapp) -> N
     assert len(window.scene_view.graphics_scene.selectedItems()) == 1
 
 
+def test_valid_current_dual_ris_route_stays_blue_when_run_is_blocked(windows) -> None:
+    window = windows()
+
+    window._xr_add_ris()
+
+    assert len(window._xr_editor_scene.ris_surfaces) == 2
+    assert all(ris.generation == "Current" for ris in window._xr_editor_scene.ris_surfaces)
+    assert window._xr_route_valid
+    assert "Route valid" in window.xr_route_status.text()
+    assert "Run 3 Modes unavailable" in window.xr_route_status.text()
+    assert "joint dual-RIS backend pending C/D" in window.xr_route_status.text()
+    assert window.scene_view._trajectory_path.pen().color().name() == "#38bdf8"
+    assert window.scene_view._trajectory_path.pen().style() == Qt.PenStyle.SolidLine
+    assert not window.xr_run_button.isEnabled()
+    assert not window.xr_future_field_button.isEnabled()
+
+
 def test_dual_ris_editor_has_independent_ids_state_and_movement(windows) -> None:
     window = windows()
     window.xr_template_combo.setCurrentIndex(
