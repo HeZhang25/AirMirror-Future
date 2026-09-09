@@ -676,14 +676,31 @@ class XRFuturePreparedFieldWorker(_XRPhysicsWorker):
             dual = len(enabled) == 2
             ris_ids = tuple(ris.id for ris in enabled)
 
+            # The legacy single-RIS command helpers intentionally validate a
+            # scene with exactly one *surface* (the original MVP contract).
+            # The Future editor, however, keeps disabled RIS surfaces in the
+            # scene so that their IDs, geometry and disabled state remain
+            # visible.  When a dual scene is degraded to one enabled RIS,
+            # pass a narrow command snapshot to those helpers rather than
+            # changing the physics or the public prepared interfaces.
+            single_command_scene = (
+                replace(scene, ris_surfaces=[enabled[0]]) if len(enabled) == 1 else scene
+            )
+
             def command_at(position: object) -> object:
                 if not dual:
                     if position is self.request.static_position:
                         return generate_static_pattern(
-                            scene, position, engine=engine, model=model
+                            single_command_scene,
+                            position,
+                            engine=engine,
+                            model=model,
                         )
                     return generate_adaptive_pattern(
-                        scene, position, engine=engine, model=model
+                        single_command_scene,
+                        position,
+                        engine=engine,
+                        model=model,
                     )
                 target_scene = copy.deepcopy(scene)
                 target_scene.receivers = [
@@ -741,7 +758,7 @@ class XRFuturePreparedFieldWorker(_XRPhysicsWorker):
                     )
                 else:
                     adaptive_pattern = generate_adaptive_pattern(
-                        route_scene,
+                        replace(route_scene, ris_surfaces=[enabled[0]]),
                         trajectory_sample.position,
                         engine=engine,
                         model=model,

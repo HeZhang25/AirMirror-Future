@@ -822,6 +822,17 @@ class MainWindow(QMainWindow):
                 Vec3(0.63 * width, 0.50 * height, z),
                 Vec3(0.86 * width, 0.50 * height, z),
             )
+        elif scene.name == "Future Intelligent Workspace":
+            positions = (
+                Vec3(1.8, 2.5, z),
+                Vec3(2.5, 2.8, z),
+                Vec3(3.3, 5.8, z),
+                Vec3(5.2, 5.7, z),
+                Vec3(6.8, 4.4, z),
+                Vec3(8.5, 2.8, z),
+                Vec3(9.8, 4.5, z),
+                Vec3(10.5, 7.0, z),
+            )
         else:
             positions = (
                 Vec3(0.14 * width, 0.12 * height, z),
