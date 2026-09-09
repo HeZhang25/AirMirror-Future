@@ -13,6 +13,9 @@ from airmirror_future.optimization.coherent_focus import (
 )
 from airmirror_future.scenarios.smart_space import create_smart_space_scene
 from airmirror_future.simulation.engine import SimulationCancelled, SimulationEngine
+from airmirror_future.simulation.coefficient_identity import (
+    controller_ris_coefficient_identity,
+)
 from airmirror_future.simulation.ground_truth import GroundTruthModel
 from airmirror_future.simulation.prepared_controller import (
     prepare_controller_field,
@@ -189,6 +192,23 @@ def test_prepared_field_matches_reference_for_multiple_patterns() -> None:
     )
     assert prepared.coefficients.shape == (6, scene.ris_surfaces[0].cell_count)
     assert prepared.coefficient_bytes == prepared.coefficients.nbytes
+    direct_identities = []
+    for y_value in prepared.y_m:
+        for x_value in prepared.x_m:
+            receiver = replace(
+                scene.receiver(),
+                position=Vec3(float(x_value), float(y_value), scene.z_eval_m),
+            )
+            direct_identities.append(
+                controller_ris_coefficient_identity(
+                    scene,
+                    engine,
+                    scene.transmitter(),
+                    receiver,
+                    scene.ris_surfaces[0],
+                )
+            )
+    assert prepared.coefficient_identities == tuple(direct_identities)
 
     for pattern in _patterns(scene)[:2]:
         reference = engine.compute_field_map(
