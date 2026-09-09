@@ -137,6 +137,19 @@ def _channel_result(
     noise_dbm = noise_power_dbm(
         snapshot.bandwidth_hz, snapshot.rx_noise_figure_db
     )
+    snr_db = power_dbm - noise_dbm
+    return ChannelResult(
+        total_channel=total,
+        los_channel=los_channel,
+        wall_channel=wall_channel,
+        ris_channel=ris_channel,
+        received_power_w=power_w,
+        received_power_dbm=power_dbm,
+        noise_power_dbm=noise_dbm,
+        snr_db=snr_db,
+        shannon_capacity_bps=shannon_capacity_bps(snapshot.bandwidth_hz, snr_db),
+        path_details=[{"kind": "prepared-controller", "ris_id": ris_id}],
+    )
 
 
 def _resolve_prepared_ris_pair(
@@ -174,19 +187,6 @@ def _validated_dual_patterns(
         identifier: validate_commanded_pattern(by_id[identifier], pattern)
         for identifier, pattern in patterns.items()
     }
-    snr_db = power_dbm - noise_dbm
-    return ChannelResult(
-        total_channel=total,
-        los_channel=los_channel,
-        wall_channel=wall_channel,
-        ris_channel=ris_channel,
-        received_power_w=power_w,
-        received_power_dbm=power_dbm,
-        noise_power_dbm=noise_dbm,
-        snr_db=snr_db,
-        shannon_capacity_bps=shannon_capacity_bps(snapshot.bandwidth_hz, snr_db),
-        path_details=[{"kind": "prepared-controller", "ris_id": ris_id}],
-    )
 
 
 @dataclass(frozen=True, slots=True)
