@@ -97,9 +97,20 @@ def _run_worker_with_fake_matrix(
             evaluated.append(np.array(pattern, copy=True))
             return _field(config, -70.0 + len(evaluated), 0.004 + len(evaluated) / 1000)
 
+    def _prepare(*args, **kwargs):
+        progress = kwargs.get("progress")
+        cancel_check = kwargs.get("cancel_check")
+        assert callable(cancel_check)
+        assert not cancel_check()
+        if progress is not None:
+            total = config.grid_width * config.grid_height
+            progress(0, total)
+            progress(total, total)
+        return _Prepared()
+
     monkeypatch.setattr(
         "airmirror_future.gui.workers.prepare_controller_field",
-        lambda *args, **kwargs: _Prepared(),
+        _prepare,
     )
     worker = XRFuturePreparedFieldWorker(17, request, config)
     partial = []
@@ -115,7 +126,13 @@ def _run_worker_with_fake_matrix(
     worker.run()
     assert not failed, failed[0] if failed else ""
     assert len(partial) == len(finished) == 1
-    assert progress == [(0, 3), (1, 3), (2, 3), (3, 3)]
+    receiver_total = config.grid_width * config.grid_height
+    assert progress == [
+        (0, receiver_total + 2),
+        (receiver_total, receiver_total + 2),
+        (receiver_total + 1, receiver_total + 2),
+        (receiver_total + 2, receiver_total + 2),
+    ]
     return finished[0], evaluated
 
 
@@ -228,7 +245,7 @@ def test_gui_fixed_field_identity_timing_hot_modes_and_cancel(
     )
     window._cancel_xr_editor_run()
     assert cancelled.cancel_requested
-    assert "finishes the in-flight cold build" in window.xr_field_status.text()
+    assert "receiver-batch boundary" in window.xr_field_status.text()
     cancelled.signals.finished.emit(cancelled.version, stale_result)
     assert window._xr_static_field is None
     cancelled.signals.terminated.emit(cancelled.version, cancelled)

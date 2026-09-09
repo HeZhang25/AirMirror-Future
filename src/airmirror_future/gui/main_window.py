@@ -1397,8 +1397,8 @@ class MainWindow(QMainWindow):
         self._cancel_active()
         if future_worker:
             self.xr_field_status.setText(
-                "Future result cancelled and isolated · current D API finishes the "
-                "in-flight cold build before worker termination"
+                "Future result cancelled and isolated · D P0 stops the cold build "
+                "at a receiver-batch boundary"
             )
         elif self._xr_result is not None:
             self.xr_field_status.setText(
@@ -1653,13 +1653,19 @@ class MainWindow(QMainWindow):
             return
         self.progress.setRange(0, total)
         self.progress.setValue(done)
-        labels = {
-            1: "Cold M8 matrix built",
-            2: "Static command evaluated",
-            3: "Adaptive command evaluated",
-        }
+        receiver_total = total - 2
+        if done <= receiver_total:
+            label = (
+                f"Cold M8 matrix build · receivers {done}/{receiver_total}"
+                if done < receiver_total
+                else f"Cold M8 matrix built · receivers {done}/{receiver_total}"
+            )
+        elif done == receiver_total + 1:
+            label = "Static command evaluated"
+        else:
+            label = "Adaptive command evaluated"
         self.xr_field_status.setText(
-            f"{labels.get(done, 'Future field batch')} · stage {done}/{total}"
+            f"{label} · work {done}/{total}"
         )
 
     def _xr_link_progress(

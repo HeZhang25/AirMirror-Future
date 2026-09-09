@@ -649,25 +649,38 @@ class XRFuturePreparedFieldWorker(_XRPhysicsWorker):
             except RuntimeError:
                 return
 
-            total = 3
+            receiver_total = self.config.grid_width * self.config.grid_height
+            total = receiver_total + 2
             self._emit_progress(0, total)
+
+            def build_progress(completed: int, build_total: int) -> None:
+                if build_total != receiver_total:
+                    raise RuntimeError(
+                        "prepared field progress total does not match map grid"
+                    )
+                # The worker already emitted the initial zero. Keep every
+                # subsequent value as D's real completed-receiver count.
+                if completed > 0:
+                    self._emit_progress(completed, total)
+
             prepared = prepare_controller_field(
                 scene,
                 self.config,
                 engine=engine,
                 controller_model=model,
                 receiver_batch_size=8,
+                progress=build_progress,
+                cancel_check=self._cancelled.is_set,
             )
             if self._cancelled.is_set():
                 return
             coefficient_identity = _prepared_identity_digest(
                 prepared.coefficient_identities
             )
-            self._emit_progress(1, total)
             static_field = prepared.evaluate(static_pattern)
-            self._emit_progress(2, total)
+            self._emit_progress(receiver_total + 1, total)
             adaptive_field = prepared.evaluate(adaptive_pattern)
-            self._emit_progress(3, total)
+            self._emit_progress(receiver_total + 2, total)
             static_key = build_xr_field_cache_key(
                 scene,
                 engine,
