@@ -114,6 +114,38 @@ helper 最多处理两个独立 RIS；未指定 `ris_ids` 时取前两个 enable
 反射或互耦。连续模式以同一 baseline 目标相位确定性对齐每个 RIS，有限 bit 仅在现有 common-offset
 合法命令族内做有界坐标改进，达到无严格改进或 `max_rounds` 即停止。Controller/GT 隔离保持不变。
 
+双 RIS 高速 prepared 使用独立的 `A1`、`A2` 与 Gamma，复用同一 Engine 的显式系数模型：
+
+```python
+from airmirror_future import FAST_1X1_RIS_COEFFICIENT_MODEL, SimulationEngine
+from airmirror_future.simulation.prepared_dual_ris import (
+    prepare_dual_ris_controller_link,
+    prepare_dual_ris_controller_field,
+)
+
+engine = SimulationEngine(coefficient_model=FAST_1X1_RIS_COEFFICIENT_MODEL)
+prepared = prepare_dual_ris_controller_link(
+    scene, engine=engine, ris_ids=("ris-1", "ris-2")
+)
+result = prepared.evaluate({"ris-1": pattern1, "ris-2": pattern2})
+
+field = prepare_dual_ris_controller_field(
+    scene, SimulationConfig(8, 6), engine=engine,
+    ris_ids=("ris-1", "ris-2"), receiver_batch_size=8,
+    progress=lambda done, total: on_progress(done, total),
+    cancel_check=cancel_event.is_set,
+)
+field_result = field.evaluate({"ris-1": pattern1, "ris-2": pattern2})
+```
+
+`PreparedDualRISControllerLink` 和 `PreparedDualRISControllerField` 分别暴露
+`coefficients`（按 RIS ID 的 A1/A2）、`coefficient_identities`、`coefficient_model_identity`、
+`ris_ids` 与 `coefficient_bytes`。热求值严格计算 `baseline + A1 @ Gamma1 + A2 @ Gamma2`，
+再对总复信道取模平方；未提供的命令或 disabled RIS 不贡献。prepared 仅接受
+`ControllerModel`，快照和系数数组不可变。Field 构建按接收批次检查 progress/cancel，双 RIS
+输出预算默认 256 MiB（单 RIS 128 MiB 的两倍），可通过 `coefficient_memory_budget_bytes`
+显式收紧；超预算或取消会在返回 prepared 对象前抛出异常。
+
 ```python
 validate_commanded_pattern(
     ris: RISSurface,

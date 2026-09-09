@@ -36,6 +36,7 @@ arrays retain the P0 immutability and cancellation semantics.
 
 ## Scope of this slice
 
-This slice is single-RIS only. A dual-RIS prepared API will be added only after
-the corresponding C physical interface is available. No GPU, mutual coupling,
-or persistent general cache is introduced.
+The single-RIS API remains unchanged. The corresponding dual-RIS prepared API
+is now available in the follow-on `prepared_dual_ris` module and consumes C's
+physical/Focus contract. No GPU, mutual coupling, or persistent general cache
+is introduced.
