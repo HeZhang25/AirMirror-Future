@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import copy
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 import math
 import time
@@ -37,6 +37,7 @@ from airmirror_future.simulation.profiles import PropagationPathContext
 
 
 DEFAULT_COEFFICIENT_MEMORY_BUDGET_BYTES = 128 * 1024 * 1024
+DEFAULT_DUAL_RIS_COEFFICIENT_MEMORY_BUDGET_BYTES = 192 * 1024 * 1024
 ReceiverProgress = Callable[[int, int], None]
 
 
@@ -63,6 +64,27 @@ class _LinkEvaluationSnapshot:
 class _FieldEvaluationSnapshot:
     ris: _RISCommandSnapshot
     reflection_efficiency: float
+    bandwidth_hz: float
+    tx_power_w: float
+    rx_noise_figure_db: float
+    grid_width: int
+    grid_height: int
+    coverage_threshold_db: float
+
+
+@dataclass(frozen=True, slots=True)
+class _DualLinkEvaluationSnapshot:
+    ris: tuple[_RISCommandSnapshot, ...]
+    reflection_efficiencies: tuple[float, ...]
+    bandwidth_hz: float
+    tx_power_w: float
+    rx_noise_figure_db: float
+
+
+@dataclass(frozen=True, slots=True)
+class _DualFieldEvaluationSnapshot:
+    ris: tuple[_RISCommandSnapshot, ...]
+    reflection_efficiencies: tuple[float, ...]
     bandwidth_hz: float
     tx_power_w: float
     rx_noise_figure_db: float
@@ -115,6 +137,43 @@ def _channel_result(
     noise_dbm = noise_power_dbm(
         snapshot.bandwidth_hz, snapshot.rx_noise_figure_db
     )
+
+
+def _resolve_prepared_ris_pair(
+    scene: Scene, ris_ids: tuple[str, ...] | list[str] | None
+) -> tuple[RISSurface, ...]:
+    if ris_ids is None:
+        return tuple(ris for ris in scene.ris_surfaces if ris.enabled)[:2]
+    if not isinstance(ris_ids, (tuple, list)) or not 0 < len(ris_ids) <= 2:
+        raise ValueError("ris_ids must contain one or two RIS ids")
+    if any(not isinstance(identifier, str) or not identifier for identifier in ris_ids):
+        raise ValueError("ris_ids must contain non-empty strings")
+    if len(set(ris_ids)) != len(ris_ids):
+        raise ValueError("ris_ids must be unique")
+    selected: list[RISSurface] = []
+    for identifier in ris_ids:
+        matches = [ris for ris in scene.ris_surfaces if ris.id == identifier]
+        if len(matches) != 1:
+            raise ValueError(f"RIS id not found or not unique: {identifier}")
+        if matches[0].enabled:
+            selected.append(matches[0])
+    return tuple(selected)
+
+
+def _validated_dual_patterns(
+    snapshots: tuple[_RISCommandSnapshot, ...],
+    patterns: Mapping[str, np.ndarray],
+) -> dict[str, np.ndarray]:
+    if not isinstance(patterns, Mapping) or len(patterns) > 2:
+        raise ValueError("patterns must contain zero, one, or two RIS commands")
+    by_id = {ris.id: ris for ris in snapshots}
+    unknown = set(patterns) - set(by_id)
+    if unknown:
+        raise ValueError(f"prepared RIS id not found: {sorted(unknown)[0]}")
+    return {
+        identifier: validate_commanded_pattern(by_id[identifier], pattern)
+        for identifier, pattern in patterns.items()
+    }
     snr_db = power_dbm - noise_dbm
     return ChannelResult(
         total_channel=total,
@@ -289,6 +348,192 @@ class PreparedControllerField:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class PreparedDualRISLink:
+    """Prepared Controller link for up to two independent RIS surfaces."""
+
+    scene: Scene
+    tx: Transmitter
+    rx: Receiver
+    ris: tuple[RISSurface, ...]
+    coefficient_identities: tuple[str, ...]
+    coefficients: tuple[np.ndarray, ...]
+    baseline_channel: complex
+    baseline_los_channel: complex
+    baseline_wall_channel: complex
+    coefficient_model_identity: str
+    _evaluation: _DualLinkEvaluationSnapshot = field(repr=False)
+
+    def evaluate(self, patterns: Mapping[str, np.ndarray] | None = None) -> ChannelResult:
+        supplied = {} if patterns is None else patterns
+        validated = _validated_dual_patterns(self._evaluation.ris, supplied)
+        total = complex(self.baseline_channel)
+        ris_total = 0.0j
+        details: list[dict[str, object]] = []
+        for index, snapshot in enumerate(self._evaluation.ris):
+            pattern = validated.get(snapshot.id)
+            if pattern is None:
+                continue
+            contribution = complex(
+                np.dot(
+                    self.coefficients[index],
+                    _gamma(snapshot, self._evaluation.reflection_efficiencies[index], pattern),
+                )
+            )
+            ris_total += contribution
+            details.append({"kind": "prepared-dual-controller", "ris_id": snapshot.id, "channel": contribution})
+        total += ris_total
+        power_w = self._evaluation.tx_power_w * abs(total) ** 2
+        power_dbm = float(watts_to_dbm(power_w))
+        noise_dbm = noise_power_dbm(self._evaluation.bandwidth_hz, self._evaluation.rx_noise_figure_db)
+        snr_db = power_dbm - noise_dbm
+        return ChannelResult(
+            total_channel=total,
+            los_channel=self.baseline_los_channel,
+            wall_channel=self.baseline_wall_channel,
+            ris_channel=ris_total,
+            received_power_w=power_w,
+            received_power_dbm=power_dbm,
+            noise_power_dbm=noise_dbm,
+            snr_db=snr_db,
+            shannon_capacity_bps=shannon_capacity_bps(self._evaluation.bandwidth_hz, snr_db),
+            path_details=details,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class PreparedDualRISField:
+    """Prepared bounded field coefficients for up to two independent RIS."""
+
+    scene: Scene
+    config: SimulationConfig
+    tx: Transmitter
+    rx_template: Receiver
+    ris: tuple[RISSurface, ...]
+    x_m: np.ndarray
+    y_m: np.ndarray
+    baseline_channels: np.ndarray
+    coefficients: tuple[np.ndarray, ...]
+    coefficient_identities: tuple[tuple[str, ...], ...]
+    build_runtime_s: float
+    coefficient_bytes: int
+    receiver_batch_size: int
+    max_point_sample_pairs: int
+    coefficient_model_identity: str
+    _evaluation: _DualFieldEvaluationSnapshot = field(repr=False)
+
+    def evaluate(self, patterns: Mapping[str, np.ndarray] | None = None) -> FieldMapResult:
+        started = time.perf_counter()
+        supplied = {} if patterns is None else patterns
+        validated = _validated_dual_patterns(self._evaluation.ris, supplied)
+        total = self.baseline_channels.copy()
+        for index, snapshot in enumerate(self._evaluation.ris):
+            pattern = validated.get(snapshot.id)
+            if pattern is not None:
+                total += self.coefficients[index] @ _gamma(snapshot, self._evaluation.reflection_efficiencies[index], pattern)
+        power = watts_to_dbm(self._evaluation.tx_power_w * np.abs(total) ** 2).reshape(self._evaluation.grid_height, self._evaluation.grid_width)
+        baseline = watts_to_dbm(self._evaluation.tx_power_w * np.abs(self.baseline_channels) ** 2).reshape(self._evaluation.grid_height, self._evaluation.grid_width)
+        noise_dbm = noise_power_dbm(self._evaluation.bandwidth_hz, self._evaluation.rx_noise_figure_db)
+        snr = power - noise_dbm
+        coverage = float(np.mean(snr >= self._evaluation.coverage_threshold_db) * 100.0)
+        return FieldMapResult(self.x_m, self.y_m, power, snr, baseline, power - baseline, coverage, 100.0 - coverage, time.perf_counter() - started)
+
+
+def prepare_controller_dual_ris_link(
+    scene: Scene,
+    *,
+    engine: SimulationEngine | None = None,
+    tx: Transmitter | str | None = None,
+    rx: Receiver | str | None = None,
+    ris_ids: tuple[str, ...] | list[str] | None = None,
+    controller_model: ControllerModel | None = None,
+) -> PreparedDualRISLink:
+    model = _require_controller(controller_model)
+    active_engine = engine or SimulationEngine()
+    snapshot = copy.deepcopy(scene)
+    target_tx = copy.deepcopy(tx) if isinstance(tx, Transmitter) else active_engine._resolve_tx(snapshot, tx)
+    target_rx = copy.deepcopy(rx) if isinstance(rx, Receiver) else active_engine._resolve_rx(snapshot, rx)
+    selected = _resolve_prepared_ris_pair(snapshot, ris_ids)
+    baseline = active_engine.compute_channel(snapshot, tx=target_tx, rx=target_rx, ris_patterns={}, model=model)
+    coeffs: list[np.ndarray] = []
+    identities: list[str] = []
+    for ris in selected:
+        values, _ = active_engine.controller_focus_terms(snapshot, target_tx, target_rx, ris, model)
+        coeffs.append(_immutable_array(np.asarray(values), dtype=complex))
+        identities.append(controller_ris_coefficient_identity(snapshot, active_engine, target_tx, target_rx, ris))
+    evaluation = _DualLinkEvaluationSnapshot(tuple(_command_snapshot(r) for r in selected), tuple(r.reflection_efficiency for r in selected), snapshot.bandwidth_hz, target_tx.power_w, target_rx.noise_figure_db)
+    return PreparedDualRISLink(snapshot, target_tx, target_rx, selected, tuple(identities), tuple(coeffs), baseline.total_channel, baseline.los_channel, baseline.wall_channel, active_engine.coefficient_model.identity, evaluation)
+
+
+def prepare_controller_dual_ris_field(
+    scene: Scene,
+    config: SimulationConfig,
+    *,
+    engine: SimulationEngine | None = None,
+    controller_model: ControllerModel | None = None,
+    ris_ids: tuple[str, ...] | list[str] | None = None,
+    coefficient_memory_budget_bytes: int = DEFAULT_DUAL_RIS_COEFFICIENT_MEMORY_BUDGET_BYTES,
+    receiver_batch_size: int | None = None,
+    max_point_sample_pairs: int = 262_144,
+    progress: ReceiverProgress | None = None,
+    progress_callback: ReceiverProgress | None = None,
+    cancel_check: Callable[[], bool] | None = None,
+) -> PreparedDualRISField:
+    if progress is not None and progress_callback is not None:
+        raise ValueError("pass only one of progress or progress_callback")
+    progress = progress if progress is not None else progress_callback
+    model = _require_controller(controller_model)
+    if coefficient_memory_budget_bytes <= 0:
+        raise ValueError("coefficient_memory_budget_bytes must be positive")
+    snapshot = copy.deepcopy(scene)
+    config_snapshot = copy.deepcopy(config)
+    snapshot._validate_environment_ids()
+    selected = _resolve_prepared_ris_pair(snapshot, ris_ids)
+    if not selected:
+        raise ValueError("prepared dual RIS field requires at least one enabled RIS")
+    tx = snapshot.transmitter(); rx_template = snapshot.receiver()
+    point_count = config_snapshot.grid_width * config_snapshot.grid_height
+    coefficient_bytes = sum(point_count * ris.cell_count * np.dtype(complex).itemsize for ris in selected)
+    if coefficient_bytes > coefficient_memory_budget_bytes:
+        raise MemoryError(f"dual RIS coefficient matrices require {coefficient_bytes} bytes, exceeding budget {coefficient_memory_budget_bytes} bytes")
+    batch_size = config_snapshot.batch_size if receiver_batch_size is None else receiver_batch_size
+    if batch_size <= 0: raise ValueError("receiver_batch_size must be positive")
+    active_engine = engine or SimulationEngine()
+    started = time.perf_counter()
+    if cancel_check is not None and cancel_check(): raise SimulationCancelled("prepared dual RIS field calculation cancelled")
+    if progress is not None: progress(0, point_count)
+    x_values = np.linspace(0.05, snapshot.room_size.x - 0.05, config_snapshot.grid_width)
+    y_values = np.linspace(0.05, snapshot.room_size.y - 0.05, config_snapshot.grid_height)
+    xx, yy = np.meshgrid(x_values, y_values, indexing="xy")
+    points_all = np.column_stack((xx.reshape(-1), yy.reshape(-1), np.full(point_count, snapshot.z_eval_m)))
+    matrices = [np.empty((point_count, ris.cell_count), dtype=complex) for ris in selected]
+    baselines = np.empty(point_count, dtype=complex)
+    identities: list[list[str]] = [[] for _ in selected]
+    specs = [active_engine.coefficient_model.quadrature_spec(ris) for ris in selected]
+    for start in range(0, point_count, batch_size):
+        if cancel_check is not None and cancel_check(): raise SimulationCancelled("prepared dual RIS field calculation cancelled")
+        stop = min(start + batch_size, point_count)
+        points = points_all[start:stop]
+        for ris_index, ris in enumerate(selected):
+            incident = active_engine._environment_modifier(snapshot, PropagationPathContext("ris_incident", tx.position, ris.position, ris_id=ris.id)).value
+            matrices[ris_index][start:stop] = ris_control_coefficient_matrix(tx, points, rx_template.gain_linear, ris, snapshot.frequency_hz, quadrature_spec=specs[ris_index], max_point_sample_pairs=max_point_sample_pairs, receiver_batch_size=batch_size)
+            for local, point in enumerate(points, start=start):
+                receiver = replace(rx_template, position=Vec3(*point.tolist()))
+                scattered = active_engine._environment_modifier(snapshot, PropagationPathContext("ris_scattered", ris.position, receiver.position, ris_id=ris.id)).value
+                matrices[ris_index][local] *= incident * scattered
+                identities[ris_index].append(controller_ris_coefficient_identity(snapshot, active_engine, tx, receiver, ris))
+        for local, point in enumerate(points, start=start):
+            receiver = replace(rx_template, position=Vec3(*point.tolist()))
+            baselines[local] = active_engine.compute_channel(snapshot, tx=tx, rx=receiver, ris_patterns={}, model=model).total_channel
+        if progress is not None: progress(stop, point_count)
+        if cancel_check is not None and cancel_check(): raise SimulationCancelled("prepared dual RIS field calculation cancelled")
+    immutable_matrices = tuple(_immutable_array(values) for values in matrices)
+    baselines = _immutable_array(baselines); x_values = _immutable_array(x_values); y_values = _immutable_array(y_values)
+    threshold = snapshot.coverage_threshold_db if config_snapshot.coverage_threshold_db is None else config_snapshot.coverage_threshold_db
+    evaluation = _DualFieldEvaluationSnapshot(tuple(_command_snapshot(r) for r in selected), tuple(r.reflection_efficiency for r in selected), snapshot.bandwidth_hz, tx.power_w, rx_template.noise_figure_db, config_snapshot.grid_width, config_snapshot.grid_height, threshold)
+    return PreparedDualRISField(snapshot, config_snapshot, tx, rx_template, selected, x_values, y_values, baselines, immutable_matrices, tuple(tuple(row) for row in identities), time.perf_counter()-started, coefficient_bytes, batch_size, max_point_sample_pairs, active_engine.coefficient_model.identity, evaluation)
+
+
 def prepare_controller_field(
     scene: Scene,
     config: SimulationConfig,
@@ -461,6 +706,11 @@ __all__ = [
     "ReceiverProgress",
     "PreparedControllerField",
     "PreparedControllerLink",
+    "PreparedDualRISLink",
+    "PreparedDualRISField",
+    "DEFAULT_DUAL_RIS_COEFFICIENT_MEMORY_BUDGET_BYTES",
+    "prepare_controller_dual_ris_link",
+    "prepare_controller_dual_ris_field",
     "prepare_controller_field",
     "prepare_controller_link",
 ]
