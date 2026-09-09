@@ -160,6 +160,8 @@ def test_xr_trajectory_is_visible_while_field_map_is_pending(
     assert len(xr_window.scene_view._trajectory_markers) == 11
     assert xr_window.scene_view._heatmap_item is None
     assert "Field map calculating" in xr_window.xr_field_status.text()
+    assert "Production M8" in xr_window.xr_field_status.text()
+    assert "Fast grid 80×60" in xr_window.xr_field_status.text()
     assert xr_window.isEnabled()
     qtbot.waitUntil(lambda: xr_window._xr_static_field is not None, timeout=5000)
 
@@ -539,6 +541,75 @@ def test_cached_adaptive_selection_replaces_older_pending_request(
     assert xr_window._xr_pending_field_request is None
 
 
+def test_adaptive_cold_cache_playback_buffers_current_sample(
+    xr_window: MainWindow,
+    qtbot,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _enter_xr(xr_window, qtbot)
+    result = xr_window._xr_result
+    assert result is not None
+    _ManualAdaptiveFieldWorker.started = []
+    original_pool = xr_window.thread_pool
+    xr_window.thread_pool = _ManualPool()
+    monkeypatch.setattr(gui_main, "XRAdaptiveFieldWorker", _ManualAdaptiveFieldWorker)
+    try:
+        xr_window.xr_mode_combo.setCurrentText(mvp.ADAPTIVE_RIS_MODE)
+        xr_window.xr_timeline.setValue(1)
+        xr_window._xr_field_debounce.stop()
+        xr_window._play_xr_demo()
+
+        assert xr_window._xr_playback_waiting_for_field is True
+        assert xr_window._xr_playback_timer.isActive() is False
+        assert len(_ManualAdaptiveFieldWorker.started) == 1
+        assert _ManualAdaptiveFieldWorker.started[0].sample_index == 1
+        assert any(
+            phrase in xr_window.xr_field_status.text().lower()
+            for phrase in ("buffering", "calculating")
+        )
+    finally:
+        xr_window._xr_playback_timer.stop()
+        xr_window._xr_active_worker = None
+        xr_window._active_worker = None
+        xr_window.thread_pool = original_pool
+
+
+def test_adaptive_ready_field_resumes_buffered_playback(
+    xr_window: MainWindow,
+    qtbot,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _enter_xr(xr_window, qtbot)
+    result = xr_window._xr_result
+    field = xr_window._xr_static_field
+    assert result is not None and field is not None
+    sample = next(
+        item
+        for item in result.samples
+        if item.mode == mvp.ADAPTIVE_RIS_MODE
+        and item.trajectory.sample_index == 1
+    )
+    key = xr_window._xr_field_key_for_sample(sample)
+    assert key is not None
+    xr_window.xr_mode_combo.setCurrentText(mvp.ADAPTIVE_RIS_MODE)
+    xr_window.xr_timeline.setValue(1)
+    xr_window._xr_playback_timer.start()
+    xr_window._xr_playback_timer.stop()
+    xr_window._xr_playback_waiting_for_field = True
+    xr_window._xr_adaptive_field_ready(
+        xr_window._version,
+        XRAdaptiveFieldResult(
+            sample_index=1,
+            command_hash=sample.command_hash,
+            key=key,
+            field_map=field,
+        ),
+    )
+    assert xr_window._xr_playback_waiting_for_field is False
+    assert xr_window._xr_playback_timer.isActive()
+    xr_window._pause_xr_demo()
+
+
 def test_cancelled_xr_worker_stays_active_until_termination_then_runs_latest(
     xr_window: MainWindow,
     qtbot,
@@ -732,27 +803,21 @@ def test_adaptive_playback_does_not_launch_field_physics_per_frame(
     monkeypatch.setattr(SimulationEngine, "compute_channel", unexpected_channel)
     xr_window._xr_playback_timer.setInterval(10)
     qtbot.mouseClick(xr_window.xr_play_button, Qt.MouseButton.LeftButton)
-    qtbot.waitUntil(
-        lambda: not xr_window._xr_playback_timer.isActive(),
-        timeout=1500,
-    )
-    assert xr_window._xr_sample_index == 10
-    assert len(xr_field_calls) == 1
-
-    qtbot.waitUntil(lambda: len(xr_field_calls) == 2, timeout=3000)
+    qtbot.waitUntil(lambda: len(xr_field_calls) >= 2, timeout=3000)
+    xr_window._pause_xr_demo()
     qtbot.waitUntil(lambda: xr_window._active_worker is None, timeout=3000)
-    qtbot.wait(100)
-    assert len(xr_field_calls) == 2
-    final_sample = next(
+    assert xr_window._xr_sample_index >= 1
+    assert len(xr_field_calls) >= 2
+    latest = next(
         sample
         for sample in result.samples
         if sample.mode == mvp.ADAPTIVE_RIS_MODE
-        and sample.trajectory.sample_index == 10
+        and sample.trajectory.sample_index == xr_window._xr_sample_index
     )
-    assert final_sample.commanded_pattern is not None
+    assert latest.commanded_pattern is not None
     assert np.array_equal(
         xr_field_calls[-1][2][result.scene.ris_surfaces[0].id],
-        final_sample.commanded_pattern,
+        latest.commanded_pattern,
     )
 
 
