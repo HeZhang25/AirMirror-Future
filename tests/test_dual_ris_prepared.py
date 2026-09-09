@@ -15,6 +15,7 @@ from airmirror_future.simulation.engine import SimulationCancelled
 from airmirror_future.simulation.prepared_controller import (
     prepare_controller_dual_ris_field,
     prepare_controller_dual_ris_link,
+    prepare_controller_link,
 )
 
 
@@ -43,6 +44,14 @@ def test_dual_prepared_link_is_coherent_and_matches_engine() -> None:
     assert actual.wall_channel == expected.wall_channel
     assert prepared.coefficient_model_identity == FAST_1X1_RIS_COEFFICIENT_MODEL.identity
     assert len(prepared.coefficient_identities) == 2
+
+
+def test_existing_single_prepared_link_still_returns_channel_result() -> None:
+    scene = create_smart_space_scene("Future")
+    engine = SimulationEngine(coefficient_model=FAST_1X1_RIS_COEFFICIENT_MODEL)
+    prepared = prepare_controller_link(scene, engine=engine)
+    result = prepared.evaluate(np.zeros(scene.ris_surfaces[0].cell_count))
+    assert result.total_channel == result.los_channel + result.wall_channel + result.ris_channel
 
 
 def test_dual_prepared_field_matches_engine_and_single_disabled_degrades() -> None:
