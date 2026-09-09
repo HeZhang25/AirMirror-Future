@@ -773,7 +773,9 @@ class XRFuturePreparedFieldWorker(_XRPhysicsWorker):
             mvp = MVPComputation(
                 scene,
                 tuple(trajectory),
-                static_pattern,
+                # The prepared evaluator keeps the complete RIS-id mapping;
+                # MVP's legacy pattern view remains a single-array snapshot.
+                _first_command(static_pattern),
                 tuple(dynamic_samples),
             )
             receiver_total = self.config.grid_width * self.config.grid_height
