@@ -600,13 +600,17 @@ class SceneView(QGraphicsView):
                     segment.setVisible(self._show_rays)
                     segment.setToolTip(f"Explicit path via {ris.id}")
                 self._ris_ray_items[ris.id] = (incoming, outgoing)
-            direct_pen = QPen(QColor(239, 68, 68, 130), 1, Qt.PenStyle.DotLine)
+            # This is a geometry/reference ray, not a blockage or route-validity
+            # verdict. Keep red reserved for genuinely invalid editable routes.
+            direct_pen = QPen(QColor(148, 163, 184, 190), 1, Qt.PenStyle.DotLine)
             self._direct_ray_item = self.graphics_scene.addLine(
                 tx_point.x(), tx_point.y(), rx_point.x(), rx_point.y(), direct_pen
             )
             self._direct_ray_item.setZValue(9)
             self._direct_ray_item.setVisible(self._show_rays)
-            self._direct_ray_item.setToolTip("Explicit direct TX→RX path")
+            self._direct_ray_item.setToolTip(
+                "Direct TX→RX reference path · neutral color is not a validity indicator"
+            )
         if old_gain_gmax is not None:
             self._render_gain_legend(old_gain_gmax)
         self._suppress_moves = False

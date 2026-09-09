@@ -7,7 +7,7 @@ import pytest
 import numpy as np
 
 PySide6 = pytest.importorskip("PySide6")
-from PySide6.QtCore import QCoreApplication, QEvent, QPointF, QThreadPool
+from PySide6.QtCore import QCoreApplication, QEvent, QPointF, QThreadPool, Qt
 from PySide6.QtWidgets import QApplication
 from PySide6.QtWidgets import QMessageBox
 
@@ -68,6 +68,9 @@ def test_scene_view_draws_and_live_updates_each_enabled_ris_path() -> None:
 
     assert set(view._ris_ray_items) == {"ris-north", "ris-east"}
     assert view._direct_ray_item is not None
+    assert view._direct_ray_item.pen().color().name() == "#94a3b8"
+    assert view._direct_ray_item.pen().style() == Qt.PenStyle.DotLine
+    assert "not a validity indicator" in view._direct_ray_item.toolTip()
     old_end = view._ris_ray_items["ris-east"][1].line().p2()
     moved_rx = replace(scene.receiver().position, x=7.25, y=2.75)
     view.set_entity_visual_position(scene.receiver().id, moved_rx)
