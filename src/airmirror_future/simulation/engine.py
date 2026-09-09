@@ -269,16 +269,20 @@ class SimulationEngine:
             )
             contribution = complex(np.dot(coefficients, gamma))
             ris_total += contribution
-            details.append(
-                {
-                    "kind": "RIS",
-                    "ris_id": ris.id,
-                    "blockers": list(before.blocker_ids + after.blocker_ids),
-                    "channel": contribution,
-                    "coefficient_model_id": self._coefficient_model.identity,
-                    "quadrature_policy_id": self._coefficient_model.quadrature_identity,
-                }
-            )
+            detail = {
+                "kind": "RIS",
+                "ris_id": ris.id,
+                "blockers": list(before.blocker_ids + after.blocker_ids),
+                "channel": contribution,
+            }
+            if self._coefficient_model is not PRODUCTION_RIS_COEFFICIENT_MODEL:
+                detail.update(
+                    {
+                        "coefficient_model_id": self._coefficient_model.identity,
+                        "quadrature_policy_id": self._coefficient_model.quadrature_identity,
+                    }
+                )
+            details.append(detail)
         return complex(los), complex(wall_total), complex(ris_total), details
 
     def controller_focus_terms(
