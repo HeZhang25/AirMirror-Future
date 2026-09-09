@@ -1,0 +1,70 @@
+{
+  "qt_platform": "windows",
+  "scene": "Future Intelligent Workspace",
+  "route_samples": 27,
+  "model": "control_patch_center_bistatic_coefficients/1",
+  "grid": [
+    8,
+    6
+  ],
+  "ris_ids": [
+    "ris-west-service",
+    "ris-east-service"
+  ],
+  "mode_checks": {
+    "No RIS": {
+      "heatmap_visible": true,
+      "power_text": "Power: -90.15 dBm",
+      "snr_text": "SNR: -3.15 dB"
+    },
+    "Static RIS": {
+      "heatmap_visible": true,
+      "power_text": "Power: -91.06 dBm",
+      "snr_text": "SNR: -4.06 dB"
+    },
+    "Adaptive RIS": {
+      "heatmap_visible": true,
+      "power_text": "Power: -70.87 dBm",
+      "snr_text": "SNR: 16.13 dB"
+    }
+  },
+  "phase_checks": {
+    "ris-west-service": {
+      "metadata": "Grid: 64×48 · Hardware Phase: Continuous · Allowed States: continuous (no discrete Allowed States) · Used States: 3072 observed values · Pattern Source: XR Adaptive RIS · ris-west-service · per-sample Controller Focus · provisional\nActual = Commanded + Ground Truth phase error (σ=0 rad)\n循环相位图例（左→右）：0 → π/2 → π → 3π/2 → 2π；颜色不用于判断硬件命令状态。\nEquivalent patch pitch: 0.04688×0.04167 m; λ=0.05996 m; pitch/λ=0.7818,0.6949",
+      "pixmap_cache_key": 8637179232259
+    },
+    "ris-east-service": {
+      "metadata": "Grid: 64×48 · Hardware Phase: Continuous · Allowed States: continuous (no discrete Allowed States) · Used States: 3072 observed values · Pattern Source: XR Adaptive RIS · ris-east-service · per-sample Controller Focus · provisional\nActual = Commanded + Ground Truth phase error (σ=0 rad)\n循环相位图例（左→右）：0 → π/2 → π → 3π/2 → 2π；颜色不用于判断硬件命令状态。\nEquivalent patch pitch: 0.04688×0.04167 m; λ=0.05996 m; pitch/λ=0.7818,0.6949",
+      "pixmap_cache_key": 8705898708995
+    }
+  },
+  "adaptive_cache_hits": 27,
+  "cached_fields_before_drag": 27,
+  "drag": {
+    "ris_id": "ris-east-service",
+    "before": [
+      10.8,
+      6.8,
+      1.6
+    ],
+    "after": [
+      11.425098658247832,
+      6.487450670876084,
+      1.6
+    ],
+    "invalidated": true
+  },
+  "disabled_degradation": {
+    "enabled_ris_ids": [
+      "ris-west-service"
+    ],
+    "disabled_ris_id": "ris-east-service",
+    "cached_fields": 27,
+    "disabled_phase_state_visible": true
+  },
+  "grid_change_invalidated": true,
+  "screenshots": [
+    "results/prototypes/local_preview_integrated_dual_ris.png",
+    "results/prototypes/local_preview_integrated_disabled_ris.png"
+  ]
+}

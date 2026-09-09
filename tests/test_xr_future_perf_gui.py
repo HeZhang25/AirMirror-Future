@@ -207,6 +207,38 @@ def test_future_worker_reuses_one_explicit_fast_matrix_for_two_commands(monkeypa
         result.static_patterns["replacement"] = np.zeros(1)
 
 
+def test_future_worker_degrades_dual_scene_to_one_enabled_ris(monkeypatch) -> None:
+    """A disabled second Future RIS stays visible without breaking Static mode."""
+    scene = create_xr_editor_scene("future_smart_space")
+    second = replace(
+        scene.ris_surfaces[0],
+        id="ris-east-service",
+        enabled=False,
+        position=replace(scene.ris_surfaces[0].position, x=10.8, y=6.8),
+    )
+    scene.ris_surfaces = [scene.ris_surfaces[0], second]
+    request = XRFutureFixedFieldRequest(
+        scene=scene,
+        static_position=scene.receiver().position,
+        selected_position=scene.receiver().position,
+        selected_point_id="point-1",
+        experiment_identity="sha256:disabled-dual-experiment",
+        scene_identity="sha256:disabled-dual-scene",
+        trajectory_identity="sha256:disabled-dual-trajectory",
+        coefficient_model_identity=FAST_1X1_RIS_COEFFICIENT_MODEL.identity,
+    )
+
+    result, _evaluated = _run_worker_with_fake_matrix(
+        monkeypatch,
+        request,
+        SimulationConfig(8, 6, batch_size=8),
+    )
+
+    enabled_id = scene.ris_surfaces[0].id
+    assert set(result.static_patterns) == {enabled_id}
+    assert all(set(patterns) == {enabled_id} for _hash, patterns in result.adaptive_patterns)
+
+
 def test_future_worker_evaluates_and_reports_every_sampled_time(monkeypatch) -> None:
     scene = create_xr_editor_scene("future_smart_space")
     route = tuple(
