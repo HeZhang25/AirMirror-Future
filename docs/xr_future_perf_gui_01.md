@@ -131,18 +131,24 @@ at `8/1728`. It emitted no partial result, no finished result, and no failure;
 only worker termination was emitted. No partial field or prepared object entered
 the GUI cache.
 
-## Isolated dual-RIS editor slice
+## Prepared dual-RIS Future slice
 
-The XR editor can create a second RIS by cloning the selected scene's existing
-aperture/control definition. It keeps two unique IDs and exposes per-instance
-selection, XYZ movement (form or canvas), enable/disable state, and an independent
-command-state line. TX/RX remain frozen while the two RIS graphics are draggable.
-Any RIS edit invalidates prior commands, field identities, caches, and workers.
+The XR editor's second-RIS controls now feed the checked-in C/D prepared backend:
+C physical coordination `5d3f2e19ff76ae7fc7ed2bf5f192af2da88e7126`, D fast
+prepared candidate `2a159a12b0180afb692eb93ba9f3ff00023c9795`. Future scenes with
+one or two enabled Future RIS surfaces use the explicit
+`FAST_1X1_RIS_COEFFICIENT_MODEL` engine. Static and per-route Adaptive commands
+are independent `RIS ID -> pattern` dictionaries; links call
+`prepare_controller_dual_ris_link(...).evaluate(dict)` and fixed fields call
+`prepare_controller_dual_ris_field(...).evaluate(dict)`. The backend derives one
+complex total channel before power/SNR, so the GUI never adds power maps.
 
-The current C/D route and prepared APIs remain single-RIS. Therefore the presence
-of two RIS instances deliberately blocks Run and fixed-field actions with a visible
-`joint dual-RIS complex-channel backend pending C/D` status. This editor never
-computes two independent power maps, adds map values, or presents a single-RIS
-result as dual-RIS. A future backend must accept both command snapshots and return
-one channel in which both RIS contributions are coherently summed before power is
-derived.
+No RIS and single-RIS behavior remain on their existing paths; non-Future dual
+scenes continue to keep the legacy three-mode Run action disabled. Any scene or
+route edit invalidates both RIS command snapshots, field identities, caches, and
+workers.
+
+Native Windows/Python 3.14.3 smoke runs passed with the real worker at `8×6` and
+`48×36` for two Future RIS surfaces. The latter produced a `36×48` field, used
+169,869,312 bytes of coefficient storage (two 64×48 apertures), and completed
+the bounded cold build in 41.62 s; no benchmark harness was used.
