@@ -2514,7 +2514,10 @@ class MainWindow(QMainWindow):
             sample.trajectory.position,
         )
 
-        ris = self._xr_result.scene.ris_surfaces[0]
+        ris = next(
+            (item for item in self._xr_result.scene.ris_surfaces if item.enabled),
+            self._xr_result.scene.ris_surfaces[0],
+        )
         if mode == STATIC_RIS_MODE:
             commanded = self._xr_result.static_pattern
             pattern_source = "XR MVP Static RIS · frozen at t=0"
