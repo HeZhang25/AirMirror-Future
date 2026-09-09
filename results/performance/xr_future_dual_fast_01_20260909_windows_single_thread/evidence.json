@@ -1,0 +1,41 @@
+{
+  "schema_id": "airmirror_xr_future_dual_fast_01",
+  "schema_version": 1,
+  "status": "non-release performance candidate",
+  "base_sha": "5d3f2e19ff76ae7fc7ed2bf5f192af2da88e7126",
+  "rows": [
+    {
+      "grid": [
+        4,
+        3
+      ],
+      "build_runtime_s": 0.2687445000046864,
+      "hot_zero_s": 0.0019382000027690083,
+      "progress_events": 3,
+      "completed_points": 12,
+      "coefficient_bytes": 1179648
+    },
+    {
+      "grid": [
+        48,
+        36
+      ],
+      "build_runtime_s": 36.428117100003874,
+      "hot_zero_s": 0.0062901000055717304,
+      "progress_events": 217,
+      "completed_points": 1728,
+      "coefficient_bytes": 169869312
+    }
+  ],
+  "environment": {
+    "platform": "Windows-10-10.0.26200-SP0",
+    "python": "3.11.4",
+    "numpy": "2.4.6",
+    "thread_environment": {
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1"
+    }
+  }
+}
