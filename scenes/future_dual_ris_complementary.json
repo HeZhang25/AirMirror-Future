@@ -1,0 +1,209 @@
+{
+  "name": "Future Dual RIS Complementary Demonstration",
+  "room_size": {
+    "x": 12.0,
+    "y": 10.0,
+    "z": 3.0
+  },
+  "frequency_hz": 5000000000.0,
+  "bandwidth_hz": 100000000.0,
+  "transmitters": [
+    {
+      "id": "tx-demo",
+      "position": {
+        "x": 1.0,
+        "y": 5.0,
+        "z": 2.4
+      },
+      "power_w": 0.1,
+      "gain_linear": 1.0
+    }
+  ],
+  "receivers": [
+    {
+      "id": "rx-demo",
+      "position": {
+        "x": 3.0,
+        "y": 8.0,
+        "z": 1.2
+      },
+      "gain_linear": 1.0,
+      "noise_figure_db": 7.0
+    }
+  ],
+  "walls": [
+    {
+      "id": "north",
+      "start": {
+        "x": 0.0,
+        "y": 10.0,
+        "z": 0.0
+      },
+      "end": {
+        "x": 12.0,
+        "y": 10.0,
+        "z": 0.0
+      },
+      "height_m": 3.0,
+      "attenuation_db": 80.0,
+      "reflection_magnitude": 0.2,
+      "reflection_phase_rad": 3.141592653589793,
+      "blocks_los": false
+    },
+    {
+      "id": "south",
+      "start": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "end": {
+        "x": 12.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "height_m": 3.0,
+      "attenuation_db": 80.0,
+      "reflection_magnitude": 0.2,
+      "reflection_phase_rad": 3.141592653589793,
+      "blocks_los": false
+    },
+    {
+      "id": "west",
+      "start": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "end": {
+        "x": 0.0,
+        "y": 10.0,
+        "z": 0.0
+      },
+      "height_m": 3.0,
+      "attenuation_db": 80.0,
+      "reflection_magnitude": 0.2,
+      "reflection_phase_rad": 3.141592653589793,
+      "blocks_los": false
+    },
+    {
+      "id": "east",
+      "start": {
+        "x": 12.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "end": {
+        "x": 12.0,
+        "y": 10.0,
+        "z": 0.0
+      },
+      "height_m": 3.0,
+      "attenuation_db": 80.0,
+      "reflection_magnitude": 0.2,
+      "reflection_phase_rad": 3.141592653589793,
+      "blocks_los": false
+    },
+    {
+      "id": "mid-vertical",
+      "start": {
+        "x": 6.0,
+        "y": 4.2,
+        "z": 0.0
+      },
+      "end": {
+        "x": 6.0,
+        "y": 5.8,
+        "z": 0.0
+      },
+      "height_m": 3.0,
+      "attenuation_db": 24.0,
+      "reflection_magnitude": 0.35,
+      "reflection_phase_rad": 2.4,
+      "blocks_los": true
+    },
+    {
+      "id": "mid-horizontal",
+      "start": {
+        "x": 6.0,
+        "y": 5.0,
+        "z": 0.0
+      },
+      "end": {
+        "x": 10.0,
+        "y": 5.0,
+        "z": 0.0
+      },
+      "height_m": 3.0,
+      "attenuation_db": 24.0,
+      "reflection_magnitude": 0.35,
+      "reflection_phase_rad": 2.4,
+      "blocks_los": true
+    }
+  ],
+  "obstacles": [
+    {
+      "id": "cabinet",
+      "min_corner": {
+        "x": 5.2,
+        "y": 7.0,
+        "z": 0.0
+      },
+      "max_corner": {
+        "x": 6.2,
+        "y": 8.0,
+        "z": 2.0
+      },
+      "attenuation_db": 16.0,
+      "fully_blocking": false
+    }
+  ],
+  "ris_surfaces": [
+    {
+      "id": "ris-north",
+      "position": {
+        "x": 3.0,
+        "y": 8.8,
+        "z": 1.5
+      },
+      "yaw_rad": -1.8130352913134082,
+      "width_m": 3.0,
+      "height_m": 2.0,
+      "nx": 64,
+      "ny": 48,
+      "phase_bits": null,
+      "reflection_efficiency": 0.95,
+      "update_rate_hz": 1000.0,
+      "self_sensing": true,
+      "generation": "Future",
+      "enabled": true,
+      "active": false,
+      "direction_exponent": 1.0
+    },
+    {
+      "id": "ris-east",
+      "position": {
+        "x": 9.0,
+        "y": 1.2,
+        "z": 1.5
+      },
+      "yaw_rad": 1.686442629696804,
+      "width_m": 3.0,
+      "height_m": 2.0,
+      "nx": 64,
+      "ny": 48,
+      "phase_bits": null,
+      "reflection_efficiency": 0.95,
+      "update_rate_hz": 1000.0,
+      "self_sensing": true,
+      "generation": "Future",
+      "enabled": true,
+      "active": false,
+      "direction_exponent": 1.0
+    }
+  ],
+  "z_eval_m": 1.2,
+  "coverage_threshold_db": 35.0,
+  "random_seed": 20260909,
+  "schema_version": 1
+}
