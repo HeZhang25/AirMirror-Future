@@ -327,10 +327,18 @@ class SceneView(QGraphicsView):
             )
             item.setPos(self._point(ris.position))
             item.setRotation(-math.degrees(ris.yaw_rad + math.pi / 2.0))
+            item.setOpacity(1.0 if ris.enabled else 0.35)
+            item.setToolTip(
+                f"{ris.id} · {ris.generation} · "
+                f"{'enabled' if ris.enabled else 'disabled'}"
+            )
             self.graphics_scene.addItem(item)
             self._entity_items[ris.id] = item
             if self._show_labels:
-                text = self.graphics_scene.addSimpleText(f"RIS · {ris.generation}")
+                state = "on" if ris.enabled else "off"
+                text = self.graphics_scene.addSimpleText(
+                    f"{ris.id} · {ris.generation} · {state}"
+                )
                 text.setBrush(Qt.GlobalColor.white)
                 text.setPos(item.pos() + QPointF(8, 8))
                 text.setZValue(21)
@@ -363,6 +371,15 @@ class SceneView(QGraphicsView):
             item.setFlag(
                 QGraphicsItem.GraphicsItemFlag.ItemIsMovable,
                 self._entities_draggable,
+            )
+
+    def set_draggable_entity_ids(self, identifiers: set[str]) -> None:
+        """Allow a bounded entity subset to move while other entities stay frozen."""
+        allowed = set(identifiers)
+        for identifier, item in self._entity_items.items():
+            item.setFlag(
+                QGraphicsItem.GraphicsItemFlag.ItemIsMovable,
+                identifier in allowed,
             )
 
     def set_entity_visual_position(self, identifier: str, position: Vec3) -> None:

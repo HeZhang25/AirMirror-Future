@@ -140,6 +140,9 @@ class MainWindow(QMainWindow):
         self._xr_editor_scene: Scene | None = None
         self._xr_trajectory: RouteDraft | None = None
         self._xr_selected_waypoint_index = 0
+        self._xr_selected_ris_id: str | None = None
+        self._xr_ris_command_states: dict[str, str] = {}
+        self._xr_route_valid = False
         self._xr_pending_run_request: object | None = None
         self._xr_cancel_waiting_for_termination = False
         self._xr_result: MVPComputation | None = None
@@ -266,6 +269,36 @@ class MainWindow(QMainWindow):
         scene_buttons.addWidget(self.xr_load_template_button)
         scene_buttons.addWidget(self.xr_load_scene_button)
         editor_layout.addLayout(scene_buttons)
+
+        ris_editor = QGroupBox("RIS instances · isolated dual-RIS editor")
+        ris_layout = QVBoxLayout(ris_editor)
+        ris_select = QHBoxLayout()
+        self.xr_ris_combo = QComboBox()
+        self.xr_ris_combo.currentIndexChanged.connect(self._xr_ris_selected)
+        self.xr_add_ris_button = QPushButton("Create second RIS")
+        self.xr_add_ris_button.clicked.connect(self._xr_add_ris)
+        ris_select.addWidget(self.xr_ris_combo)
+        ris_select.addWidget(self.xr_add_ris_button)
+        ris_layout.addLayout(ris_select)
+        ris_form = QFormLayout()
+        self.xr_ris_x = self._double_spin(0.0, 1000.0, 0.0, 0.1, " m")
+        self.xr_ris_y = self._double_spin(0.0, 1000.0, 0.0, 0.1, " m")
+        self.xr_ris_z = self._double_spin(0.0, 1000.0, 1.5, 0.1, " m")
+        self.xr_ris_enabled = QCheckBox("Enabled")
+        self.xr_ris_enabled.setChecked(True)
+        ris_form.addRow("X", self.xr_ris_x)
+        ris_form.addRow("Y", self.xr_ris_y)
+        ris_form.addRow("Z", self.xr_ris_z)
+        ris_form.addRow("State", self.xr_ris_enabled)
+        ris_layout.addLayout(ris_form)
+        self.xr_apply_ris_button = QPushButton("Apply selected RIS")
+        self.xr_apply_ris_button.clicked.connect(self._xr_apply_ris)
+        ris_layout.addWidget(self.xr_apply_ris_button)
+        self.xr_ris_state_status = QLabel("RIS state: pending")
+        self.xr_ris_state_status.setWordWrap(True)
+        self.xr_ris_state_status.setStyleSheet("color:#475569")
+        ris_layout.addWidget(self.xr_ris_state_status)
+        editor_layout.addWidget(ris_editor)
 
         select_buttons = QHBoxLayout()
         self.xr_previous_point_button = QPushButton("◀ Point")
@@ -720,6 +753,7 @@ class MainWindow(QMainWindow):
             self.xr_run_button.setEnabled(
                 backend_ready
                 and self._xr_trajectory is not None
+                and self._xr_route_valid
                 and not self._xr_demo_start_pending
             )
             self.xr_cancel_button.setEnabled(
@@ -730,6 +764,7 @@ class MainWindow(QMainWindow):
             self.xr_future_field_button.setEnabled(
                 backend_ready
                 and self._xr_trajectory is not None
+                and self._xr_route_valid
                 and self._xr_is_full_future_scene()
                 and self._xr_future_backend_ready()
                 and not self._xr_demo_start_pending
@@ -778,9 +813,16 @@ class MainWindow(QMainWindow):
     def _validate_xr_editor_scene(scene: Scene) -> None:
         if len(scene.transmitters) != 1 or len(scene.receivers) != 1:
             raise ValueError("XR Route Editor requires exactly one TX and one RX")
+        if not 1 <= len(scene.ris_surfaces) <= 2:
+            raise ValueError("XR Route Editor supports one or two RIS instances")
+        identifiers = [ris.id for ris in scene.ris_surfaces]
+        if len(set(identifiers)) != len(identifiers):
+            raise ValueError("XR Route Editor requires unique RIS ids")
+
+    @staticmethod
+    def _xr_joint_ris_backend_pending(scene: Scene) -> bool:
         enabled = [ris for ris in scene.ris_surfaces if ris.enabled]
-        if len(scene.ris_surfaces) != 1 or len(enabled) != 1:
-            raise ValueError("XR Route Editor requires exactly one enabled RIS")
+        return len(scene.ris_surfaces) == 2 or len(enabled) != 1
 
     def _xr_is_full_future_scene(self) -> bool:
         if self._xr_editor_scene is None:
@@ -858,11 +900,140 @@ class MainWindow(QMainWindow):
             return
         self.scene_view.load_scene(self._xr_editor_scene)
         self.scene_view.set_entities_draggable(False)
+        self.scene_view.set_draggable_entity_ids(
+            {ris.id for ris in self._xr_editor_scene.ris_surfaces}
+        )
         self.scene_view.show_editable_route(
             [waypoint.position for waypoint in self._xr_trajectory.points],
             selected_index=self._xr_selected_waypoint_index,
         )
         self._sync_xr_point_form()
+        self._sync_xr_ris_controls()
+
+    def _sync_xr_ris_controls(self) -> None:
+        scene = self._xr_editor_scene
+        if scene is None:
+            return
+        identifiers = [ris.id for ris in scene.ris_surfaces]
+        selected = self._xr_selected_ris_id
+        if selected not in identifiers:
+            selected = identifiers[0]
+        self._xr_selected_ris_id = selected
+        self.xr_ris_combo.blockSignals(True)
+        try:
+            self.xr_ris_combo.clear()
+            for ris in scene.ris_surfaces:
+                state = "enabled" if ris.enabled else "disabled"
+                self.xr_ris_combo.addItem(f"{ris.id} · {state}", ris.id)
+            self.xr_ris_combo.setCurrentIndex(identifiers.index(selected))
+        finally:
+            self.xr_ris_combo.blockSignals(False)
+        ris = next(item for item in scene.ris_surfaces if item.id == selected)
+        self.xr_ris_x.setRange(0.0, scene.room_size.x)
+        self.xr_ris_y.setRange(0.0, scene.room_size.y)
+        self.xr_ris_z.setRange(0.0, scene.room_size.z)
+        for widget in (
+            self.xr_ris_x,
+            self.xr_ris_y,
+            self.xr_ris_z,
+            self.xr_ris_enabled,
+        ):
+            widget.blockSignals(True)
+        try:
+            self.xr_ris_x.setValue(ris.position.x)
+            self.xr_ris_y.setValue(ris.position.y)
+            self.xr_ris_z.setValue(ris.position.z)
+            self.xr_ris_enabled.setChecked(ris.enabled)
+        finally:
+            for widget in (
+                self.xr_ris_x,
+                self.xr_ris_y,
+                self.xr_ris_z,
+                self.xr_ris_enabled,
+            ):
+                widget.blockSignals(False)
+        self.xr_add_ris_button.setEnabled(len(scene.ris_surfaces) < 2)
+        states = []
+        for item in scene.ris_surfaces:
+            command = self._xr_ris_command_states.get(
+                item.id,
+                "disabled" if not item.enabled else "command pending",
+            )
+            states.append(
+                f"{item.id}: {'enabled' if item.enabled else 'disabled'} · {command}"
+            )
+        self.xr_ris_state_status.setText("RIS states · " + " | ".join(states))
+
+    def _xr_ris_selected(self, _index: int) -> None:
+        identifier = self.xr_ris_combo.currentData()
+        if isinstance(identifier, str) and identifier:
+            self._xr_selected_ris_id = identifier
+            self._sync_xr_ris_controls()
+
+    @staticmethod
+    def _next_xr_ris_id(scene: Scene) -> str:
+        existing = {ris.id for ris in scene.ris_surfaces}
+        number = 2
+        while f"ris-{number}" in existing:
+            number += 1
+        return f"ris-{number}"
+
+    def _xr_add_ris(self) -> None:
+        scene = self._xr_editor_scene
+        if scene is None or len(scene.ris_surfaces) >= 2:
+            return
+        source = scene.ris_surfaces[0]
+        identifier = self._next_xr_ris_id(scene)
+        candidate_x = min(
+            scene.room_size.x,
+            max(0.0, source.position.x + 0.75),
+        )
+        if math.isclose(candidate_x, source.position.x):
+            candidate_x = max(0.0, source.position.x - 0.75)
+        second = replace(
+            source,
+            id=identifier,
+            position=replace(source.position, x=candidate_x),
+            enabled=True,
+        )
+        scene.ris_surfaces = [*scene.ris_surfaces, second]
+        self._xr_selected_ris_id = identifier
+        self._xr_ris_command_states = {
+            ris.id: (
+                "disabled" if not ris.enabled else "joint command pending backend"
+            )
+            for ris in scene.ris_surfaces
+        }
+        self._xr_editor_inputs_changed("second RIS created")
+
+    def _xr_apply_ris(self) -> None:
+        scene = self._xr_editor_scene
+        identifier = self._xr_selected_ris_id
+        if scene is None or identifier is None:
+            return
+        position = Vec3(
+            self.xr_ris_x.value(),
+            self.xr_ris_y.value(),
+            self.xr_ris_z.value(),
+        )
+        found = False
+        updated = []
+        for ris in scene.ris_surfaces:
+            if ris.id == identifier:
+                found = True
+                updated.append(
+                    replace(
+                        ris,
+                        position=position,
+                        enabled=self.xr_ris_enabled.isChecked(),
+                    )
+                )
+            else:
+                updated.append(ris)
+        if not found:
+            raise RuntimeError(f"selected XR RIS no longer exists: {identifier}")
+        scene.ris_surfaces = updated
+        self._xr_editor_inputs_changed("selected RIS changed")
 
     def _sync_xr_point_form(self) -> None:
         if self._xr_trajectory is None or self._xr_editor_scene is None:
@@ -1078,6 +1249,16 @@ class MainWindow(QMainWindow):
         self._xr_static_field_key = None
         self._xr_field_inflight_key = None
         self._xr_sample_lookup = {}
+        if self._xr_editor_scene is not None:
+            pending = (
+                "joint command pending backend"
+                if len(self._xr_editor_scene.ris_surfaces) == 2
+                else "command pending"
+            )
+            self._xr_ris_command_states = {
+                ris.id: ("disabled" if not ris.enabled else pending)
+                for ris in self._xr_editor_scene.ris_surfaces
+            }
         self.scene_view.clear_field_overlays()
         self.pattern_view.set_status(
             "Command pending",
@@ -1095,21 +1276,41 @@ class MainWindow(QMainWindow):
         route_valid = False
         route_error: str | None = None
         try:
-            if self.trajectory_backend is None:
+            if self._xr_editor_scene is None or self._xr_trajectory is None:
+                raise ValueError("XR editor inputs are unavailable")
+            if self._xr_joint_ris_backend_pending(self._xr_editor_scene):
+                enabled_count = sum(
+                    ris.enabled for ris in self._xr_editor_scene.ris_surfaces
+                )
+                route_error = (
+                    "joint dual-RIS complex-channel backend pending C/D"
+                    if len(self._xr_editor_scene.ris_surfaces) == 2
+                    else "exactly one RIS must be enabled for the current backend"
+                )
+                self.xr_route_status.setText(
+                    "RIS editing ready · run blocked · "
+                    f"{len(self._xr_editor_scene.ris_surfaces)} instances / "
+                    f"{enabled_count} enabled · {route_error}"
+                )
+                self.xr_route_status.setStyleSheet(
+                    "color:#b45309;font-weight:600"
+                )
+            elif self.trajectory_backend is None:
                 raise TrajectoryBackendUnavailable(
                     f"{EXPECTED_TRAJECTORY_INTERFACE_VERSION} adapter is not connected"
                 )
-            snapshot = self.trajectory_backend.validate(
-                self._xr_editor_scene,
-                self._xr_trajectory,
-            )
-            samples = self.trajectory_backend.sample(snapshot)
-            self.xr_route_status.setText(
-                f"Route valid · {self.trajectory_backend.interface_version} · "
-                f"{len(self._xr_trajectory.points)} points · {len(samples)} samples"
-            )
-            self.xr_route_status.setStyleSheet("color:#15803d")
-            route_valid = True
+            else:
+                snapshot = self.trajectory_backend.validate(
+                    self._xr_editor_scene,
+                    self._xr_trajectory,
+                )
+                samples = self.trajectory_backend.sample(snapshot)
+                self.xr_route_status.setText(
+                    f"Route valid · {self.trajectory_backend.interface_version} · "
+                    f"{len(self._xr_trajectory.points)} points · {len(samples)} samples"
+                )
+                self.xr_route_status.setStyleSheet("color:#15803d")
+                route_valid = True
         except TrajectoryBackendUnavailable as exc:
             self.xr_route_status.setText(
                 f"Route draft editable · pending B interface: {exc}"
@@ -1120,6 +1321,7 @@ class MainWindow(QMainWindow):
             self.xr_route_status.setText(f"Route invalid: {exc}")
             self.xr_route_status.setStyleSheet("color:#b91c1c;font-weight:600")
             route_error = str(exc)
+        self._xr_route_valid = route_valid
         self.xr_sample_label.setText(f"Pending run · {reason}")
         self._set_xr_controls_ready(False)
         self.xr_run_button.setEnabled(route_valid)
@@ -1132,6 +1334,7 @@ class MainWindow(QMainWindow):
             self._render_xr_editor_inputs()
         else:
             self._sync_xr_point_form()
+            self._sync_xr_ris_controls()
         self.scene_view.set_editable_route_validity(route_valid, route_error)
         self.statusBar().showMessage(
             f"XR editor input changed ({reason}) · previous result invalidated"
@@ -1150,6 +1353,7 @@ class MainWindow(QMainWindow):
         self._xr_editor_scene = scene
         self._xr_trajectory = trajectory
         self._xr_selected_waypoint_index = 0
+        self._xr_selected_ris_id = scene.ris_surfaces[0].id
         self._xr_editor_inputs_changed("scene template loaded")
 
     def _xr_load_scene(self) -> None:
@@ -1167,7 +1371,9 @@ class MainWindow(QMainWindow):
             trajectory = self._xr_trajectory
             if trajectory is None:
                 trajectory = self._default_xr_editor_trajectory(scene)
-            if self.trajectory_backend is None:
+            if self._xr_joint_ris_backend_pending(scene):
+                trajectory = self._default_xr_editor_trajectory(scene)
+            elif self.trajectory_backend is None:
                 trajectory = self._default_xr_editor_trajectory(scene)
             else:
                 try:
@@ -1181,6 +1387,7 @@ class MainWindow(QMainWindow):
         self._xr_editor_scene = scene
         self._xr_trajectory = trajectory
         self._xr_selected_waypoint_index = 0
+        self._xr_selected_ris_id = scene.ris_surfaces[0].id
         self._xr_editor_inputs_changed("Scene v1 loaded")
 
     def _xr_save_route(self) -> None:
@@ -1442,6 +1649,11 @@ class MainWindow(QMainWindow):
         self._xr_cancel_waiting_for_termination = False
         self._xr_editor_scene = create_xr_editor_scene("complex_office")
         self._validate_xr_editor_scene(self._xr_editor_scene)
+        self._xr_selected_ris_id = self._xr_editor_scene.ris_surfaces[0].id
+        self._xr_ris_command_states = {
+            self._xr_selected_ris_id: "command pending"
+        }
+        self._xr_route_valid = False
         self._xr_trajectory = self._default_xr_editor_trajectory(
             self._xr_editor_scene
         )
@@ -1494,6 +1706,9 @@ class MainWindow(QMainWindow):
         self._xr_demo_active = True
         self._xr_editor_active = False
         self._xr_editor_scene = None
+        self._xr_selected_ris_id = None
+        self._xr_ris_command_states = {}
+        self._xr_route_valid = False
         self._xr_trajectory = None
         self._xr_pending_run_request = None
         self._xr_cancel_waiting_for_termination = False
@@ -1695,6 +1910,15 @@ class MainWindow(QMainWindow):
         self.scene_view.load_scene(result.scene)
         self.scene_view.set_entities_draggable(False)
         if self._xr_editor_active and self._xr_trajectory is not None:
+            self.scene_view.set_draggable_entity_ids(
+                {ris.id for ris in result.scene.ris_surfaces}
+            )
+            self._xr_ris_command_states = {
+                result.scene.ris_surfaces[0].id: (
+                    "Static frozen · Adaptive per selected receiver"
+                )
+            }
+            self._sync_xr_ris_controls()
             self.scene_view.show_editable_route(
                 [waypoint.position for waypoint in self._xr_trajectory.points],
                 selected_index=self._xr_selected_waypoint_index,
@@ -1873,7 +2097,12 @@ class MainWindow(QMainWindow):
         else:
             fast = field_quality_preset("fast")
             width, height = fast.grid_width, fast.grid_height
-        grid_kind = "Full fixed grid" if (width, height) == (48, 36) else "Small fixed grid"
+        if (width, height) == (48, 36):
+            grid_kind = "Full fixed grid"
+        elif (width, height) in {(8, 6), (16, 12)}:
+            grid_kind = "Small fixed grid"
+        else:
+            grid_kind = "Fast grid"
         return (
             f"Production M{PRODUCTION_QUADRATURE_ORDER} · "
             f"{grid_kind} {width}×{height}"
@@ -2325,6 +2554,9 @@ class MainWindow(QMainWindow):
         self._xr_editor_active = False
         self._xr_editor_scene = None
         self._xr_trajectory = None
+        self._xr_selected_ris_id = None
+        self._xr_ris_command_states = {}
+        self._xr_route_valid = False
         self._xr_pending_run_request = None
         self._xr_cancel_waiting_for_termination = False
         self._xr_result = None
@@ -2616,6 +2848,19 @@ class MainWindow(QMainWindow):
 
     def _entity_moved(self, identifier: str, position: Vec3) -> None:
         if self._xr_demo_active:
+            if self._xr_editor_active and self._xr_editor_scene is not None:
+                if any(ris.id == identifier for ris in self._xr_editor_scene.ris_surfaces):
+                    self._xr_editor_scene.ris_surfaces = [
+                        replace(ris, position=position)
+                        if ris.id == identifier
+                        else ris
+                        for ris in self._xr_editor_scene.ris_surfaces
+                    ]
+                    self._xr_selected_ris_id = identifier
+                    self._xr_editor_inputs_changed(
+                        "RIS moved on canvas",
+                        render=False,
+                    )
             return
         self.scene_model.transmitters = [
             replace(item, position=position) if item.id == identifier else item

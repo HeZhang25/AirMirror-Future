@@ -13,6 +13,7 @@ import pytest
 
 PySide6 = pytest.importorskip("PySide6")
 from PySide6.QtCore import QCoreApplication, QEvent, QPointF, QThreadPool
+from PySide6.QtWidgets import QGraphicsItem
 
 from airmirror_future.core.types import FieldMapResult, SimulationConfig, Vec3
 from airmirror_future.experiments.xr_dynamic_room_mvp import (
@@ -219,6 +220,58 @@ def test_editor_loads_complex_scene_with_real_b_backend_ready(windows) -> None:
     window._xr_load_template()
     assert window._xr_editor_scene.name == "XR Smart Space Route Editor"
     assert len(window.scene_view._route_point_items) == 4
+
+
+def test_dual_ris_editor_has_independent_ids_state_and_movement(windows) -> None:
+    window = windows()
+    window.xr_template_combo.setCurrentIndex(
+        window.xr_template_combo.findData("future_smart_space")
+    )
+    window._xr_load_template()
+    scene = window._xr_editor_scene
+    assert scene is not None
+    first_id = scene.ris_surfaces[0].id
+
+    window._xr_add_ris()
+
+    assert len(scene.ris_surfaces) == 2
+    assert len({ris.id for ris in scene.ris_surfaces}) == 2
+    second_id = scene.ris_surfaces[1].id
+    assert second_id != first_id
+    assert window._xr_selected_ris_id == second_id
+    assert window.xr_ris_combo.count() == 2
+    assert not window.xr_add_ris_button.isEnabled()
+    assert not window.xr_run_button.isEnabled()
+    assert not window.xr_future_field_button.isEnabled()
+    assert "joint dual-RIS complex-channel backend pending C/D" in (
+        window.xr_route_status.text()
+    )
+    assert first_id in window.xr_ris_state_status.text()
+    assert second_id in window.xr_ris_state_status.text()
+    assert "joint command pending backend" in window.xr_ris_state_status.text()
+
+    movable = QGraphicsItem.GraphicsItemFlag.ItemIsMovable
+    assert not bool(window.scene_view._entity_items[scene.transmitter().id].flags() & movable)
+    assert bool(window.scene_view._entity_items[first_id].flags() & movable)
+    assert bool(window.scene_view._entity_items[second_id].flags() & movable)
+
+    window.xr_ris_x.setValue(2.25)
+    window.xr_ris_y.setValue(3.50)
+    window.xr_ris_z.setValue(1.40)
+    window.xr_ris_enabled.setChecked(False)
+    window._xr_apply_ris()
+    second = next(ris for ris in scene.ris_surfaces if ris.id == second_id)
+    assert second.position == Vec3(2.25, 3.50, 1.40)
+    assert not second.enabled
+    assert f"{second_id}: disabled · disabled" in window.xr_ris_state_status.text()
+
+    window._entity_moved(second_id, Vec3(2.75, 3.25, 1.40))
+    moved = next(ris for ris in scene.ris_surfaces if ris.id == second_id)
+    assert moved.position == Vec3(2.75, 3.25, 1.40)
+    assert moved.id == second_id
+    assert not moved.enabled
+    assert window._xr_result is None
+    assert window._xr_static_field is None
 
 
 def test_editor_loads_an_external_scene_v1(
