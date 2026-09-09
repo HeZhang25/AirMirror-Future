@@ -63,29 +63,34 @@ run was stopped after approximately 150 s while still inside the cold build; no
 field result was emitted or applied. It therefore is not recorded as a passed
 native closed loop.
 
-The minimal D-side interface needed for the final native gate is optional
-receiver-batch progress and `cancel_check` callbacks on
-`prepare_controller_field()`. They do not require a new formula, Focus path,
-model, cache, or identity contract. Until that exists, the GUI shows truthful
-elapsed time and an indeterminate cold-build state; cancellation isolates the
-result immediately but the worker cannot return until D's in-flight build does.
+The D P0 candidate `2bf42ed2b2b36174f9e8c274da963b6c734201c0`
+now supplies receiver-batch progress and `cancel_check` callbacks on
+`prepare_controller_field()`. The GUI consumes both public callbacks: progress
+is the real completed receiver count, and cancellation stops at a batch boundary
+without publishing a partial prepared object. The P0 immutable evaluation
+snapshot is consumed unchanged; the GUI does not own or mutate it.
 
 No second long `48×36` build should be started on this environment until D confirms
 the runtime difference or supplies that bounded progress/cancellation seam.
 
 ## Small-grid native Windows gate
 
-One fresh, visible `QApplication` run on Windows/Python 3.14.3 exercised the real
-Future worker and Production M8 calculation at `8×6`; it was not a mock and did
-not run the benchmark harness. The complete GUI loop finished in 20.1462 s:
+Fresh, visible `QApplication` runs on Windows/Python 3.14.3 exercised the real
+Future worker and Production M8 calculation at `8×6`; they were not mocks and did
+not run the benchmark harness. The post-P0 accepted run reported:
 
-- cold matrix build: 18.16 s;
-- Static hot evaluation: 0.58 ms;
-- selected-point Adaptive hot evaluation: 0.20 ms;
+- cold matrix build: 17.64 s;
+- Static hot evaluation: 0.64 ms;
+- selected-point Adaptive hot evaluation: 0.26 ms;
 - coefficient storage: 2.2 MiB;
 - Static and Adaptive command hashes differed;
 - No RIS display was exactly the same prepared solve's baseline array;
+- real receiver progress ended `40/48`, `48/48`, then the two hot evaluations;
 - all three GUI modes were selected after completion without further field physics.
 
+A second real `16×12` build was cancelled after progress reached `16/192`.
+Cancellation terminated at the next batch boundary, retained the already-published
+three link rows, and did not publish or cache a partial field.
+
 This closes only the small-grid exact-M8 native slice. Fast 1×1, full-route prepared
-fields, and the pending D progress/cancellation interface remain open.
+fields, and Fast 1×1 remain open.
