@@ -832,7 +832,9 @@ class MainWindow(QMainWindow):
         if self._xr_editor_scene is None:
             return False
         enabled = [ris for ris in self._xr_editor_scene.ris_surfaces if ris.enabled]
-        return len(enabled) == 1 and enabled[0].generation == "Future"
+        return 1 <= len(enabled) <= 2 and all(
+            ris.generation == "Future" for ris in enabled
+        )
 
     def _xr_future_backend_ready(self) -> bool:
         """Accept only the two implemented explicit prepared model choices."""
@@ -1297,7 +1299,9 @@ class MainWindow(QMainWindow):
         try:
             if self._xr_editor_scene is None or self._xr_trajectory is None:
                 raise ValueError("XR editor inputs are unavailable")
-            if self._xr_joint_ris_backend_pending(self._xr_editor_scene):
+            if self._xr_joint_ris_backend_pending(
+                self._xr_editor_scene
+            ) and not self._xr_is_full_future_scene():
                 enabled_count = sum(
                     ris.enabled for ris in self._xr_editor_scene.ris_surfaces
                 )
@@ -1343,7 +1347,15 @@ class MainWindow(QMainWindow):
         self._xr_route_valid = route_valid
         self.xr_sample_label.setText(f"Pending run · {reason}")
         self._set_xr_controls_ready(False)
-        self.xr_run_button.setEnabled(route_valid)
+        dual_future = (
+            route_valid
+            and self._xr_editor_scene is not None
+            and sum(ris.enabled for ris in self._xr_editor_scene.ris_surfaces) == 2
+            and self._xr_is_full_future_scene()
+        )
+        # The legacy three-mode worker remains single-RIS; dual Future uses
+        # the prepared fixed-field worker below.
+        self.xr_run_button.setEnabled(route_valid and not dual_future)
         self.xr_future_field_button.setEnabled(
             route_valid
             and self._xr_is_full_future_scene()
@@ -1390,7 +1402,14 @@ class MainWindow(QMainWindow):
             trajectory = self._xr_trajectory
             if trajectory is None:
                 trajectory = self._default_xr_editor_trajectory(scene)
-            if self._xr_joint_ris_backend_pending(scene):
+            if self._xr_joint_ris_backend_pending(scene) and not (
+                1 <= sum(ris.enabled for ris in scene.ris_surfaces) <= 2
+                and all(
+                    ris.generation == "Future"
+                    for ris in scene.ris_surfaces
+                    if ris.enabled
+                )
+            ):
                 trajectory = self._default_xr_editor_trajectory(scene)
             elif self.trajectory_backend is None:
                 trajectory = self._default_xr_editor_trajectory(scene)
@@ -1947,9 +1966,9 @@ class MainWindow(QMainWindow):
                 {ris.id for ris in result.scene.ris_surfaces}
             )
             self._xr_ris_command_states = {
-                result.scene.ris_surfaces[0].id: (
-                    "Static frozen · Adaptive per selected receiver"
-                )
+                ris.id: "Static/Adaptive prepared · independent RIS command"
+                for ris in result.scene.ris_surfaces
+                if ris.enabled
             }
             self._sync_xr_ris_controls()
             self.scene_view.show_editable_route(

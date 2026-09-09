@@ -242,10 +242,8 @@ def test_dual_ris_editor_has_independent_ids_state_and_movement(windows) -> None
     assert window.xr_ris_combo.count() == 2
     assert not window.xr_add_ris_button.isEnabled()
     assert not window.xr_run_button.isEnabled()
-    assert not window.xr_future_field_button.isEnabled()
-    assert "joint dual-RIS complex-channel backend pending C/D" in (
-        window.xr_route_status.text()
-    )
+    assert window.xr_future_field_button.isEnabled()
+    assert "Route valid" in window.xr_route_status.text()
     assert first_id in window.xr_ris_state_status.text()
     assert second_id in window.xr_ris_state_status.text()
     assert "joint command pending backend" in window.xr_ris_state_status.text()

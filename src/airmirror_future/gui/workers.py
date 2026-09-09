@@ -33,6 +33,9 @@ from airmirror_future.experiments.xr_dynamic_room_mvp import (
     generate_adaptive_pattern,
     generate_static_pattern,
 )
+from airmirror_future.optimization.dual_ris_focus import (
+    generate_dual_ris_coordinated_patterns,
+)
 from airmirror_future.experiments.xr_route import XRRouteExperiment
 from airmirror_future.experiments.xr_route_headless import compute_route_experiment
 from airmirror_future.optimization.coherent_focus import generate_coherent_target_pattern
@@ -51,6 +54,8 @@ from airmirror_future.simulation.ground_truth import ControllerModel, GroundTrut
 from airmirror_future.simulation.prepared_controller import (
     prepare_controller_field,
     prepare_controller_link,
+    prepare_controller_dual_ris_field,
+    prepare_controller_dual_ris_link,
 )
 
 
@@ -253,6 +258,25 @@ def _prepared_identity_digest(identities: tuple[str, ...]) -> str:
         digest.update(identity.encode("utf-8"))
         digest.update(b"\0")
     return "sha256:" + digest.hexdigest()
+
+
+def _command_hash(command: object) -> str:
+    """Hash one command or a deterministic RIS-id to command mapping."""
+    if isinstance(command, dict):
+        digest = hashlib.sha256()
+        digest.update(b"airmirror_dual_ris_command_gui/1\0")
+        for identifier in sorted(command):
+            digest.update(identifier.encode("utf-8"))
+            digest.update(b"\0")
+            digest.update(np.asarray(command[identifier], dtype=">f8").tobytes())
+        return "sha256:" + digest.hexdigest()
+    return _pattern_hash(np.asarray(command))
+
+
+def _first_command(command: object) -> np.ndarray:
+    if isinstance(command, dict):
+        return next(iter(command.values()))
+    return np.asarray(command)
 
 
 def _future_coefficient_model(identity: str) -> RISCoefficientModel:
@@ -591,9 +615,11 @@ class XRFuturePreparedFieldWorker(_XRPhysicsWorker):
                 return
             scene = copy.deepcopy(self.request.scene)
             enabled = [ris for ris in scene.ris_surfaces if ris.enabled]
-            if len(enabled) != 1 or enabled[0].generation != "Future":
+            if not 1 <= len(enabled) <= 2 or any(
+                ris.generation != "Future" for ris in enabled
+            ):
                 raise ValueError(
-                    "XR Future fixed field requires exactly one enabled full Future RIS"
+                    "XR Future fixed field requires one or two enabled full Future RIS surfaces"
                 )
             supported_grids = {(8, 6), (16, 12), (48, 36)}
             grid = (self.config.grid_width, self.config.grid_height)
@@ -617,18 +643,33 @@ class XRFuturePreparedFieldWorker(_XRPhysicsWorker):
             scene.receivers = [selected_receiver]
             engine = SimulationEngine(coefficient_model=coefficient_model)
             model = ControllerModel()
-            static_pattern = generate_static_pattern(
-                scene,
-                self.request.static_position,
-                engine=engine,
-                model=model,
-            )
-            selected_adaptive_pattern = generate_adaptive_pattern(
-                scene,
-                self.request.selected_position,
-                engine=engine,
-                model=model,
-            )
+            dual = len(enabled) == 2
+            ris_ids = tuple(ris.id for ris in enabled)
+
+            def command_at(position: object) -> object:
+                if not dual:
+                    if position is self.request.static_position:
+                        return generate_static_pattern(
+                            scene, position, engine=engine, model=model
+                        )
+                    return generate_adaptive_pattern(
+                        scene, position, engine=engine, model=model
+                    )
+                target_scene = copy.deepcopy(scene)
+                target_scene.receivers = [
+                    replace(target_scene.receiver(), position=position)
+                ]
+                return generate_dual_ris_coordinated_patterns(
+                    target_scene,
+                    model,
+                    engine=engine,
+                    tx=target_scene.transmitter(),
+                    rx=target_scene.receiver(),
+                    ris_ids=ris_ids,
+                ).patterns
+
+            static_pattern = command_at(self.request.static_position)
+            selected_adaptive_pattern = command_at(self.request.selected_position)
             trajectory = self.request.trajectory or (
                 TrajectorySample(
                     0,
@@ -640,7 +681,7 @@ class XRFuturePreparedFieldWorker(_XRPhysicsWorker):
                 raise ValueError(
                     "XR Future prepared route playback is bounded to 512 samples"
                 )
-            static_hash = _pattern_hash(static_pattern)
+            static_hash = _command_hash(static_pattern)
             dynamic_samples: list[DynamicLinkSample] = []
             adaptive_patterns: dict[str, np.ndarray] = {}
             for trajectory_sample in trajectory:
@@ -652,18 +693,35 @@ class XRFuturePreparedFieldWorker(_XRPhysicsWorker):
                     position=trajectory_sample.position,
                 )
                 route_scene.receivers = [route_receiver]
-                adaptive_pattern = generate_adaptive_pattern(
-                    route_scene,
-                    trajectory_sample.position,
-                    engine=engine,
-                    model=model,
-                )
-                prepared_link = prepare_controller_link(
-                    route_scene,
-                    engine=engine,
-                    rx=route_receiver,
-                    controller_model=model,
-                )
+                if dual:
+                    adaptive_pattern = generate_dual_ris_coordinated_patterns(
+                        route_scene,
+                        model,
+                        engine=engine,
+                        tx=route_scene.transmitter(),
+                        rx=route_receiver,
+                        ris_ids=ris_ids,
+                    ).patterns
+                    prepared_link = prepare_controller_dual_ris_link(
+                        route_scene,
+                        engine=engine,
+                        rx=route_receiver,
+                        controller_model=model,
+                        ris_ids=ris_ids,
+                    )
+                else:
+                    adaptive_pattern = generate_adaptive_pattern(
+                        route_scene,
+                        trajectory_sample.position,
+                        engine=engine,
+                        model=model,
+                    )
+                    prepared_link = prepare_controller_link(
+                        route_scene,
+                        engine=engine,
+                        rx=route_receiver,
+                        controller_model=model,
+                    )
                 if (
                     prepared_link.coefficient_model_identity
                     != coefficient_model.identity
@@ -680,7 +738,7 @@ class XRFuturePreparedFieldWorker(_XRPhysicsWorker):
                 )
                 static_channel = prepared_link.evaluate(static_pattern)
                 adaptive_channel = prepared_link.evaluate(adaptive_pattern)
-                adaptive_hash = _pattern_hash(adaptive_pattern)
+                adaptive_hash = _command_hash(adaptive_pattern)
                 adaptive_patterns.setdefault(adaptive_hash, adaptive_pattern)
                 dynamic_samples.extend(
                     (
@@ -696,18 +754,18 @@ class XRFuturePreparedFieldWorker(_XRPhysicsWorker):
                             STATIC_RIS_MODE,
                             static_channel,
                             static_hash,
-                            static_pattern,
+                            _first_command(static_pattern),
                         ),
                         _dynamic_sample(
                             trajectory_sample,
                             ADAPTIVE_RIS_MODE,
                             adaptive_channel,
                             static_hash,
-                            adaptive_pattern,
+                            _first_command(adaptive_pattern),
                         ),
                     )
                 )
-            selected_adaptive_hash = _pattern_hash(selected_adaptive_pattern)
+            selected_adaptive_hash = _command_hash(selected_adaptive_pattern)
             adaptive_patterns.setdefault(
                 selected_adaptive_hash,
                 selected_adaptive_pattern,
@@ -732,24 +790,39 @@ class XRFuturePreparedFieldWorker(_XRPhysicsWorker):
                 if completed > 0:
                     self._emit_progress(completed, total)
 
-            prepared = prepare_controller_field(
-                scene,
-                self.config,
-                engine=engine,
-                controller_model=model,
-                receiver_batch_size=8,
-                progress=build_progress,
-                cancel_check=self._cancelled.is_set,
-            )
+            if dual:
+                prepared = prepare_controller_dual_ris_field(
+                    scene,
+                    self.config,
+                    engine=engine,
+                    controller_model=model,
+                    ris_ids=ris_ids,
+                    receiver_batch_size=8,
+                    progress=build_progress,
+                    cancel_check=self._cancelled.is_set,
+                )
+            else:
+                prepared = prepare_controller_field(
+                    scene,
+                    self.config,
+                    engine=engine,
+                    controller_model=model,
+                    receiver_batch_size=8,
+                    progress=build_progress,
+                    cancel_check=self._cancelled.is_set,
+                )
             if self._cancelled.is_set():
                 return
             if prepared.coefficient_model_identity != coefficient_model.identity:
                 raise RuntimeError(
                     "prepared field coefficient-model identity does not match request"
                 )
-            coefficient_identity = _prepared_identity_digest(
-                prepared.coefficient_identities
-            )
+            raw_identities = prepared.coefficient_identities
+            if raw_identities and isinstance(raw_identities[0], tuple):
+                raw_identities = tuple(
+                    identity for group in raw_identities for identity in group
+                )
+            coefficient_identity = _prepared_identity_digest(raw_identities)
             static_field = prepared.evaluate(static_pattern)
             if self._cancelled.is_set():
                 return
