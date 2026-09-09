@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 import math
+from pathlib import Path
 
 from airmirror_future.core.types import (
     Obstacle,
@@ -22,6 +23,7 @@ XR_EDITOR_SCENE_TEMPLATES: tuple[tuple[str, str], ...] = (
     ("complex_office", "复杂办公室 / Complex Office"),
     ("smart_space", "Current Smart Space"),
     ("future_smart_space", "Future Smart Space · exact M8 fixed field"),
+    ("future_intelligent_workspace", "Future Intelligent Workspace · dual RIS demo"),
 )
 
 
@@ -111,4 +113,9 @@ def create_xr_editor_scene(template_id: str) -> Scene:
     if template_id == "future_smart_space":
         scene = create_smart_space_scene("Future")
         return replace(scene, name="XR Future Smart Space Fixed Field")
+    if template_id == "future_intelligent_workspace":
+        path = Path(__file__).resolve().parents[3] / "scenes" / "future_intelligent_workspace_demo.json"
+        if not path.exists():
+            raise FileNotFoundError(f"Future Intelligent Workspace scene asset not found: {path}")
+        return Scene.load(path)
     raise ValueError(f"unknown XR editor scene template: {template_id!r}")
