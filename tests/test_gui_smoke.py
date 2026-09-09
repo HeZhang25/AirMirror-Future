@@ -1,4 +1,5 @@
 import os
+from dataclasses import replace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -6,14 +7,14 @@ import pytest
 import numpy as np
 
 PySide6 = pytest.importorskip("PySide6")
-from PySide6.QtCore import QCoreApplication, QEvent, QThreadPool
+from PySide6.QtCore import QCoreApplication, QEvent, QPointF, QThreadPool
 from PySide6.QtWidgets import QApplication
 from PySide6.QtWidgets import QMessageBox
 
 from airmirror_future.gui.main_window import MainWindow
 from airmirror_future.gui.pattern_view import PhasePatternView
 from airmirror_future.gui.scene_view import SceneView
-from airmirror_future.core.types import FieldMapResult
+from airmirror_future.core.types import FieldMapResult, Vec3
 from airmirror_future.scenarios.smart_space import create_smart_space_scene
 
 
@@ -51,6 +52,50 @@ def test_main_window_constructs_and_can_cancel() -> None:
     app.processEvents()
 
 
+def test_scene_view_draws_and_live_updates_each_enabled_ris_path() -> None:
+    app = QApplication.instance() or QApplication([])
+    scene = create_smart_space_scene("Future")
+    first = scene.ris_surfaces[0]
+    second = replace(
+        first,
+        id="ris-east",
+        position=Vec3(8.5, 4.0, first.position.z),
+        yaw_rad=first.yaw_rad + np.pi / 2.0,
+    )
+    scene.ris_surfaces = [replace(first, id="ris-north"), second]
+    view = SceneView()
+    view.load_scene(scene)
+
+    assert set(view._ris_ray_items) == {"ris-north", "ris-east"}
+    assert view._direct_ray_item is not None
+    old_end = view._ris_ray_items["ris-east"][1].line().p2()
+    moved_rx = replace(scene.receiver().position, x=7.25, y=2.75)
+    view.set_entity_visual_position(scene.receiver().id, moved_rx)
+    assert view._ris_ray_items["ris-east"][1].line().p2() != old_end
+    assert view._ris_ray_items["ris-east"][1].line().p2() == view._point(moved_rx)
+
+    scene.ris_surfaces[1] = replace(second, enabled=False)
+    view.load_scene(scene)
+    assert set(view._ris_ray_items) == {"ris-north"}
+    view.close()
+    app.processEvents()
+
+
+def test_scene_view_clamps_entity_preview_and_keeps_edge_label_visible() -> None:
+    app = QApplication.instance() or QApplication([])
+    scene = create_smart_space_scene()
+    view = SceneView()
+    view.load_scene(scene)
+    item = view._entity_items[scene.receiver().id]
+    item.setPos(QPointF(-500.0, 50_000.0))
+
+    assert item.pos() == view._point(Vec3(0.0, 0.0, scene.receiver().position.z))
+    label_rect = view._entity_labels[scene.receiver().id].sceneBoundingRect()
+    assert view.graphics_scene.sceneRect().contains(label_rect)
+    view.close()
+    app.processEvents()
+
+
 def test_stale_field_result_is_ignored() -> None:
     app = QApplication.instance() or QApplication([])
     window = MainWindow(create_smart_space_scene())
@@ -69,6 +114,39 @@ def test_stale_field_result_is_ignored() -> None:
     window._version = 10
     window._field_ready(9, stale)
     assert window.latest_field is None
+    window.close()
+    app.processEvents()
+
+
+def test_smart_space_load_rejects_dual_ris_without_replacing_current_scene(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow(create_smart_space_scene())
+    original = window.scene_model
+    candidate = create_smart_space_scene("Future")
+    candidate.ris_surfaces.append(
+        replace(candidate.ris_surfaces[0], id="ris-2")
+    )
+    errors: list[str] = []
+    monkeypatch.setattr(
+        "airmirror_future.gui.main_window.QFileDialog.getOpenFileName",
+        lambda *_args, **_kwargs: ("dual.json", "JSON (*.json)"),
+    )
+    monkeypatch.setattr(
+        "airmirror_future.gui.main_window.Scene.load",
+        lambda _path: candidate,
+    )
+    monkeypatch.setattr(
+        QMessageBox,
+        "critical",
+        lambda _parent, _title, message: errors.append(message),
+    )
+
+    window._load_scene()
+
+    assert window.scene_model is original
+    assert errors and "XR Scene & Route Editor" in errors[-1]
     window.close()
     app.processEvents()
 

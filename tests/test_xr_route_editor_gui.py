@@ -12,12 +12,15 @@ import numpy as np
 import pytest
 
 PySide6 = pytest.importorskip("PySide6")
-from PySide6.QtCore import QCoreApplication, QEvent, QPointF, QThreadPool
-from PySide6.QtWidgets import QGraphicsItem
+from PySide6.QtCore import QCoreApplication, QEvent, QPointF, QThreadPool, Qt
+from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QGraphicsItem, QLabel
 
 from airmirror_future.core.types import FieldMapResult, SimulationConfig, Vec3
 from airmirror_future.experiments.xr_dynamic_room_mvp import (
     ADAPTIVE_RIS_MODE,
+    DynamicLinkSample,
+    MVPComputation,
     NO_RIS_MODE,
     STATIC_RIS_MODE,
     TrajectorySample,
@@ -213,6 +216,28 @@ def test_editor_loads_complex_scene_with_real_b_backend_ready(windows) -> None:
     assert EXPECTED_TRAJECTORY_INTERFACE_VERSION in window.xr_route_status.text()
     assert "Route valid" in window.xr_route_status.text()
     assert window.scene_view._heatmap_item is None
+    assert not window.right_panel.isHidden()
+    assert window.generation_group.isHidden()
+    assert not window.pattern_view.isHidden()
+    assert window.layers_group.isEnabled()
+    assert not window.show_coverage.isEnabled()
+    command_labels = [
+        label
+        for label in window.findChildren(QLabel)
+        if label.text().startswith("Command:")
+    ]
+    assert command_labels == [window.xr_command_status]
+
+    route_item_ids = tuple(map(id, window.scene_view._route_point_items))
+    window.show_rays.setChecked(False)
+    window.show_labels.setChecked(False)
+    assert tuple(map(id, window.scene_view._route_point_items)) == route_item_ids
+    assert all(
+        not ray.isVisible()
+        for pair in window.scene_view._ris_ray_items.values()
+        for ray in pair
+    )
+    assert all(not label.isVisible() for label in window.scene_view._entity_labels.values())
 
     window.xr_template_combo.setCurrentIndex(
         window.xr_template_combo.findData("smart_space")
@@ -220,6 +245,41 @@ def test_editor_loads_complex_scene_with_real_b_backend_ready(windows) -> None:
     window._xr_load_template()
     assert window._xr_editor_scene.name == "XR Smart Space Route Editor"
     assert len(window.scene_view._route_point_items) == 4
+
+
+def test_route_point_mouse_drag_previews_then_commits_once(windows, qapp) -> None:
+    window = windows()
+    window.show()
+    qapp.processEvents()
+    index = 1
+    item_ids = tuple(map(id, window.scene_view._route_point_items))
+    item = window.scene_view._route_point_items[index]
+    target_position = Vec3(3.3, 2.8, window._xr_trajectory.points[index].position.z)
+    start = window.scene_view.mapFromScene(item.scenePos())
+    target = window.scene_view.mapFromScene(window.scene_view._point(target_position))
+    start_version = window._version
+
+    QTest.mousePress(
+        window.scene_view.viewport(),
+        Qt.MouseButton.LeftButton,
+        pos=start,
+    )
+    QTest.mouseMove(window.scene_view.viewport(), target, delay=1)
+    QTest.mouseRelease(
+        window.scene_view.viewport(),
+        Qt.MouseButton.LeftButton,
+        pos=target,
+    )
+    qapp.processEvents()
+
+    actual = window._xr_trajectory.points[index].position
+    assert (actual.x, actual.y, actual.z) == pytest.approx(
+        (target_position.x, target_position.y, target_position.z),
+        abs=0.02,
+    )
+    assert window._version == start_version + 2
+    assert tuple(map(id, window.scene_view._route_point_items)) == item_ids
+    assert window._xr_selected_waypoint_index == index
 
 
 def test_dual_ris_editor_has_independent_ids_state_and_movement(windows) -> None:
@@ -243,15 +303,23 @@ def test_dual_ris_editor_has_independent_ids_state_and_movement(windows) -> None
     assert not window.xr_add_ris_button.isEnabled()
     assert not window.xr_run_button.isEnabled()
     assert window.xr_future_field_button.isEnabled()
+    window._set_xr_controls_ready(True)
+    assert not window.xr_run_button.isEnabled()
+    assert window.xr_future_field_button.isEnabled()
     assert "Route valid" in window.xr_route_status.text()
     assert first_id in window.xr_ris_state_status.text()
     assert second_id in window.xr_ris_state_status.text()
     assert "joint command pending backend" in window.xr_ris_state_status.text()
 
     movable = QGraphicsItem.GraphicsItemFlag.ItemIsMovable
-    assert not bool(window.scene_view._entity_items[scene.transmitter().id].flags() & movable)
+    assert bool(window.scene_view._entity_items[scene.transmitter().id].flags() & movable)
+    assert bool(window.scene_view._entity_items[scene.receiver().id].flags() & movable)
     assert bool(window.scene_view._entity_items[first_id].flags() & movable)
     assert bool(window.scene_view._entity_items[second_id].flags() & movable)
+    window.scene_view._entity_items[first_id].setSelected(True)
+    assert window._xr_selected_ris_id == first_id
+    assert window.xr_ris_combo.currentData() == first_id
+    window.xr_ris_combo.setCurrentIndex(window.xr_ris_combo.findData(second_id))
 
     window.xr_ris_x.setValue(2.25)
     window.xr_ris_y.setValue(3.50)
@@ -268,8 +336,87 @@ def test_dual_ris_editor_has_independent_ids_state_and_movement(windows) -> None
     assert moved.position == Vec3(2.75, 3.25, 1.40)
     assert moved.id == second_id
     assert not moved.enabled
+    window._entity_moved(scene.transmitter().id, Vec3(1.25, 1.75, 1.50))
+    window._entity_moved(scene.receiver().id, Vec3(8.25, 3.75, 1.20))
+    assert scene.transmitter().position == Vec3(1.25, 1.75, 1.50)
+    assert scene.receiver().position == Vec3(8.25, 3.75, 1.20)
     assert window._xr_result is None
     assert window._xr_static_field is None
+
+
+def test_dual_static_pattern_view_uses_selected_ris_complete_command(
+    windows,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    window = windows()
+    scene = create_xr_editor_scene("future_smart_space")
+    first = replace(scene.ris_surfaces[0], id="ris-north")
+    second = replace(
+        first,
+        id="ris-east",
+        position=replace(first.position, x=first.position.x + 1.0),
+    )
+    scene.ris_surfaces = [first, second]
+    trajectory = TrajectorySample(0, 0.0, scene.receiver().position)
+    first_pattern = np.linspace(0.0, 1.0, first.cell_count)
+    second_pattern = np.linspace(2.0, 3.0, second.cell_count)
+    sample = DynamicLinkSample(
+        trajectory=trajectory,
+        mode=STATIC_RIS_MODE,
+        received_power_dbm=-60.0,
+        snr_db=40.0,
+        ris_channel=1.0 + 0.0j,
+        static_pattern_hash="full-static-hash",
+        command_kind="static",
+        command_hash="legacy-first-ris-hash",
+        commanded_pattern=first_pattern,
+    )
+    window._xr_editor_scene = scene
+    window._xr_result = MVPComputation(
+        scene,
+        (trajectory,),
+        first_pattern,
+        (sample,),
+    )
+    baseline = replace(
+        sample,
+        mode=NO_RIS_MODE,
+        command_kind="none",
+        command_hash="",
+        commanded_pattern=None,
+        received_power_dbm=-65.0,
+    )
+    window._xr_sample_lookup = {
+        (0, STATIC_RIS_MODE): sample,
+        (0, NO_RIS_MODE): baseline,
+    }
+    window._xr_full_command_patterns = {
+        "full-static-hash": {
+            "ris-north": first_pattern,
+            "ris-east": second_pattern,
+        }
+    }
+    window.xr_mode_combo.blockSignals(True)
+    window.xr_mode_combo.setCurrentText(STATIC_RIS_MODE)
+    window.xr_mode_combo.blockSignals(False)
+    observed = []
+    monkeypatch.setattr(
+        window.pattern_view,
+        "set_patterns",
+        lambda commanded, *_args, **kwargs: observed.append(
+            (np.array(commanded, copy=True), kwargs["pattern_source"])
+        ),
+    )
+
+    window._xr_selected_ris_id = "ris-east"
+    window._set_xr_sample(0)
+    assert np.array_equal(observed[-1][0], second_pattern)
+    assert "ris-east" in observed[-1][1]
+
+    window._xr_selected_ris_id = "ris-north"
+    window._set_xr_sample(0)
+    assert np.array_equal(observed[-1][0], first_pattern)
+    assert "ris-north" in observed[-1][1]
 
 
 def test_editor_loads_an_external_scene_v1(
@@ -568,6 +715,8 @@ def test_latest_run_uses_copied_scene_and_waits_for_actual_termination(
     window._cancel_xr_editor_run()
     assert not window._xr_playback_timer.isActive()
     assert window._xr_playback_waiting_for_field is False
+    assert not window.xr_run_button.isEnabled()
+    assert not window.xr_cancel_button.isEnabled()
     assert "waiting for worker termination" in window.xr_sample_label.text()
     assert "not terminated" in window.statusBar().currentMessage()
     second.signals.terminated.emit(second.version, second)

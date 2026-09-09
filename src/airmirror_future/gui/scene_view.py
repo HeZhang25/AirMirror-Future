@@ -24,8 +24,12 @@ from airmirror_future.core.types import FieldMapResult, Scene, Vec3
 
 
 EntityMoved = Callable[[str, Vec3], None]
+EntityMoveStarted = Callable[[str], None]
+EntitySelected = Callable[[str], None]
 RoutePointMoved = Callable[[int, Vec3], None]
+RoutePointMoveStarted = Callable[[int], None]
 RoutePointSelected = Callable[[int], None]
+ConstrainPoint = Callable[[QPointF], QPointF]
 
 
 class _DraggableItem(QGraphicsEllipseItem):
@@ -34,11 +38,21 @@ class _DraggableItem(QGraphicsEllipseItem):
         entity_id: str,
         radius: float,
         color: QColor,
-        callback: Callable[[str, QPointF], None],
+        preview_callback: Callable[[str, QPointF], None],
+        commit_callback: Callable[[str, QPointF], None],
+        drag_started_callback: EntityMoveStarted,
+        selected_callback: EntitySelected,
+        constrain_callback: ConstrainPoint,
     ) -> None:
         super().__init__(-radius, -radius, radius * 2.0, radius * 2.0)
         self.entity_id = entity_id
-        self.callback = callback
+        self.preview_callback = preview_callback
+        self.commit_callback = commit_callback
+        self.drag_started_callback = drag_started_callback
+        self.selected_callback = selected_callback
+        self.constrain_callback = constrain_callback
+        self._dragging = False
+        self._drag_changed = False
         self.setBrush(color)
         self.setPen(QPen(Qt.GlobalColor.white, 1.5))
         self.setFlags(
@@ -49,9 +63,41 @@ class _DraggableItem(QGraphicsEllipseItem):
         self.setZValue(20)
 
     def itemChange(self, change: QGraphicsItem.GraphicsItemChange, value: object) -> object:
+        if (
+            change == QGraphicsItem.GraphicsItemChange.ItemPositionChange
+            and isinstance(value, QPointF)
+        ):
+            return self.constrain_callback(value)
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
-            self.callback(self.entity_id, self.pos())
+            if self._dragging and not self._drag_changed:
+                self._drag_changed = True
+                self.drag_started_callback(self.entity_id)
+            self.preview_callback(self.entity_id, self.pos())
+        elif change == QGraphicsItem.GraphicsItemChange.ItemSelectedHasChanged:
+            selected = bool(value)
+            self.setPen(
+                QPen(
+                    QColor("#facc15") if selected else Qt.GlobalColor.white,
+                    2.0 if selected else 1.5,
+                )
+            )
+            if selected:
+                self.selected_callback(self.entity_id)
         return super().itemChange(change, value)
+
+    def mousePressEvent(self, event: object) -> None:
+        self._dragging = True
+        self._drag_changed = False
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event: object) -> None:
+        super().mouseReleaseEvent(event)
+        try:
+            if self._dragging and self._drag_changed:
+                self.commit_callback(self.entity_id, self.pos())
+        finally:
+            self._dragging = False
+            self._drag_changed = False
 
 
 class _DraggableRIS(QGraphicsRectItem):
@@ -59,11 +105,21 @@ class _DraggableRIS(QGraphicsRectItem):
         self,
         entity_id: str,
         width: float,
-        callback: Callable[[str, QPointF], None],
+        preview_callback: Callable[[str, QPointF], None],
+        commit_callback: Callable[[str, QPointF], None],
+        drag_started_callback: EntityMoveStarted,
+        selected_callback: EntitySelected,
+        constrain_callback: ConstrainPoint,
     ) -> None:
-        super().__init__(-width / 2.0, -3.0, width, 6.0)
+        super().__init__(-width / 2.0, -5.0, width, 10.0)
         self.entity_id = entity_id
-        self.callback = callback
+        self.preview_callback = preview_callback
+        self.commit_callback = commit_callback
+        self.drag_started_callback = drag_started_callback
+        self.selected_callback = selected_callback
+        self.constrain_callback = constrain_callback
+        self._dragging = False
+        self._drag_changed = False
         self.setBrush(QColor("#8b5cf6"))
         self.setPen(QPen(Qt.GlobalColor.white, 1.5))
         self.setFlags(
@@ -74,9 +130,41 @@ class _DraggableRIS(QGraphicsRectItem):
         self.setZValue(20)
 
     def itemChange(self, change: QGraphicsItem.GraphicsItemChange, value: object) -> object:
+        if (
+            change == QGraphicsItem.GraphicsItemChange.ItemPositionChange
+            and isinstance(value, QPointF)
+        ):
+            return self.constrain_callback(value)
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
-            self.callback(self.entity_id, self.pos())
+            if self._dragging and not self._drag_changed:
+                self._drag_changed = True
+                self.drag_started_callback(self.entity_id)
+            self.preview_callback(self.entity_id, self.pos())
+        elif change == QGraphicsItem.GraphicsItemChange.ItemSelectedHasChanged:
+            selected = bool(value)
+            self.setPen(
+                QPen(
+                    QColor("#facc15") if selected else Qt.GlobalColor.white,
+                    2.0 if selected else 1.5,
+                )
+            )
+            if selected:
+                self.selected_callback(self.entity_id)
         return super().itemChange(change, value)
+
+    def mousePressEvent(self, event: object) -> None:
+        self._dragging = True
+        self._drag_changed = False
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event: object) -> None:
+        super().mouseReleaseEvent(event)
+        try:
+            if self._dragging and self._drag_changed:
+                self.commit_callback(self.entity_id, self.pos())
+        finally:
+            self._dragging = False
+            self._drag_changed = False
 
 
 class _RoutePointItem(QGraphicsEllipseItem):
@@ -85,13 +173,21 @@ class _RoutePointItem(QGraphicsEllipseItem):
     def __init__(
         self,
         route_index: int,
-        moved_callback: Callable[[int, QPointF], None],
+        preview_callback: Callable[[int, QPointF], None],
+        commit_callback: Callable[[int, QPointF], None],
+        drag_started_callback: RoutePointMoveStarted,
         selected_callback: RoutePointSelected,
+        constrain_callback: ConstrainPoint,
     ) -> None:
         super().__init__(-6.0, -6.0, 12.0, 12.0)
         self.route_index = route_index
-        self.moved_callback = moved_callback
+        self.preview_callback = preview_callback
+        self.commit_callback = commit_callback
+        self.drag_started_callback = drag_started_callback
         self.selected_callback = selected_callback
+        self.constrain_callback = constrain_callback
+        self._dragging = False
+        self._drag_changed = False
         self.setBrush(QColor("#0ea5e9"))
         self.setPen(QPen(QColor("#e0f2fe"), 1.5))
         self.setFlags(
@@ -107,14 +203,40 @@ class _RoutePointItem(QGraphicsEllipseItem):
         change: QGraphicsItem.GraphicsItemChange,
         value: object,
     ) -> object:
+        if (
+            change == QGraphicsItem.GraphicsItemChange.ItemPositionChange
+            and isinstance(value, QPointF)
+        ):
+            return self.constrain_callback(value)
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
-            self.moved_callback(self.route_index, self.pos())
+            if self._dragging and not self._drag_changed:
+                self._drag_changed = True
+                self.drag_started_callback(self.route_index)
+            self.preview_callback(self.route_index, self.pos())
+            if not self._dragging:
+                # Preserve the programmatic setPos contract used by automation;
+                # real mouse drags commit only from mouseReleaseEvent below.
+                self.commit_callback(self.route_index, self.pos())
         elif (
             change == QGraphicsItem.GraphicsItemChange.ItemSelectedHasChanged
             and bool(value)
         ):
             self.selected_callback(self.route_index)
         return super().itemChange(change, value)
+
+    def mousePressEvent(self, event: object) -> None:
+        self._dragging = True
+        self._drag_changed = False
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event: object) -> None:
+        super().mouseReleaseEvent(event)
+        try:
+            if self._dragging and self._drag_changed:
+                self.commit_callback(self.route_index, self.pos())
+        finally:
+            self._dragging = False
+            self._drag_changed = False
 
 
 class SceneView(QGraphicsView):
@@ -130,7 +252,10 @@ class SceneView(QGraphicsView):
         self.scale_px_m = 70.0
         self.model_scene: Scene | None = None
         self.on_entity_moved: EntityMoved | None = None
+        self.on_entity_move_started: EntityMoveStarted | None = None
+        self.on_entity_selected: EntitySelected | None = None
         self.on_route_point_moved: RoutePointMoved | None = None
+        self.on_route_point_move_started: RoutePointMoveStarted | None = None
         self.on_route_point_selected: RoutePointSelected | None = None
         self._suppress_moves = False
         self._suppress_route_events = False
@@ -146,6 +271,10 @@ class SceneView(QGraphicsView):
         self._entities_draggable = True
         self._entity_items: dict[str, QGraphicsItem] = {}
         self._entity_labels: dict[str, QGraphicsSimpleTextItem] = {}
+        self._ris_ray_items: dict[
+            str, tuple[QGraphicsLineItem, QGraphicsLineItem]
+        ] = {}
+        self._direct_ray_item: QGraphicsLineItem | None = None
         self._trajectory_path: QGraphicsPathItem | None = None
         self._trajectory_markers: list[QGraphicsEllipseItem] = []
         self._route_positions: list[Vec3] = []
@@ -175,6 +304,32 @@ class SceneView(QGraphicsView):
         )
         return Vec3(x, y, z)
 
+    def _constrain_scene_point(self, point: QPointF) -> QPointF:
+        """Keep draggable entity centres inside the model's XY room bounds."""
+        if self.model_scene is None:
+            return point
+        return QPointF(
+            float(np.clip(point.x(), 0.0, self.model_scene.room_size.x * self.scale_px_m)),
+            float(np.clip(point.y(), 0.0, self.model_scene.room_size.y * self.scale_px_m)),
+        )
+
+    def _entity_drag_started(self, identifier: str) -> None:
+        if self._suppress_moves or self.on_entity_move_started is None:
+            return
+        self.on_entity_move_started(identifier)
+
+    def _entity_selected(self, identifier: str) -> None:
+        if self._suppress_moves or self.on_entity_selected is None:
+            return
+        self.on_entity_selected(identifier)
+
+    def _preview_moved(self, identifier: str, _point: QPointF) -> None:
+        """Update cheap graphics only; the model is committed on mouse release."""
+        if self._suppress_moves:
+            return
+        self._update_entity_label(identifier)
+        self._update_rays()
+
     def _moved(self, identifier: str, point: QPointF) -> None:
         if self._suppress_moves or self.model_scene is None or self.on_entity_moved is None:
             return
@@ -185,21 +340,56 @@ class SceneView(QGraphicsView):
         ):
             if entity.id == identifier:
                 self.on_entity_moved(identifier, self._model_position(point, entity.position.z))
-                label = self._entity_labels.get(identifier)
-                item = self._entity_items.get(identifier)
-                if label is not None and item is not None:
-                    is_ris = any(
-                        ris.id == identifier for ris in self.model_scene.ris_surfaces
-                    )
-                    offset = QPointF(8, 8) if is_ris else QPointF(10, -18)
-                    label.setPos(item.pos() + offset)
+                self._update_entity_label(identifier)
+                self._update_rays()
                 return
 
-    def _route_point_moved(self, index: int, point: QPointF) -> None:
+    def _update_entity_label(self, identifier: str) -> None:
+        label = self._entity_labels.get(identifier)
+        item = self._entity_items.get(identifier)
+        if label is None or item is None:
+            return
+        is_ris = bool(
+            self.model_scene is not None
+            and any(ris.id == identifier for ris in self.model_scene.ris_surfaces)
+        )
+        preferred = item.pos() + (QPointF(8, 8) if is_ris else QPointF(10, -18))
+        bounds = self.graphics_scene.sceneRect()
+        label_bounds = label.boundingRect()
+        label.setPos(
+            float(np.clip(preferred.x(), bounds.left(), bounds.right() - label_bounds.width())),
+            float(np.clip(preferred.y(), bounds.top(), bounds.bottom() - label_bounds.height())),
+        )
+
+    def _update_rays(self) -> None:
+        if self.model_scene is None:
+            return
+        tx_item = self._entity_items.get(self.model_scene.transmitter().id)
+        rx_item = self._entity_items.get(self.model_scene.receiver().id)
+        if tx_item is None or rx_item is None:
+            return
+        tx_point, rx_point = tx_item.pos(), rx_item.pos()
+        if self._direct_ray_item is not None:
+            self._direct_ray_item.setLine(
+                tx_point.x(), tx_point.y(), rx_point.x(), rx_point.y()
+            )
+        for identifier, (incoming, outgoing) in self._ris_ray_items.items():
+            ris_item = self._entity_items.get(identifier)
+            if ris_item is None:
+                continue
+            ris_point = ris_item.pos()
+            incoming.setLine(tx_point.x(), tx_point.y(), ris_point.x(), ris_point.y())
+            outgoing.setLine(ris_point.x(), ris_point.y(), rx_point.x(), rx_point.y())
+
+    def _route_point_drag_started(self, index: int) -> None:
+        if self._suppress_route_events or self.on_route_point_move_started is None:
+            return
+        self.on_route_point_move_started(index)
+
+    def _route_point_preview(self, index: int, point: QPointF) -> None:
         if (
             self._suppress_route_events
             or self.model_scene is None
-            or self.on_route_point_moved is None
             or not 0 <= index < len(self._route_positions)
         ):
             return
@@ -218,6 +408,16 @@ class SceneView(QGraphicsView):
             for route_point in points[1:]:
                 path.lineTo(route_point)
             self._trajectory_path.setPath(path)
+
+    def _route_point_commit(self, index: int, point: QPointF) -> None:
+        if (
+            self._suppress_route_events
+            or self.model_scene is None
+            or self.on_route_point_moved is None
+            or not 0 <= index < len(self._route_positions)
+        ):
+            return
+        position = self._model_position(point, self._route_positions[index].z)
         self._pending_route_moves[index] = position
         if not self._route_move_delivery_scheduled:
             self._route_move_delivery_scheduled = True
@@ -245,8 +445,13 @@ class SceneView(QGraphicsView):
     def set_options(self, *, show_labels: bool, show_rays: bool) -> None:
         self._show_labels = show_labels
         self._show_rays = show_rays
-        if self.model_scene is not None:
-            self.load_scene(self.model_scene, preserve_heatmap=True)
+        for label in self._entity_labels.values():
+            label.setVisible(show_labels)
+        for pair in self._ris_ray_items.values():
+            for ray in pair:
+                ray.setVisible(show_rays)
+        if self._direct_ray_item is not None:
+            self._direct_ray_item.setVisible(show_rays)
 
     def load_scene(self, scene: Scene, *, preserve_heatmap: bool = False) -> None:
         old_pixmap = self._heatmap_item.pixmap() if preserve_heatmap and self._heatmap_item else None
@@ -270,13 +475,15 @@ class SceneView(QGraphicsView):
         self._field_value_range = None
         self._entity_items = {}
         self._entity_labels = {}
+        self._ris_ray_items = {}
+        self._direct_ray_item = None
         self._trajectory_path = None
         self._trajectory_markers = []
         self._route_positions = []
         self._route_point_items = []
         room_width = scene.room_size.x * self.scale_px_m
         room_height = scene.room_size.y * self.scale_px_m
-        self.graphics_scene.setSceneRect(0, 0, room_width, room_height)
+        self.graphics_scene.setSceneRect(-20, -70, room_width + 40, room_height + 90)
         if old_pixmap is not None:
             self._heatmap_item = self.graphics_scene.addPixmap(old_pixmap)
             self._heatmap_item.setZValue(-10)
@@ -305,7 +512,16 @@ class SceneView(QGraphicsView):
         entities.extend((tx.id, tx.position, QColor("#ef4444"), "TX") for tx in scene.transmitters)
         entities.extend((rx.id, rx.position, QColor("#22c55e"), "RX") for rx in scene.receivers)
         for identifier, position, color, label in entities:
-            item = _DraggableItem(identifier, 8.0, color, self._moved)
+            item = _DraggableItem(
+                identifier,
+                8.0,
+                color,
+                self._preview_moved,
+                self._moved,
+                self._entity_drag_started,
+                self._entity_selected,
+                self._constrain_scene_point,
+            )
             item.setFlag(
                 QGraphicsItem.GraphicsItemFlag.ItemIsMovable,
                 self._entities_draggable,
@@ -313,14 +529,22 @@ class SceneView(QGraphicsView):
             item.setPos(self._point(position))
             self.graphics_scene.addItem(item)
             self._entity_items[identifier] = item
-            if self._show_labels:
-                text = self.graphics_scene.addSimpleText(label)
-                text.setBrush(Qt.GlobalColor.white)
-                text.setPos(item.pos() + QPointF(10, -18))
-                text.setZValue(21)
-                self._entity_labels[identifier] = text
+            text = self.graphics_scene.addSimpleText(label)
+            text.setBrush(Qt.GlobalColor.white)
+            text.setZValue(21)
+            text.setVisible(self._show_labels)
+            self._entity_labels[identifier] = text
+            self._update_entity_label(identifier)
         for ris in scene.ris_surfaces:
-            item = _DraggableRIS(ris.id, ris.width_m * self.scale_px_m, self._moved)
+            item = _DraggableRIS(
+                ris.id,
+                ris.width_m * self.scale_px_m,
+                self._preview_moved,
+                self._moved,
+                self._entity_drag_started,
+                self._entity_selected,
+                self._constrain_scene_point,
+            )
             item.setFlag(
                 QGraphicsItem.GraphicsItemFlag.ItemIsMovable,
                 self._entities_draggable,
@@ -334,31 +558,41 @@ class SceneView(QGraphicsView):
             )
             self.graphics_scene.addItem(item)
             self._entity_items[ris.id] = item
-            if self._show_labels:
-                state = "on" if ris.enabled else "off"
-                text = self.graphics_scene.addSimpleText(
-                    f"{ris.id} · {ris.generation} · {state}"
-                )
-                text.setBrush(Qt.GlobalColor.white)
-                text.setPos(item.pos() + QPointF(8, 8))
-                text.setZValue(21)
-                self._entity_labels[ris.id] = text
-        if self._show_rays and scene.transmitters and scene.receivers:
+            state = "on" if ris.enabled else "off"
+            text = self.graphics_scene.addSimpleText(
+                f"{ris.id} · {ris.generation} · {state}"
+            )
+            text.setBrush(Qt.GlobalColor.white)
+            text.setZValue(21)
+            text.setVisible(self._show_labels)
+            self._entity_labels[ris.id] = text
+            self._update_entity_label(ris.id)
+        if scene.transmitters and scene.receivers:
             tx_point = self._point(scene.transmitter().position)
             rx_point = self._point(scene.receiver().position)
             ray_pen = QPen(QColor(255, 255, 255, 120), 1, Qt.PenStyle.DashLine)
-            if scene.ris_surfaces:
-                ris_point = self._point(scene.ris_surfaces[0].position)
-                self.graphics_scene.addLine(
+            for ris in scene.ris_surfaces:
+                if not ris.enabled:
+                    continue
+                ris_point = self._point(ris.position)
+                incoming = self.graphics_scene.addLine(
                     tx_point.x(), tx_point.y(), ris_point.x(), ris_point.y(), ray_pen
-                ).setZValue(9)
-                self.graphics_scene.addLine(
+                )
+                outgoing = self.graphics_scene.addLine(
                     ris_point.x(), ris_point.y(), rx_point.x(), rx_point.y(), ray_pen
-                ).setZValue(9)
+                )
+                for segment in (incoming, outgoing):
+                    segment.setZValue(9)
+                    segment.setVisible(self._show_rays)
+                    segment.setToolTip(f"Explicit path via {ris.id}")
+                self._ris_ray_items[ris.id] = (incoming, outgoing)
             direct_pen = QPen(QColor(239, 68, 68, 130), 1, Qt.PenStyle.DotLine)
-            self.graphics_scene.addLine(
+            self._direct_ray_item = self.graphics_scene.addLine(
                 tx_point.x(), tx_point.y(), rx_point.x(), rx_point.y(), direct_pen
-            ).setZValue(9)
+            )
+            self._direct_ray_item.setZValue(9)
+            self._direct_ray_item.setVisible(self._show_rays)
+            self._direct_ray_item.setToolTip("Explicit direct TX→RX path")
         if old_gain_gmax is not None:
             self._render_gain_legend(old_gain_gmax)
         self._suppress_moves = False
@@ -392,7 +626,8 @@ class SceneView(QGraphicsView):
             item.setPos(self._point(position))
             label = self._entity_labels.get(identifier)
             if label is not None:
-                label.setPos(item.pos() + QPointF(10, -18))
+                self._update_entity_label(identifier)
+            self._update_rays()
         finally:
             self._suppress_moves = False
 
@@ -478,8 +713,11 @@ class SceneView(QGraphicsView):
             for index, point in enumerate(points):
                 marker = _RoutePointItem(
                     index,
-                    self._route_point_moved,
+                    self._route_point_preview,
+                    self._route_point_commit,
+                    self._route_point_drag_started,
                     self._route_point_selected,
+                    self._constrain_scene_point,
                 )
                 marker.setPos(point)
                 self.graphics_scene.addItem(marker)
@@ -622,7 +860,7 @@ class SceneView(QGraphicsView):
             QImage.Format.Format_RGBA8888,
         ).copy()
         self._field_legend_item = self.graphics_scene.addPixmap(QPixmap.fromImage(image))
-        self._field_legend_item.setPos(10, 26)
+        self._field_legend_item.setPos(10, -44)
         self._field_legend_item.setZValue(30)
 
         title = "RIS Gain: blue < 0 · neutral = 0 · red > 0"
@@ -632,11 +870,11 @@ class SceneView(QGraphicsView):
             label.setBrush(QColor("#f8fafc"))
             label.setZValue(31)
             self._field_legend_labels.append(label)
-        self._field_legend_labels[0].setPos(10, 6)
+        self._field_legend_labels[0].setPos(10, -64)
         low, zero, high = self._field_legend_labels[1:]
-        low.setPos(10, 40)
-        zero.setPos(10 + bar_width / 2 - zero.boundingRect().width() / 2, 40)
-        high.setPos(10 + bar_width - high.boundingRect().width(), 40)
+        low.setPos(10, -30)
+        zero.setPos(10 + bar_width / 2 - zero.boundingRect().width() / 2, -30)
+        high.setPos(10 + bar_width - high.boundingRect().width(), -30)
         self._field_legend_text = f"{title}; {' | '.join(numeric_labels)}"
         self._field_legend_item.setToolTip(self._field_legend_text)
 
@@ -662,7 +900,7 @@ class SceneView(QGraphicsView):
             QImage.Format.Format_RGBA8888,
         ).copy()
         self._field_legend_item = self.graphics_scene.addPixmap(QPixmap.fromImage(image))
-        self._field_legend_item.setPos(10, 26)
+        self._field_legend_item.setPos(10, -44)
         self._field_legend_item.setZValue(30)
 
         unit = "dBm" if quantity == "接收功率" else "dB"
@@ -677,10 +915,10 @@ class SceneView(QGraphicsView):
             label.setBrush(QColor("#f8fafc"))
             label.setZValue(31)
             self._field_legend_labels.append(label)
-        self._field_legend_labels[0].setPos(10, 6)
+        self._field_legend_labels[0].setPos(10, -64)
         low_label, high_label = self._field_legend_labels[1:]
-        low_label.setPos(10, 40)
-        high_label.setPos(10 + bar_width - high_label.boundingRect().width(), 40)
+        low_label.setPos(10, -30)
+        high_label.setPos(10 + bar_width - high_label.boundingRect().width(), -30)
         self._field_legend_text = (
             f"{title}; {numeric_labels[0]} | {numeric_labels[1]}"
         )

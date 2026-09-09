@@ -4,6 +4,7 @@ from dataclasses import replace
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
 from PySide6.QtCore import QCoreApplication, QEvent, QThreadPool
 
 from airmirror_future import (
@@ -198,6 +199,10 @@ def test_future_worker_reuses_one_explicit_fast_matrix_for_two_commands(monkeypa
     assert result.static_key.quadrature_order_y == 1
     assert result.static_key.command_hash != result.adaptive_key.command_hash
     assert result.coefficient_bytes == 81 * 1024 * 1024
+    static_ris_id = result.mvp.scene.ris_surfaces[0].id
+    assert not result.static_patterns[static_ris_id].flags.writeable
+    with pytest.raises(TypeError):
+        result.static_patterns["replacement"] = np.zeros(1)
 
 
 def test_future_worker_keeps_explicit_production_m8_option(monkeypatch) -> None:
@@ -298,6 +303,7 @@ def test_gui_fixed_field_identity_timing_hot_modes_and_cancel(
     assert window.xr_future_field_button.isEnabled()
     assert window.xr_future_accuracy_combo.currentData() == "preview_m1"
     assert window.xr_future_grid_combo.currentData() == (8, 6)
+    assert "Fast 1×1 selected" in window.xr_future_accuracy_status.text()
     assert "real prepared field" in window.xr_future_accuracy_status.text()
 
     window.xr_future_accuracy_combo.setCurrentIndex(
