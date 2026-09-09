@@ -296,8 +296,13 @@ def _dynamic_sample(
     channel: ChannelResult,
     static_hash: str,
     pattern: np.ndarray | None,
+    command_hash: str | None = None,
 ) -> DynamicLinkSample:
-    command_hash = "" if pattern is None else _pattern_hash(pattern)
+    resolved_command_hash = (
+        ("" if pattern is None else _pattern_hash(pattern))
+        if command_hash is None
+        else command_hash
+    )
     command_kind = {
         NO_RIS_MODE: "none",
         STATIC_RIS_MODE: "static",
@@ -315,7 +320,7 @@ def _dynamic_sample(
         wall_channel=channel.wall_channel,
         noise_power_dbm=channel.noise_power_dbm,
         command_kind=command_kind,
-        command_hash=command_hash,
+        command_hash=resolved_command_hash,
         commanded_pattern=pattern,
     )
 
@@ -762,6 +767,7 @@ class XRFuturePreparedFieldWorker(_XRPhysicsWorker):
                             adaptive_channel,
                             static_hash,
                             _first_command(adaptive_pattern),
+                            adaptive_hash,
                         ),
                     )
                 )
