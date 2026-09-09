@@ -70,8 +70,9 @@ is the real completed receiver count, and cancellation stops at a batch boundary
 without publishing a partial prepared object. The P0 immutable evaluation
 snapshot is consumed unchanged; the GUI does not own or mutate it.
 
-No second long `48×36` build should be started on this environment until D confirms
-the runtime difference or supplies that bounded progress/cancellation seam.
+No second long `48×36` build should be started on this environment until the
+remaining Python 3.14 runtime difference is understood; the bounded P0
+progress/cancellation seam is now connected.
 
 ## Small-grid native Windows gate
 
@@ -93,4 +94,20 @@ Cancellation terminated at the next batch boundary, retained the already-publish
 three link rows, and did not publish or cache a partial field.
 
 This closes only the small-grid exact-M8 native slice. Fast 1×1, full-route prepared
-fields, and Fast 1×1 remain open.
+fields, and real dual-RIS physics remain open.
+
+## Isolated dual-RIS editor slice
+
+The XR editor can create a second RIS by cloning the selected scene's existing
+aperture/control definition. It keeps two unique IDs and exposes per-instance
+selection, XYZ movement (form or canvas), enable/disable state, and an independent
+command-state line. TX/RX remain frozen while the two RIS graphics are draggable.
+Any RIS edit invalidates prior commands, field identities, caches, and workers.
+
+The current C/D route and prepared APIs remain single-RIS. Therefore the presence
+of two RIS instances deliberately blocks Run and fixed-field actions with a visible
+`joint dual-RIS complex-channel backend pending C/D` status. This editor never
+computes two independent power maps, adds map values, or presents a single-RIS
+result as dual-RIS. A future backend must accept both command snapshots and return
+one channel in which both RIS contributions are coherently summed before power is
+derived.
