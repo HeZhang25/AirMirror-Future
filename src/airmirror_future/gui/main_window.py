@@ -1048,6 +1048,7 @@ class MainWindow(QMainWindow):
         identifier = self.xr_ris_combo.currentData()
         if isinstance(identifier, str) and identifier:
             self._xr_selected_ris_id = identifier
+            self.scene_view.select_entity(identifier)
             self._sync_xr_ris_controls()
             if self._xr_result is not None:
                 self._set_xr_sample(
@@ -1120,7 +1121,7 @@ class MainWindow(QMainWindow):
         scene.ris_surfaces = updated
         self._xr_editor_inputs_changed("selected RIS changed")
 
-    def _sync_xr_point_form(self) -> None:
+    def _sync_xr_point_form(self, *, select_canvas: bool = True) -> None:
         if self._xr_trajectory is None or self._xr_editor_scene is None:
             return
         index = max(
@@ -1162,7 +1163,8 @@ class MainWindow(QMainWindow):
         self.xr_point_label.setText(
             f"Point {index + 1}/{len(self._xr_trajectory.points)} · {waypoint.id}"
         )
-        self.scene_view.select_route_point(index)
+        if select_canvas:
+            self.scene_view.select_route_point(index)
         self._xr_update_timing_controls()
 
     def _xr_update_timing_controls(self, *_args: object) -> None:
@@ -1437,7 +1439,9 @@ class MainWindow(QMainWindow):
         else:
             if self._xr_editor_scene is not None:
                 self.scene_view.model_scene = self._xr_editor_scene
-            self._sync_xr_point_form()
+            # The active graphics item already owns the selection during a
+            # release-time commit. Updating form values must not steal it.
+            self._sync_xr_point_form(select_canvas=False)
             self._sync_xr_ris_controls()
         self.scene_view.set_editable_route_validity(route_valid, route_error)
         self.statusBar().showMessage(

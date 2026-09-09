@@ -188,7 +188,8 @@ class _RoutePointItem(QGraphicsEllipseItem):
         self.constrain_callback = constrain_callback
         self._dragging = False
         self._drag_changed = False
-        self.setBrush(QColor("#0ea5e9"))
+        self._unselected_color = QColor("#0ea5e9")
+        self.setBrush(self._unselected_color)
         self.setPen(QPen(QColor("#e0f2fe"), 1.5))
         self.setFlags(
             QGraphicsItem.GraphicsItemFlag.ItemIsMovable
@@ -217,12 +218,21 @@ class _RoutePointItem(QGraphicsEllipseItem):
                 # Preserve the programmatic setPos contract used by automation;
                 # real mouse drags commit only from mouseReleaseEvent below.
                 self.commit_callback(self.route_index, self.pos())
-        elif (
-            change == QGraphicsItem.GraphicsItemChange.ItemSelectedHasChanged
-            and bool(value)
-        ):
-            self.selected_callback(self.route_index)
+        elif change == QGraphicsItem.GraphicsItemChange.ItemSelectedHasChanged:
+            selected = bool(value)
+            self.setBrush(
+                QBrush(QColor("#facc15") if selected else self._unselected_color)
+            )
+            self.setZValue(14 if selected else 13)
+            if selected:
+                self.selected_callback(self.route_index)
         return super().itemChange(change, value)
+
+    def set_unselected_color(self, color: QColor) -> None:
+        """Keep deselection styling in sync with current route validity."""
+        self._unselected_color = QColor(color)
+        if not self.isSelected():
+            self.setBrush(QBrush(self._unselected_color))
 
     def mousePressEvent(self, event: object) -> None:
         self._dragging = True
@@ -319,9 +329,11 @@ class SceneView(QGraphicsView):
         self.on_entity_move_started(identifier)
 
     def _entity_selected(self, identifier: str) -> None:
-        if self._suppress_moves or self.on_entity_selected is None:
+        if self._suppress_moves:
             return
-        self.on_entity_selected(identifier)
+        self.select_entity(identifier)
+        if self.on_entity_selected is not None:
+            self.on_entity_selected(identifier)
 
     def _preview_moved(self, identifier: str, _point: QPointF) -> None:
         """Update cheap graphics only; the model is committed on mouse release."""
@@ -438,9 +450,11 @@ class SceneView(QGraphicsView):
             callback(index, position)
 
     def _route_point_selected(self, index: int) -> None:
-        if self._suppress_route_events or self.on_route_point_selected is None:
+        if self._suppress_route_events:
             return
-        self.on_route_point_selected(index)
+        self.select_route_point(index)
+        if self.on_route_point_selected is not None:
+            self.on_route_point_selected(index)
 
     def set_options(self, *, show_labels: bool, show_rays: bool) -> None:
         self._show_labels = show_labels
@@ -741,38 +755,45 @@ class SceneView(QGraphicsView):
             self._trajectory_path.setPen(QPen(color, 2.5, style))
         for index, item in enumerate(self._route_point_items):
             selected = item.isSelected()
+            item.set_unselected_color(
+                QColor("#0ea5e9" if valid else "#ef4444")
+            )
             if selected:
-                color = "#facc15"
-            else:
-                color = "#0ea5e9" if valid else "#ef4444"
-            item.setBrush(QBrush(QColor(color)))
+                item.setBrush(QBrush(QColor("#facc15")))
             if valid or not message:
                 item.setToolTip(f"Route point {index + 1} · drag or use the form")
             else:
                 item.setToolTip(f"Route invalid: {message}")
 
     def select_route_point(self, index: int) -> None:
-        """Select one route point without recreating the route."""
+        """Select exactly one route point without recreating the route."""
         if not 0 <= index < len(self._route_point_items):
             return
         self._suppress_route_events = True
+        self._suppress_moves = True
         try:
+            for item in self._entity_items.values():
+                item.setSelected(False)
             for item_index, item in enumerate(self._route_point_items):
                 item.setSelected(item_index == index)
-                item.setBrush(
-                    QBrush(
-                        QColor(
-                            "#facc15"
-                            if item_index == index
-                            else "#0ea5e9"
-                            if self._editable_route_valid
-                            else "#ef4444"
-                        )
-                    )
-                )
-                item.setZValue(14 if item_index == index else 13)
+        finally:
+            self._suppress_moves = False
+            self._suppress_route_events = False
+
+    def select_entity(self, identifier: str) -> None:
+        """Select exactly one entity and clear any route-point highlight."""
+        if identifier not in self._entity_items:
+            return
+        self._suppress_moves = True
+        self._suppress_route_events = True
+        try:
+            for item_identifier, item in self._entity_items.items():
+                item.setSelected(item_identifier == identifier)
+            for item in self._route_point_items:
+                item.setSelected(False)
         finally:
             self._suppress_route_events = False
+            self._suppress_moves = False
 
     @staticmethod
     def field_value_range(*arrays: np.ndarray) -> tuple[float, float]:
