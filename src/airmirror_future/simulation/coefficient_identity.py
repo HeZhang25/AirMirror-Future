@@ -49,6 +49,42 @@ def _quadrature_array_identity(spec: QuadratureSpec) -> str:
     return "sha256:" + hashlib.sha256(encoded).hexdigest()
 
 
+def _canonical_json_bytes(value: object) -> bytes:
+    return json.dumps(
+        _canonical(value),
+        ensure_ascii=False,
+        allow_nan=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+
+
+def _quadrature_canonical_json(
+    spec: QuadratureSpec,
+    policy_id: str,
+    policy_version: str,
+    *,
+    array_identity: str | None = None,
+) -> bytes:
+    """Return C's exact canonical quadrature subdocument for safe reuse."""
+    return _canonical_json_bytes(
+        {
+            "policy_id": policy_id,
+            "policy_version": policy_version,
+            "rule": spec.rule,
+            "order_x": spec.order_x,
+            "order_y": spec.order_y,
+            "flatten_order": "ris_cell_centers_meshgrid_xy_c_v1",
+            "parent_control_index": spec.parent_control_index.tolist(),
+            "array_identity": (
+                _quadrature_array_identity(spec)
+                if array_identity is None
+                else array_identity
+            ),
+        }
+    )
+
+
 def controller_ris_coefficient_identity(
     scene: Scene,
     engine: object,
@@ -59,6 +95,7 @@ def controller_ris_coefficient_identity(
     quadrature_spec: QuadratureSpec | None = None,
     quadrature_policy_id: str | None = None,
     quadrature_policy_version: str | None = None,
+    _quadrature_json: bytes | None = None,
 ) -> str:
     """Return a cross-process identity for nominal RIS ``a^C``.
 
@@ -86,7 +123,9 @@ def controller_ris_coefficient_identity(
             raise ValueError("custom quadrature identity requires a non-empty policy version")
         policy_id = quadrature_policy_id
         policy_version = quadrature_policy_version
-        array_identity = _quadrature_array_identity(spec)
+        array_identity = (
+            None if _quadrature_json is not None else _quadrature_array_identity(spec)
+        )
 
     before_context = PropagationPathContext(
         "ris_incident", tx.position, ris.position, ris_id=ris.id
@@ -131,16 +170,20 @@ def controller_ris_coefficient_identity(
         "frequency_model": "narrowband_center_frequency_flat_v1",
         "frequency_hz": scene.frequency_hz,
         "profile_identity": profile_identity(engine.profile),
-        "quadrature": {
-            "policy_id": policy_id,
-            "policy_version": policy_version,
-            "rule": spec.rule,
-            "order_x": spec.order_x,
-            "order_y": spec.order_y,
-            "flatten_order": "ris_cell_centers_meshgrid_xy_c_v1",
-            "parent_control_index": spec.parent_control_index.tolist(),
-            "array_identity": array_identity,
-        },
+        "quadrature": (
+            None
+            if _quadrature_json is not None
+            else {
+                "policy_id": policy_id,
+                "policy_version": policy_version,
+                "rule": spec.rule,
+                "order_x": spec.order_x,
+                "order_y": spec.order_y,
+                "flatten_order": "ris_cell_centers_meshgrid_xy_c_v1",
+                "parent_control_index": spec.parent_control_index.tolist(),
+                "array_identity": array_identity,
+            }
+        ),
         "tx": [tx.position.x, tx.position.y, tx.position.z, tx.gain_linear],
         "rx": [rx.position.x, rx.position.y, rx.position.z, rx.gain_linear],
         "ris": [ris.id, ris.position.x, ris.position.y, ris.position.z, ris.yaw_rad,
@@ -152,9 +195,25 @@ def controller_ris_coefficient_identity(
                        o.max_corner.x, o.max_corner.y, o.max_corner.z,
                        o.attenuation_db, o.fully_blocking] for o in obstacles],
     }
-    encoded = json.dumps(_canonical(payload), ensure_ascii=False, allow_nan=False,
-                         sort_keys=True, separators=(",", ":")).encode("utf-8")
-    return "sha256:" + hashlib.sha256(encoded).hexdigest()
+    if _quadrature_json is None:
+        encoded = _canonical_json_bytes(payload)
+        return "sha256:" + hashlib.sha256(encoded).hexdigest()
+    if not isinstance(_quadrature_json, bytes):
+        raise ValueError("cached quadrature JSON must be bytes")
+    digest = hashlib.sha256()
+    digest.update(b"{")
+    for index, key in enumerate(sorted(payload)):
+        if index:
+            digest.update(b",")
+        digest.update(_canonical_json_bytes(key))
+        digest.update(b":")
+        digest.update(
+            _quadrature_json
+            if key == "quadrature"
+            else _canonical_json_bytes(payload[key])
+        )
+    digest.update(b"}")
+    return "sha256:" + digest.hexdigest()
 
 
 __all__ = ["controller_ris_coefficient_identity"]
