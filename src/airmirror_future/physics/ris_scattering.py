@@ -377,11 +377,22 @@ def ris_control_coefficient_matrix(
         return np.zeros((len(points), ris.cell_count), dtype=complex)
     if len(points) == 0:
         return np.zeros((0, ris.cell_count), dtype=complex)
-    spec = _require_production_quadrature(
-        ris,
-        _production_quadrature_spec(ris) if quadrature_spec is None else quadrature_spec,
+    spec = (
+        _production_quadrature_spec(ris)
+        if quadrature_spec is None
+        else quadrature_spec
     )
-    samples_per_control = PRODUCTION_QUADRATURE_ORDER ** 2
+    if (
+        spec.rule != "midpoint"
+        or spec.control_count != ris.cell_count
+        or spec.order_x <= 0
+        or spec.order_y <= 0
+    ):
+        raise ValueError(
+            "RIS coefficient quadrature must be midpoint with one parent group "
+            "per control patch"
+        )
+    samples_per_control = spec.order_x * spec.order_y
     expected_parents = np.repeat(np.arange(ris.cell_count), samples_per_control)
     if not np.array_equal(spec.parent_control_index, expected_parents):
         raise ValueError("production quadrature parent ordering must be control-major")
