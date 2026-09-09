@@ -72,16 +72,26 @@ def _field(config: SimulationConfig, value: float, runtime_s: float) -> FieldMap
     )
 
 
-def _run_worker_with_fake_matrix(monkeypatch, request: XRFutureFixedFieldRequest):
-    config = SimulationConfig(48, 36, batch_size=8)
+def _run_worker_with_fake_matrix(
+    monkeypatch,
+    request: XRFutureFixedFieldRequest,
+    config: SimulationConfig | None = None,
+):
+    config = config or SimulationConfig(48, 36, batch_size=8)
     evaluated = []
 
     class _Prepared:
         coefficient_identities = tuple(
-            f"sha256:grid-point-{index}" for index in range(48 * 36)
+            f"sha256:grid-point-{index}"
+            for index in range(config.grid_width * config.grid_height)
         )
         build_runtime_s = 12.5
-        coefficient_bytes = 48 * 36 * 3072 * np.dtype(complex).itemsize
+        coefficient_bytes = (
+            config.grid_width
+            * config.grid_height
+            * 3072
+            * np.dtype(complex).itemsize
+        )
 
         def evaluate(self, pattern):
             evaluated.append(np.array(pattern, copy=True))
@@ -163,18 +173,35 @@ def test_gui_fixed_field_identity_timing_hot_modes_and_cancel(
     window._xr_load_template()
     window._xr_select_relative_point(-1)
     assert window.xr_future_field_button.isEnabled()
+    assert window.xr_future_accuracy_combo.currentData() == "production_m8"
+    assert window.xr_future_grid_combo.currentData() == (8, 6)
+
+    window.xr_future_accuracy_combo.setCurrentIndex(
+        window.xr_future_accuracy_combo.findData("preview_m1")
+    )
+    assert not window.xr_future_field_button.isEnabled()
+    assert "backend unavailable" in window.xr_future_accuracy_status.text()
+    assert window.scene_view._heatmap_item is None
+    window.xr_future_accuracy_combo.setCurrentIndex(
+        window.xr_future_accuracy_combo.findData("production_m8")
+    )
+    assert window.xr_future_field_button.isEnabled()
 
     _ManualFutureWorker.started = []
     window.thread_pool = _ManualPool()
     monkeypatch.setattr(gui_main, "XRFuturePreparedFieldWorker", _ManualFutureWorker)
     window._run_xr_future_fixed_field()
     manual = _ManualFutureWorker.started[-1]
-    assert (manual.config.grid_width, manual.config.grid_height) == (48, 36)
+    assert (manual.config.grid_width, manual.config.grid_height) == (8, 6)
     assert manual.request.selected_point_id == "point-4"
     assert window.scene_view._heatmap_item is None
     assert "not a whole-route" in window.xr_sample_label.text()
 
-    result, _ = _run_worker_with_fake_matrix(monkeypatch, manual.request)
+    result, _ = _run_worker_with_fake_matrix(
+        monkeypatch,
+        manual.request,
+        manual.config,
+    )
     manual.signals.partial.emit(manual.version, result.mvp)
     manual.signals.finished.emit(manual.version, result)
     manual.signals.terminated.emit(manual.version, manual)
@@ -183,18 +210,22 @@ def test_gui_fixed_field_identity_timing_hot_modes_and_cancel(
     assert "hot Static 5.00 ms" in window.xr_field_status.text()
     assert "hot Adaptive 6.00 ms" in window.xr_field_status.text()
     assert "playback 2.0 fps" in window.xr_field_status.text()
-    assert "coefficients 81.0 MiB" in window.xr_field_status.text()
+    assert "coefficients 2.2 MiB" in window.xr_field_status.text()
     assert "not full-route A" in window.xr_route_status.text()
     assert len(window._xr_field_cache) == 2
 
     window.xr_mode_combo.setCurrentText("Adaptive RIS")
     assert window._xr_pending_field_request is None
     assert "Adaptive field hot-cached" in window.xr_field_status.text()
-    assert "Fixed grid 48×36" in window.xr_field_status.text()
+    assert "Small fixed grid 8×6" in window.xr_field_status.text()
 
     window._run_xr_future_fixed_field()
     cancelled = _ManualFutureWorker.started[-1]
-    stale_result, _ = _run_worker_with_fake_matrix(monkeypatch, cancelled.request)
+    stale_result, _ = _run_worker_with_fake_matrix(
+        monkeypatch,
+        cancelled.request,
+        cancelled.config,
+    )
     window._cancel_xr_editor_run()
     assert cancelled.cancel_requested
     assert "finishes the in-flight cold build" in window.xr_field_status.text()
