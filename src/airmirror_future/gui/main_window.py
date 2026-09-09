@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+from collections.abc import Mapping
 from dataclasses import replace
 import math
 from pathlib import Path
@@ -108,6 +109,7 @@ class MainWindow(QMainWindow):
         trajectory_backend: TrajectoryEditorBackend | None = None,
     ) -> None:
         super().__init__()
+        self._validate_smart_space_scene(scene)
         self.setWindowTitle("AirMirror Future · 可编程电磁空间仿真平台")
         self.resize(1460, 900)
         self.scene_model = scene
@@ -155,6 +157,7 @@ class MainWindow(QMainWindow):
         self._xr_field_scales: dict[str, tuple[float, float]] = {}
         self._xr_field_runtime_summary = ""
         self._xr_field_cache: dict[XRFieldCacheKey, FieldMapResult] = {}
+        self._xr_full_command_patterns: dict[str, Mapping[str, np.ndarray]] = {}
         self._xr_static_field_key: XRFieldCacheKey | None = None
         self._xr_pending_field_request: (
             tuple[int, DynamicLinkSample, XRFieldCacheKey] | None
@@ -189,7 +192,10 @@ class MainWindow(QMainWindow):
 
         self.scene_view = SceneView()
         self.scene_view.on_entity_moved = self._entity_moved
+        self.scene_view.on_entity_move_started = self._entity_drag_started
+        self.scene_view.on_entity_selected = self._entity_selected
         self.scene_view.on_route_point_moved = self._xr_route_point_moved
+        self.scene_view.on_route_point_move_started = self._xr_route_point_drag_started
         self.scene_view.on_route_point_selected = self._xr_route_point_selected
         self.pattern_view = PhasePatternView()
         self._build_ui()
@@ -244,6 +250,7 @@ class MainWindow(QMainWindow):
             "XR Scene & Route Editor · Prototype",
             "xr_route_editor",
         )
+        self.scenario_combo.setToolTip(self.scenario_combo.currentText())
         self.scenario_combo.currentIndexChanged.connect(self._scenario_changed)
         layout.addWidget(self.scenario_combo)
         roadmap = QLabel(
@@ -274,15 +281,15 @@ class MainWindow(QMainWindow):
         scene_buttons.addWidget(self.xr_load_scene_button)
         editor_layout.addLayout(scene_buttons)
 
-        ris_editor = QGroupBox("RIS instances · isolated dual-RIS editor")
+        ris_editor = QGroupBox("RIS instances (max 2)")
         ris_layout = QVBoxLayout(ris_editor)
         ris_select = QHBoxLayout()
         self.xr_ris_combo = QComboBox()
         self.xr_ris_combo.currentIndexChanged.connect(self._xr_ris_selected)
-        self.xr_add_ris_button = QPushButton("Create second RIS")
+        self.xr_add_ris_button = QPushButton("Add RIS")
         self.xr_add_ris_button.clicked.connect(self._xr_add_ris)
-        ris_select.addWidget(self.xr_ris_combo)
-        ris_select.addWidget(self.xr_add_ris_button)
+        ris_select.addWidget(self.xr_ris_combo, 2)
+        ris_select.addWidget(self.xr_add_ris_button, 1)
         ris_layout.addLayout(ris_select)
         ris_form = QFormLayout()
         self.xr_ris_x = self._double_spin(0.0, 1000.0, 0.0, 0.1, " m")
@@ -300,8 +307,10 @@ class MainWindow(QMainWindow):
         ris_layout.addWidget(self.xr_apply_ris_button)
         self.xr_ris_state_status = QLabel("RIS state: pending")
         self.xr_ris_state_status.setWordWrap(True)
+        self.xr_ris_state_status.setMinimumHeight(120)
         self.xr_ris_state_status.setStyleSheet("color:#475569")
         ris_layout.addWidget(self.xr_ris_state_status)
+        ris_editor.setMinimumHeight(max(300, ris_editor.sizeHint().height()))
         editor_layout.addWidget(ris_editor)
 
         select_buttons = QHBoxLayout()
@@ -377,7 +386,7 @@ class MainWindow(QMainWindow):
         run_buttons.addWidget(self.xr_cancel_button)
         editor_layout.addLayout(run_buttons)
         self.xr_future_field_button = QPushButton(
-            "Build selected point · exact M8 8×6"
+            "Build field · fast 1×1 · 8×6"
         )
         self.xr_future_field_button.setToolTip(
             "Build one fixed-grid coefficient matrix, then evaluate Static and "
@@ -415,16 +424,14 @@ class MainWindow(QMainWindow):
         future_options.addRow("Map grid", self.xr_future_grid_combo)
         editor_layout.addLayout(future_options)
         self.xr_future_accuracy_status = QLabel(
-            "Production M8 selected · real prepared field · 64×48 controls unchanged"
+            "Fast 1×1 selected · real prepared field · "
+            "Future 3×2 m / 64×48 controls unchanged"
         )
         self.xr_future_accuracy_status.setWordWrap(True)
         self.xr_future_accuracy_status.setStyleSheet("color:#475569")
         editor_layout.addWidget(self.xr_future_accuracy_status)
-        self.xr_command_status = QLabel("Command: pending")
-        self.xr_command_status.setWordWrap(True)
-        self.xr_command_status.setStyleSheet("color:#64748b")
-        editor_layout.addWidget(self.xr_command_status)
         self.xr_editor_group.setVisible(False)
+        self.xr_editor_group.setMinimumHeight(self.xr_editor_group.sizeHint().height())
         xr_layout.addWidget(self.xr_editor_group)
 
         self.xr_mode_combo = QComboBox()
@@ -528,8 +535,8 @@ class MainWindow(QMainWindow):
         panel.setMinimumWidth(300)
         layout = QVBoxLayout(panel)
 
-        generation_group = QGroupBox("技术代际 / Generation")
-        generation_layout = QVBoxLayout(generation_group)
+        self.generation_group = QGroupBox("技术代际 / Generation")
+        generation_layout = QVBoxLayout(self.generation_group)
         self.generation_combo = QComboBox()
         self.generation_combo.addItems(("Current", "Advanced", "Future"))
         current_generation = self.scene_model.ris_surfaces[0].generation
@@ -540,10 +547,10 @@ class MainWindow(QMainWindow):
         self.generation_status.setStyleSheet("color:#64748b")
         generation_layout.addWidget(self.generation_status)
         generation_layout.addWidget(QLabel("代际参数是代表性仿真假设，可继续编辑。"))
-        layout.addWidget(generation_group)
+        layout.addWidget(self.generation_group)
 
-        rf_group = QGroupBox("RF 参数")
-        rf_form = QFormLayout(rf_group)
+        self.rf_group = QGroupBox("RF 参数")
+        rf_form = QFormLayout(self.rf_group)
         tx = self.scene_model.transmitter()
         rx = self.scene_model.receiver()
         self.frequency = self._double_spin(0.1, 300.0, self.scene_model.frequency_hz / 1e9, 0.1, " GHz")
@@ -558,11 +565,11 @@ class MainWindow(QMainWindow):
         rf_form.addRow("Bandwidth", self.bandwidth)
         rf_form.addRow("Noise Figure", self.noise_figure)
         rf_form.addRow("Coverage SNR ≥", self.coverage_threshold)
-        layout.addWidget(rf_group)
+        layout.addWidget(self.rf_group)
 
         ris = self.scene_model.ris_surfaces[0]
-        ris_group = QGroupBox("RIS 参数")
-        ris_form = QFormLayout(ris_group)
+        self.ris_group = QGroupBox("RIS 参数")
+        ris_form = QFormLayout(self.ris_group)
         self.ris_width = self._double_spin(0.05, 20, ris.width_m, 0.1, " m")
         self.ris_height = self._double_spin(0.05, 20, ris.height_m, 0.1, " m")
         self.ris_nx = QSpinBox()
@@ -586,10 +593,10 @@ class MainWindow(QMainWindow):
         ris_form.addRow("Efficiency η", self.efficiency)
         ris_form.addRow("Update Rate", self.update_rate)
         ris_form.addRow("Self Sensing", self.self_sensing)
-        layout.addWidget(ris_group)
+        layout.addWidget(self.ris_group)
 
-        error_group = QGroupBox("Ground Truth 误差")
-        error_form = QFormLayout(error_group)
+        self.error_group = QGroupBox("Ground Truth 误差")
+        error_form = QFormLayout(self.error_group)
         self.phase_error = self._double_spin(0, 180, 0, 1, "°")
         self.measurement_noise = self._double_spin(0, 20, 0, 0.1, " dB")
         self.position_error = self._double_spin(0, 2, 0, 0.01, " m")
@@ -599,9 +606,9 @@ class MainWindow(QMainWindow):
             "TX/RX/RIS/obstacle use their 3D model. v1 floor-anchored walls use one rigid XY delta for both endpoints; no vertical wall error."
         )
         error_form.addRow("Phase Error σ / 相位误差 σ", self.phase_error)
-        error_form.addRow("Feedback Measurement Noise σ / 反馈测量噪声 σ", self.measurement_noise)
-        error_form.addRow("Geometry Position Error σ / 几何位置误差 σ", self.position_error)
-        layout.addWidget(error_group)
+        error_form.addRow("Meas. Noise σ / 测量噪声", self.measurement_noise)
+        error_form.addRow("Position Error σ / 位置误差", self.position_error)
+        layout.addWidget(self.error_group)
 
         self.apply_button = QPushButton("应用参数 / Apply")
         self.apply_button.clicked.connect(self._apply_parameters)
@@ -610,8 +617,8 @@ class MainWindow(QMainWindow):
         self.pending_label.setStyleSheet("color:#64748b")
         layout.addWidget(self.pending_label)
 
-        optimization = QGroupBox("优化 / Optimize")
-        optimization_layout = QVBoxLayout(optimization)
+        self.optimization_group = QGroupBox("优化 / Optimize")
+        optimization_layout = QVBoxLayout(self.optimization_group)
         self.algorithm = QComboBox()
         self.algorithm.addItems(
             (
@@ -641,10 +648,10 @@ class MainWindow(QMainWindow):
         optimization_layout.addWidget(self.optimize_button)
         optimization_layout.addWidget(self.cancel_button)
         optimization_layout.addWidget(self.progress)
-        layout.addWidget(optimization)
+        layout.addWidget(self.optimization_group)
 
-        display = QGroupBox("场图")
-        display_layout = QFormLayout(display)
+        self.field_display_group = QGroupBox("场图")
+        display_layout = QFormLayout(self.field_display_group)
         self.quantity = QComboBox()
         self.quantity.addItems(("接收功率", "SNR", "RIS 增益"))
         self.quantity.currentTextChanged.connect(self._redraw_latest_map)
@@ -660,9 +667,10 @@ class MainWindow(QMainWindow):
         display_layout.addRow("Map", self.quantity)
         display_layout.addRow("Quality", self.quality)
         display_layout.addRow(refresh)
-        layout.addWidget(display)
+        layout.addWidget(self.field_display_group)
 
-        layout.addWidget(QLabel("<b>RIS Pattern</b>"))
+        self.pattern_heading = QLabel("<b>RIS Pattern · selected RIS</b>")
+        layout.addWidget(self.pattern_heading)
         layout.addWidget(self.pattern_view)
         layout.addStretch()
         container.setWidget(panel)
@@ -754,14 +762,22 @@ class MainWindow(QMainWindow):
         self.xr_timeline.setEnabled(ready)
         if self._xr_editor_active:
             backend_ready = self.trajectory_backend is not None
+            dual_future = (
+                self._xr_editor_scene is not None
+                and self._xr_is_full_future_scene()
+                and sum(ris.enabled for ris in self._xr_editor_scene.ris_surfaces) == 2
+            )
+            idle = not self._xr_demo_start_pending and self._xr_active_worker is None
             self.xr_run_button.setEnabled(
                 backend_ready
                 and self._xr_trajectory is not None
                 and self._xr_route_valid
-                and not self._xr_demo_start_pending
+                and idle
+                and not dual_future
             )
             self.xr_cancel_button.setEnabled(
-                self._xr_demo_start_pending or self._xr_active_worker is not None
+                (self._xr_demo_start_pending or self._xr_active_worker is not None)
+                and not self._xr_cancel_waiting_for_termination
             )
             self.xr_load_route_button.setEnabled(backend_ready)
             self.xr_save_route_button.setEnabled(backend_ready)
@@ -771,14 +787,27 @@ class MainWindow(QMainWindow):
                 and self._xr_route_valid
                 and self._xr_is_full_future_scene()
                 and self._xr_future_backend_ready()
-                and not self._xr_demo_start_pending
-                and self._xr_active_worker is None
+                and idle
             )
 
     def _set_smart_space_widgets_enabled(self, enabled: bool) -> None:
         self.files_group.setEnabled(enabled)
-        self.layers_group.setEnabled(enabled)
-        self.right_panel.setEnabled(enabled)
+        # Field, ray, label, and pattern visibility remain useful in XR.
+        # Coverage stays disabled until XR exposes a matching current-field map.
+        self.layers_group.setEnabled(True)
+        self.show_coverage.setEnabled(enabled)
+        self.right_panel.setEnabled(True)
+        for widget in (
+            self.generation_group,
+            self.rf_group,
+            self.ris_group,
+            self.error_group,
+            self.apply_button,
+            self.pending_label,
+            self.optimization_group,
+            self.field_display_group,
+        ):
+            widget.setVisible(enabled)
 
     @staticmethod
     def _default_xr_editor_trajectory(scene: Scene) -> RouteDraft:
@@ -822,6 +851,31 @@ class MainWindow(QMainWindow):
         identifiers = [ris.id for ris in scene.ris_surfaces]
         if len(set(identifiers)) != len(identifiers):
             raise ValueError("XR Route Editor requires unique RIS ids")
+        all_entity_ids = [
+            *(tx.id for tx in scene.transmitters),
+            *(rx.id for rx in scene.receivers),
+            *identifiers,
+        ]
+        if len(set(all_entity_ids)) != len(all_entity_ids):
+            raise ValueError("XR Route Editor requires globally unique TX/RX/RIS ids")
+
+    @staticmethod
+    def _validate_smart_space_scene(scene: Scene) -> None:
+        """Reject scenes the single-RIS editor would otherwise truncate on Apply."""
+        if len(scene.transmitters) != 1 or len(scene.receivers) != 1:
+            raise ValueError("Smart Space GUI requires exactly one TX and one RX")
+        if len(scene.ris_surfaces) != 1:
+            raise ValueError(
+                "Smart Space GUI requires exactly one RIS; use XR Scene & Route "
+                "Editor for a dual-RIS Scene v1"
+            )
+        identifiers = [
+            scene.transmitter().id,
+            scene.receiver().id,
+            scene.ris_surfaces[0].id,
+        ]
+        if len(set(identifiers)) != len(identifiers):
+            raise ValueError("Smart Space GUI requires unique TX/RX/RIS ids")
 
     @staticmethod
     def _xr_joint_ris_backend_pending(scene: Scene) -> bool:
@@ -872,7 +926,7 @@ class MainWindow(QMainWindow):
         width, height = self._xr_future_grid()
         exact = self.xr_future_accuracy_combo.currentData() == XR_FUTURE_EXACT_M8
         self.xr_future_field_button.setText(
-            f"Build selected point · {'exact M8' if exact else 'fast 1×1'} "
+            f"Build field · {'exact M8' if exact else 'fast 1×1'} · "
             f"{width}×{height}"
         )
         if exact:
@@ -904,6 +958,7 @@ class MainWindow(QMainWindow):
         self._xr_field_scales = {}
         self._xr_field_runtime_summary = ""
         self._xr_field_cache = {}
+        self._xr_full_command_patterns = {}
         self._xr_static_field_key = None
         self._xr_field_inflight_key = None
         self.scene_view.clear_field_overlays()
@@ -922,7 +977,11 @@ class MainWindow(QMainWindow):
         self.scene_view.load_scene(self._xr_editor_scene)
         self.scene_view.set_entities_draggable(False)
         self.scene_view.set_draggable_entity_ids(
-            {ris.id for ris in self._xr_editor_scene.ris_surfaces}
+            {
+                *(tx.id for tx in self._xr_editor_scene.transmitters),
+                *(rx.id for rx in self._xr_editor_scene.receivers),
+                *(ris.id for ris in self._xr_editor_scene.ris_surfaces),
+            }
         )
         self.scene_view.show_editable_route(
             [waypoint.position for waypoint in self._xr_trajectory.points],
@@ -990,6 +1049,8 @@ class MainWindow(QMainWindow):
         if isinstance(identifier, str) and identifier:
             self._xr_selected_ris_id = identifier
             self._sync_xr_ris_controls()
+            if self._xr_result is not None:
+                self._set_xr_sample(self._xr_sample_index)
 
     @staticmethod
     def _next_xr_ris_id(scene: Scene) -> str:
@@ -1135,6 +1196,12 @@ class MainWindow(QMainWindow):
         self._xr_selected_waypoint_index = index
         self._xr_editor_inputs_changed("route point moved", render=False)
 
+    def _xr_route_point_drag_started(self, index: int) -> None:
+        if not self._xr_editor_active or self._xr_trajectory is None:
+            return
+        self._xr_selected_waypoint_index = index
+        self._xr_editor_inputs_changed("route point drag started", render=False)
+
     def _next_xr_waypoint_id(self) -> str:
         assert self._xr_trajectory is not None
         used = {waypoint.id for waypoint in self._xr_trajectory.points}
@@ -1267,6 +1334,7 @@ class MainWindow(QMainWindow):
         self._xr_field_scales = {}
         self._xr_field_runtime_summary = ""
         self._xr_field_cache = {}
+        self._xr_full_command_patterns = {}
         self._xr_static_field_key = None
         self._xr_field_inflight_key = None
         self._xr_sample_lookup = {}
@@ -1364,6 +1432,8 @@ class MainWindow(QMainWindow):
         if render:
             self._render_xr_editor_inputs()
         else:
+            if self._xr_editor_scene is not None:
+                self.scene_view.model_scene = self._xr_editor_scene
             self._sync_xr_point_form()
             self._sync_xr_ris_controls()
         self.scene_view.set_editable_route_validity(route_valid, route_error)
@@ -1549,6 +1619,7 @@ class MainWindow(QMainWindow):
         self._xr_field_scales = {}
         self._xr_field_runtime_summary = ""
         self._xr_field_cache = {}
+        self._xr_full_command_patterns = {}
         self._xr_static_field_key = None
         self._xr_pending_field_request = None
         self._xr_field_inflight_key = None
@@ -1608,6 +1679,7 @@ class MainWindow(QMainWindow):
         self._xr_field_scales = {}
         self._xr_field_runtime_summary = ""
         self._xr_field_cache = {}
+        self._xr_full_command_patterns = {}
         self._xr_static_field_key = None
         self._xr_pending_field_request = None
         self._xr_field_inflight_key = None
@@ -1655,8 +1727,7 @@ class MainWindow(QMainWindow):
                 "Field request cancelled · cached current-run results remain available"
             )
         self._xr_cancel_waiting_for_termination = worker_active
-        self.xr_cancel_button.setEnabled(False)
-        self.xr_run_button.setEnabled(True)
+        self._set_xr_controls_ready(self._xr_result is not None)
         if worker_active:
             self.xr_sample_label.setText(
                 "Cancellation requested · waiting for worker termination"
@@ -1718,18 +1789,14 @@ class MainWindow(QMainWindow):
         self._cancel_active()
         self._set_smart_space_widgets_enabled(False)
         self.xr_controls.setTitle("XR Scene & Route Editor · non-release")
-        interface_label = (
-            self.trajectory_backend.interface_version
-            if self.trajectory_backend is not None
-            else f"{EXPECTED_TRAJECTORY_INTERFACE_VERSION} pending"
-        )
-        self.xr_editor_group.setTitle(f"Scene & Route · {interface_label}")
+        self.xr_editor_group.setTitle("Scene & Route")
         self.xr_controls.setVisible(True)
         self.xr_editor_group.setVisible(True)
         self.future_badge.setText("Non-release XR Editor Prototype")
         self._xr_editor_inputs_changed("editor opened")
 
     def _scenario_changed(self, index: int) -> None:
+        self.scenario_combo.setToolTip(self.scenario_combo.itemText(index))
         mode = self.scenario_combo.itemData(index)
         if mode == "xr_dynamic_room_mvp":
             if self._xr_editor_active:
@@ -1773,6 +1840,7 @@ class MainWindow(QMainWindow):
         self._xr_field_scales = {}
         self._xr_field_runtime_summary = ""
         self._xr_field_cache = {}
+        self._xr_full_command_patterns = {}
         self._xr_static_field_key = None
         self._xr_pending_field_request = None
         self._xr_field_inflight_key = None
@@ -1959,11 +2027,20 @@ class MainWindow(QMainWindow):
             for sample in result.samples
         }
         self._xr_field_cache_limit = len(result.trajectory) + 1
-        self.scene_view.load_scene(result.scene)
+        view_scene = (
+            self._xr_editor_scene
+            if self._xr_editor_active and self._xr_editor_scene is not None
+            else result.scene
+        )
+        self.scene_view.load_scene(view_scene)
         self.scene_view.set_entities_draggable(False)
         if self._xr_editor_active and self._xr_trajectory is not None:
             self.scene_view.set_draggable_entity_ids(
-                {ris.id for ris in result.scene.ris_surfaces}
+                {
+                    *(tx.id for tx in view_scene.transmitters),
+                    *(rx.id for rx in view_scene.receivers),
+                    *(ris.id for ris in view_scene.ris_surfaces),
+                }
             )
             self._xr_ris_command_states = {
                 ris.id: "Static/Adaptive prepared · independent RIS command"
@@ -2038,6 +2115,13 @@ class MainWindow(QMainWindow):
             self._xr_links_ready(version, result.mvp)
         self._xr_static_field = result.static_field
         self._xr_static_field_key = result.static_key
+        self._xr_full_command_patterns = {
+            result.static_key.command_hash: result.static_patterns,
+            **{
+                command_hash: patterns
+                for command_hash, patterns in result.adaptive_patterns
+            },
+        }
         self._xr_cache_field(result.static_key, result.static_field)
         for adaptive_key, adaptive_field in result.adaptive_fields:
             self._xr_cache_field(adaptive_key, adaptive_field)
@@ -2514,23 +2598,40 @@ class MainWindow(QMainWindow):
             sample.trajectory.position,
         )
 
+        enabled_ris = [item for item in self._xr_result.scene.ris_surfaces if item.enabled]
         ris = next(
-            (item for item in self._xr_result.scene.ris_surfaces if item.enabled),
-            self._xr_result.scene.ris_surfaces[0],
+            (
+                item
+                for item in self._xr_result.scene.ris_surfaces
+                if item.id == self._xr_selected_ris_id
+            ),
+            enabled_ris[0] if enabled_ris else self._xr_result.scene.ris_surfaces[0],
         )
-        if mode == STATIC_RIS_MODE:
-            commanded = self._xr_result.static_pattern
-            pattern_source = "XR MVP Static RIS · frozen at t=0"
+        command_lookup_hash = (
+            sample.static_pattern_hash
+            if mode == STATIC_RIS_MODE
+            else sample.command_hash
+        )
+        complete_command = self._xr_full_command_patterns.get(
+            command_lookup_hash,
+            {},
+        )
+        if not ris.enabled:
+            commanded = np.zeros(ris.cell_count)
+            pattern_source = f"XR {mode} · {ris.id} · RIS disabled"
+        elif mode == STATIC_RIS_MODE:
+            commanded = complete_command.get(ris.id, self._xr_result.static_pattern)
+            pattern_source = f"XR MVP Static RIS · {ris.id} · frozen at t=0"
         elif mode == ADAPTIVE_RIS_MODE:
-            commanded = sample.commanded_pattern
+            commanded = complete_command.get(ris.id, sample.commanded_pattern)
             if commanded is None:
                 raise RuntimeError("XR Adaptive sample is missing its command snapshot")
             pattern_source = (
-                "XR Adaptive RIS · per-sample Controller Focus · provisional"
+                f"XR Adaptive RIS · {ris.id} · per-sample Controller Focus · provisional"
             )
         else:
             commanded = np.zeros(ris.cell_count)
-            pattern_source = "XR MVP No RIS · contribution disabled"
+            pattern_source = f"XR MVP No RIS · {ris.id} · contribution disabled"
         self.pattern_view.set_patterns(
             commanded,
             commanded,
@@ -2542,10 +2643,15 @@ class MainWindow(QMainWindow):
         )
         self.pattern_view.setVisible(self.show_pattern.isChecked())
         if self._xr_editor_active:
+            display_hash = (
+                sample.static_pattern_hash
+                if mode == STATIC_RIS_MODE
+                else sample.command_hash
+            )
             command_text = (
                 "Command: none · RIS contribution disabled"
-                if not sample.command_hash
-                else f"Command: {sample.command_kind} · {sample.command_hash[:23]}…"
+                if not display_hash
+                else f"Command: {sample.command_kind} · {display_hash[:23]}…"
             )
             self.xr_command_status.setText(command_text)
 
@@ -2640,6 +2746,7 @@ class MainWindow(QMainWindow):
         self._xr_no_ris_field = None
         self._xr_field_scales = {}
         self._xr_field_cache = {}
+        self._xr_full_command_patterns = {}
         self._xr_static_field_key = None
         self._xr_demo_start_pending = False
         self._xr_pending_field_request = None
@@ -2764,11 +2871,7 @@ class MainWindow(QMainWindow):
         if feedback_source or (
             source == "Coherent Target Focus" and ris.phase_bits is not None
         ):
-            geometry = (
-                geometry[0],
-                geometry[1],
-                (*geometry[2], ris.reflection_efficiency),
-            )
+            geometry = (*geometry, ris.reflection_efficiency)
         environment = (
             tuple(
                 (
@@ -2922,19 +3025,68 @@ class MainWindow(QMainWindow):
         suffix = " · Customized" if owned != preset_owned else ""
         self.generation_status.setText(f"{ris.generation}{suffix}")
 
+    def _entity_selected(self, identifier: str) -> None:
+        """Keep the selected XR RIS and its form/pattern inspection in sync."""
+        if not self._xr_editor_active or self._xr_editor_scene is None:
+            return
+        if not any(ris.id == identifier for ris in self._xr_editor_scene.ris_surfaces):
+            return
+        self._xr_selected_ris_id = identifier
+        index = self.xr_ris_combo.findData(identifier)
+        if index >= 0 and index != self.xr_ris_combo.currentIndex():
+            self.xr_ris_combo.setCurrentIndex(index)
+        else:
+            self._sync_xr_ris_controls()
+            if self._xr_result is not None:
+                self._set_xr_sample(self._xr_sample_index)
+
+    def _entity_drag_started(self, identifier: str) -> None:
+        """Invalidate stale output once, while graphics continue previewing cheaply."""
+        if self._xr_demo_active:
+            if self._xr_editor_active:
+                self._xr_editor_inputs_changed(
+                    f"{identifier} drag started",
+                    render=False,
+                )
+            return
+        self._debounce.stop()
+        self._debounced_action = None
+        self._version += 1
+        self._cancel_active()
+        self._mark_smart_space_results_pending()
+
     def _entity_moved(self, identifier: str, position: Vec3) -> None:
         if self._xr_demo_active:
             if self._xr_editor_active and self._xr_editor_scene is not None:
-                if any(ris.id == identifier for ris in self._xr_editor_scene.ris_surfaces):
+                if any(
+                    item.id == identifier
+                    for item in (
+                        *self._xr_editor_scene.transmitters,
+                        *self._xr_editor_scene.receivers,
+                        *self._xr_editor_scene.ris_surfaces,
+                    )
+                ):
+                    self._xr_editor_scene.transmitters = [
+                        replace(tx, position=position) if tx.id == identifier else tx
+                        for tx in self._xr_editor_scene.transmitters
+                    ]
+                    self._xr_editor_scene.receivers = [
+                        replace(rx, position=position) if rx.id == identifier else rx
+                        for rx in self._xr_editor_scene.receivers
+                    ]
                     self._xr_editor_scene.ris_surfaces = [
                         replace(ris, position=position)
                         if ris.id == identifier
                         else ris
                         for ris in self._xr_editor_scene.ris_surfaces
                     ]
-                    self._xr_selected_ris_id = identifier
+                    if any(
+                        ris.id == identifier
+                        for ris in self._xr_editor_scene.ris_surfaces
+                    ):
+                        self._xr_selected_ris_id = identifier
                     self._xr_editor_inputs_changed(
-                        "RIS moved on canvas",
+                        f"{identifier} moved on canvas",
                         render=False,
                     )
             return
@@ -3294,7 +3446,10 @@ class MainWindow(QMainWindow):
     def _field_visibility_changed(self, visible: bool) -> None:
         self.scene_view.set_field_visible(visible)
         if visible:
-            self._redraw_latest_map()
+            if self._xr_demo_active:
+                self._redraw_xr_field()
+            else:
+                self._redraw_latest_map()
 
     def _coverage_visibility_changed(self, visible: bool) -> None:
         if self.latest_field is not None:
@@ -3471,7 +3626,10 @@ class MainWindow(QMainWindow):
         self.scene_view.set_options(
             show_labels=self.show_labels.isChecked(), show_rays=self.show_rays.isChecked()
         )
-        self._redraw_latest_map()
+        if self._xr_demo_active:
+            self._redraw_xr_field()
+        else:
+            self._redraw_latest_map()
 
     def _save_scene(self) -> None:
         path, _ = QFileDialog.getSaveFileName(self, "保存场景", "smart_room.json", "JSON (*.json)")
@@ -3486,9 +3644,9 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getOpenFileName(self, "加载场景", "", "JSON (*.json)")
         if path:
             try:
-                self.scene_model = Scene.load(path)
-                if not self.scene_model.ris_surfaces:
-                    raise ValueError("v0.1 GUI requires one RIS")
+                candidate = Scene.load(path)
+                self._validate_smart_space_scene(candidate)
+                self.scene_model = candidate
                 self.generation_combo.blockSignals(True)
                 self.generation_combo.setCurrentText(self.scene_model.ris_surfaces[0].generation)
                 self.generation_combo.blockSignals(False)

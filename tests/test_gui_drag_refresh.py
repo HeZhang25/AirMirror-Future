@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -8,7 +9,8 @@ import numpy as np
 import pytest
 
 PySide6 = pytest.importorskip("PySide6")
-from PySide6.QtCore import QCoreApplication, QEvent, QPointF, QThreadPool
+from PySide6.QtCore import QCoreApplication, QEvent, QPointF, QThreadPool, Qt
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QMessageBox
 
 from airmirror_future.core.types import (
@@ -103,6 +105,7 @@ def light_window(qapp, monkeypatch: pytest.MonkeyPatch):
 def test_drag_burst_updates_all_entities_without_synchronous_physics(
     light_window: MainWindow,
     monkeypatch: pytest.MonkeyPatch,
+    qapp,
 ) -> None:
     window = light_window
     calls = {"focus": 0, "channel": 0, "field": 0}
@@ -144,9 +147,24 @@ def test_drag_burst_updates_all_entities_without_synchronous_physics(
         rx.id: Vec3(8.1, 5.2, rx.position.z),
         ris.id: Vec3(6.0, 4.1, ris.position.z),
     }
+    window.show()
+    qapp.processEvents()
     for identifier, position in moves.items():
         item = window.scene_view._entity_items[identifier]
-        item.setPos(window.scene_view._point(position))
+        start = window.scene_view.mapFromScene(item.scenePos())
+        target = window.scene_view.mapFromScene(window.scene_view._point(position))
+        QTest.mousePress(
+            window.scene_view.viewport(),
+            Qt.MouseButton.LeftButton,
+            pos=start,
+        )
+        QTest.mouseMove(window.scene_view.viewport(), target, delay=1)
+        QTest.mouseRelease(
+            window.scene_view.viewport(),
+            Qt.MouseButton.LeftButton,
+            pos=target,
+        )
+        qapp.processEvents()
         label = window.scene_view._entity_labels[identifier]
         expected_offset = (
             QPointF(8, 8) if identifier == "ris-1" else QPointF(10, -18)
@@ -155,7 +173,7 @@ def test_drag_burst_updates_all_entities_without_synchronous_physics(
 
     assert active.cancelled is True
     assert calls == {"focus": 0, "channel": 0, "field": 0}
-    assert window._version == start_version + len(moves)
+    assert window._version == start_version + 2 * len(moves)
     assert window._debounced_action == "smart_space_refresh"
     assert window._debounce.isActive()
     assert window.latest_field is None
@@ -174,7 +192,8 @@ def test_drag_burst_updates_all_entities_without_synchronous_physics(
     for identifier, expected in moves.items():
         actual = actual_positions[identifier]
         assert (actual.x, actual.y, actual.z) == pytest.approx(
-            (expected.x, expected.y, expected.z)
+            (expected.x, expected.y, expected.z),
+            abs=0.02,
         )
 
 
@@ -203,6 +222,24 @@ def test_drag_debounce_starts_one_worker_with_latest_deep_copied_snapshot(
     assert worker.scene is not window.scene_model
     assert worker.scene.receiver().position == latest
     assert worker.version == window._version
+
+
+def test_finite_bit_ris_geometry_change_invalidates_old_command(
+    light_window: MainWindow,
+) -> None:
+    window = light_window
+    assert window.scene_model.ris_surfaces[0].phase_bits is not None
+    assert window._current_patterns() is not None
+    ris = window.scene_model.ris_surfaces[0]
+
+    window._entity_moved(
+        ris.id,
+        replace(ris.position, x=ris.position.x + 0.35),
+    )
+
+    window._debounce.stop()
+    assert window._current_patterns() is None
+    assert "Pattern 生成中" in window.pattern_view.commanded.text()
 
 
 def test_applied_input_changes_and_explicit_coherent_focus_stay_off_thread(

@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import copy
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass, replace
 import hashlib
 import json
 import threading
 import traceback
+from types import MappingProxyType
 
 import numpy as np
 from PySide6.QtCore import QObject, QRunnable, Signal, Slot
@@ -179,6 +181,8 @@ class XRFuturePreparedFieldResult:
     quadrature_identity: str
     build_runtime_s: float
     coefficient_bytes: int
+    static_patterns: Mapping[str, np.ndarray]
+    adaptive_patterns: tuple[tuple[str, Mapping[str, np.ndarray]], ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -277,6 +281,27 @@ def _first_command(command: object) -> np.ndarray:
     if isinstance(command, dict):
         return next(iter(command.values()))
     return np.asarray(command)
+
+
+def _frozen_command_mapping(
+    command: object,
+    ris_ids: tuple[str, ...],
+) -> Mapping[str, np.ndarray]:
+    """Preserve every evaluated RIS command for truthful GUI inspection."""
+    if isinstance(command, dict):
+        if set(command) != set(ris_ids):
+            raise ValueError("multi-RIS command does not match enabled RIS ids")
+        source = command
+    elif len(ris_ids) == 1:
+        source = {ris_ids[0]: np.asarray(command)}
+    else:
+        raise ValueError("dual-RIS command must be an RIS-id mapping")
+    frozen: dict[str, np.ndarray] = {}
+    for identifier in ris_ids:
+        pattern = np.array(source[identifier], dtype=float, copy=True)
+        pattern.setflags(write=False)
+        frozen[identifier] = pattern
+    return MappingProxyType(frozen)
 
 
 def _future_coefficient_model(identity: str) -> RISCoefficientModel:
@@ -688,7 +713,7 @@ class XRFuturePreparedFieldWorker(_XRPhysicsWorker):
                 )
             static_hash = _command_hash(static_pattern)
             dynamic_samples: list[DynamicLinkSample] = []
-            adaptive_patterns: dict[str, np.ndarray] = {}
+            adaptive_patterns: dict[str, object] = {}
             for trajectory_sample in trajectory:
                 if self._cancelled.is_set():
                     return
@@ -879,6 +904,14 @@ class XRFuturePreparedFieldWorker(_XRPhysicsWorker):
                 build_runtime_s=prepared.build_runtime_s,
                 coefficient_bytes=prepared.coefficient_bytes,
                 request=self.request,
+                static_patterns=_frozen_command_mapping(static_pattern, ris_ids),
+                adaptive_patterns=tuple(
+                    (
+                        command_hash,
+                        _frozen_command_mapping(pattern, ris_ids),
+                    )
+                    for command_hash, pattern in adaptive_patterns.items()
+                ),
             )
         except Exception:
             if not self._cancelled.is_set():
