@@ -31,6 +31,26 @@ SimulationEngine.compute_channel(
 ) -> ChannelResult
 ```
 
+构造器可显式选择 RIS coefficient 模型：
+
+```python
+SimulationEngine(
+    profile: PropagationProfile | None = None,
+    *,
+    coefficient_model: RISCoefficientModel | None = None,
+)
+```
+
+默认 `None` 仍严格等价 `PRODUCTION_RIS_COEFFICIENT_MODEL`，即已签署的
+`midpoint_8x8_per_control_patch/1`，production M8 数值和默认行为不变。Future 高速调用者可显式传入
+`FAST_1X1_RIS_COEFFICIENT_MODEL`；它在每个既有 control patch 的中心取一个样本，归一权重为 1，
+共享 coefficient reduction 再恰好乘一次完整 patch 面积。两种模型均保持 RIS 实体尺寸、`nx*ny`
+命令数量、距离/传播相位、方向因子、Profile modifier 和 Gamma 所有权。
+
+模型具有独立的 `identity` 与 `quadrature_identity`。同一 Engine 实例的
+`controller_focus_terms`、Coherent Focus、单点 channel 和 field map 必须消费同一模型；调用者不得
+用一个 Engine 生成 1x1 Focus、再用另一个默认 M8 Engine 评价并声称目标一致。
+
 契约：
 
 - `tx/rx=None` 使用 Scene 首个实体；str 按 id 查找；

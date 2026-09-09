@@ -24,9 +24,7 @@ from airmirror_future.core.types import (
 from airmirror_future.core.units import watts_to_dbm
 from airmirror_future.physics.noise import noise_power_dbm, shannon_capacity_bps
 from airmirror_future.physics.ris_scattering import (
-    PRODUCTION_QUADRATURE_POLICY_ID,
-    PRODUCTION_QUADRATURE_POLICY_VERSION,
-    _production_quadrature_spec,
+    PRODUCTION_RIS_COEFFICIENT_MODEL,
     ris_control_coefficient_matrix,
 )
 from airmirror_future.simulation.coefficient_identity import (
@@ -144,6 +142,7 @@ class PreparedControllerLink:
     coefficients: np.ndarray
     los_channel: complex
     wall_channel: complex
+    coefficient_model_identity: str
     _evaluation: _LinkEvaluationSnapshot = field(repr=False)
 
     def evaluate(self, pattern: np.ndarray) -> ChannelResult:
@@ -230,6 +229,7 @@ def prepare_controller_link(
         values,
         baseline.los_channel,
         baseline.wall_channel,
+        active_engine.coefficient_model.identity,
         evaluation,
     )
 
@@ -252,6 +252,7 @@ class PreparedControllerField:
     coefficient_bytes: int
     receiver_batch_size: int
     max_point_sample_pairs: int
+    coefficient_model_identity: str
     _evaluation: _FieldEvaluationSnapshot = field(repr=False)
 
     def evaluate(self, pattern: np.ndarray) -> FieldMapResult:
@@ -355,7 +356,8 @@ def prepare_controller_field(
     receiver_points = np.column_stack(
         (xx.reshape(-1), yy.reshape(-1), np.full(point_count, snapshot.z_eval_m))
     )
-    spec = _production_quadrature_spec(ris)
+    coefficient_model = active_engine.coefficient_model
+    spec = coefficient_model.quadrature_spec(ris)
     incident_modifier = active_engine._environment_modifier(
         snapshot,
         PropagationPathContext(
@@ -365,12 +367,14 @@ def prepare_controller_field(
     coefficients = np.empty((point_count, ris.cell_count), dtype=complex)
     baselines = np.empty(point_count, dtype=complex)
     identities: list[str] = []
-    quadrature_json = _quadrature_canonical_json(
-        spec,
-        PRODUCTION_QUADRATURE_POLICY_ID,
-        PRODUCTION_QUADRATURE_POLICY_VERSION,
-        array_identity="derived_by_signed_production_policy",
-    )
+    quadrature_json = None
+    if coefficient_model is PRODUCTION_RIS_COEFFICIENT_MODEL:
+        quadrature_json = _quadrature_canonical_json(
+            spec,
+            coefficient_model.quadrature_policy_id,
+            coefficient_model.quadrature_policy_version,
+            array_identity="derived_by_signed_production_policy",
+        )
     for start in range(0, point_count, batch_size):
         if cancel_check is not None and cancel_check():
             raise SimulationCancelled("prepared field calculation cancelled")
@@ -406,7 +410,7 @@ def prepare_controller_field(
                     tx,
                     receiver,
                     ris,
-                    _quadrature_json=quadrature_json,
+                    **({"_quadrature_json": quadrature_json} if quadrature_json else {}),
                 )
             )
         if progress is not None:
@@ -447,6 +451,7 @@ def prepare_controller_field(
         coefficient_bytes=coefficient_bytes,
         receiver_batch_size=batch_size,
         max_point_sample_pairs=max_point_sample_pairs,
+        coefficient_model_identity=coefficient_model.identity,
         _evaluation=evaluation,
     )
 

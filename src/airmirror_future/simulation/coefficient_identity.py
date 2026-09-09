@@ -104,10 +104,23 @@ def controller_ris_coefficient_identity(
     Command state, efficiency, phase bits, Pt, B/NF, coverage, and RNG are excluded.
     """
     if quadrature_spec is None:
-        spec = _production_quadrature_spec(ris)
-        policy_id = PRODUCTION_QUADRATURE_POLICY_ID
-        policy_version = PRODUCTION_QUADRATURE_POLICY_VERSION
-        array_identity = "derived_by_signed_production_policy"
+        coefficient_model = getattr(engine, "coefficient_model", None)
+        if coefficient_model is None or (
+            coefficient_model.quadrature_policy_id == PRODUCTION_QUADRATURE_POLICY_ID
+            and coefficient_model.quadrature_policy_version
+            == PRODUCTION_QUADRATURE_POLICY_VERSION
+        ):
+            spec = _production_quadrature_spec(ris)
+            policy_id = PRODUCTION_QUADRATURE_POLICY_ID
+            policy_version = PRODUCTION_QUADRATURE_POLICY_VERSION
+            model_identity = None
+            array_identity = "derived_by_signed_production_policy"
+        else:
+            spec = coefficient_model.quadrature_spec(ris)
+            policy_id = coefficient_model.quadrature_policy_id
+            policy_version = coefficient_model.quadrature_policy_version
+            model_identity = coefficient_model.identity
+            array_identity = "derived_by_named_coefficient_model"
         if quadrature_policy_id not in (None, policy_id) or quadrature_policy_version not in (
             None,
             policy_version,
@@ -123,6 +136,7 @@ def controller_ris_coefficient_identity(
             raise ValueError("custom quadrature identity requires a non-empty policy version")
         policy_id = quadrature_policy_id
         policy_version = quadrature_policy_version
+        model_identity = "custom_quadrature_research_evaluation/1"
         array_identity = (
             None if _quadrature_json is not None else _quadrature_array_identity(spec)
         )
@@ -165,25 +179,24 @@ def controller_ris_coefficient_identity(
         if not isinstance(engine.profile, IndoorDeterministicProfile):
             row.extend([wall.reflection_magnitude, wall.reflection_phase_rad])
         wall_rows.append(row)
+    quadrature_payload = {
+        "policy_id": policy_id,
+        "policy_version": policy_version,
+        "rule": spec.rule,
+        "order_x": spec.order_x,
+        "order_y": spec.order_y,
+        "flatten_order": "ris_cell_centers_meshgrid_xy_c_v1",
+        "parent_control_index": spec.parent_control_index.tolist(),
+        "array_identity": array_identity,
+    }
+    if model_identity is not None:
+        quadrature_payload["coefficient_model_identity"] = model_identity
     payload = {
         "schema": "airmirror_controller_ris_coefficient/1",
         "frequency_model": "narrowband_center_frequency_flat_v1",
         "frequency_hz": scene.frequency_hz,
         "profile_identity": profile_identity(engine.profile),
-        "quadrature": (
-            None
-            if _quadrature_json is not None
-            else {
-                "policy_id": policy_id,
-                "policy_version": policy_version,
-                "rule": spec.rule,
-                "order_x": spec.order_x,
-                "order_y": spec.order_y,
-                "flatten_order": "ris_cell_centers_meshgrid_xy_c_v1",
-                "parent_control_index": spec.parent_control_index.tolist(),
-                "array_identity": array_identity,
-            }
-        ),
+        "quadrature": quadrature_payload,
         "tx": [tx.position.x, tx.position.y, tx.position.z, tx.gain_linear],
         "rx": [rx.position.x, rx.position.y, rx.position.z, rx.gain_linear],
         "ris": [ris.id, ris.position.x, ris.position.y, ris.position.z, ris.yaw_rad,

@@ -28,10 +28,16 @@ from airmirror_future.ris.aperture import (
     EquivalentPatchDiagnostics,
     equivalent_patch_diagnostics,
 )
+from airmirror_future.physics.ris_scattering import (
+    FAST_1X1_RIS_COEFFICIENT_MODEL,
+    PRODUCTION_RIS_COEFFICIENT_MODEL,
+    RISCoefficientModel,
+)
 
 __all__ = [
     "ChannelResult",
     "FieldMapResult",
+    "FAST_1X1_RIS_COEFFICIENT_MODEL",
     "EquivalentPatchDiagnostics",
     "COMMANDED_PHASE_ATOL_RAD",
     "equivalent_patch_diagnostics",
@@ -40,8 +46,10 @@ __all__ = [
     "Obstacle",
     "OptimizationResult",
     "Receiver",
+    "RISCoefficientModel",
     "RISGeneration",
     "RISSurface",
+    "PRODUCTION_RIS_COEFFICIENT_MODEL",
     "Scene",
     "SimulationConfig",
     "SimulationEngine",

@@ -26,6 +26,8 @@ from airmirror_future.physics.free_space import complex_free_space_channel
 from airmirror_future.physics.noise import noise_power_dbm, shannon_capacity_bps
 from airmirror_future.physics.reflections import single_wall_reflection_path
 from airmirror_future.physics.ris_scattering import (
+    PRODUCTION_RIS_COEFFICIENT_MODEL,
+    RISCoefficientModel,
     _production_quadrature_spec,
     ris_control_coefficients,
 )
@@ -50,9 +52,21 @@ class SimulationCancelled(RuntimeError):
 class SimulationEngine:
     """CPU system-level complex-field propagation engine."""
 
-    def __init__(self, profile: PropagationProfile | None = None) -> None:
+    def __init__(
+        self,
+        profile: PropagationProfile | None = None,
+        *,
+        coefficient_model: RISCoefficientModel | None = None,
+    ) -> None:
         self._profile = IndoorDeterministicProfile() if profile is None else profile
         self._profile_identity = profile_identity(self._profile)
+        self._coefficient_model = (
+            PRODUCTION_RIS_COEFFICIENT_MODEL
+            if coefficient_model is None
+            else coefficient_model
+        )
+        if not isinstance(self._coefficient_model, RISCoefficientModel):
+            raise ValueError("coefficient_model must be a RISCoefficientModel")
         if not callable(getattr(self._profile, "environment_modifier", None)):
             raise ValueError("Profile must implement environment_modifier for all five path roles")
         self._cell_cache: dict[tuple[object, ...], np.ndarray] = {}
@@ -64,6 +78,11 @@ class SimulationEngine:
     @property
     def profile_identity(self) -> str:
         return self._profile_identity
+
+    @property
+    def coefficient_model(self) -> RISCoefficientModel:
+        """Named coefficient model shared by Focus and all Engine evaluations."""
+        return self._coefficient_model
 
     def _environment_modifier(
         self, scene: Scene, context: PropagationPathContext
@@ -233,6 +252,7 @@ class SimulationEngine:
                 rx.gain_linear,
                 ris,
                 scene.frequency_hz,
+                coefficient_model=self._coefficient_model,
                 quadrature_spec=(
                     None
                     if ris_quadrature_specs is None
@@ -255,6 +275,8 @@ class SimulationEngine:
                     "ris_id": ris.id,
                     "blockers": list(before.blocker_ids + after.blocker_ids),
                     "channel": contribution,
+                    "coefficient_model_id": self._coefficient_model.identity,
+                    "quadrature_policy_id": self._coefficient_model.quadrature_identity,
                 }
             )
         return complex(los), complex(wall_total), complex(ris_total), details
@@ -304,6 +326,7 @@ class SimulationEngine:
             working_rx.gain_linear,
             working_ris,
             working_scene.frequency_hz,
+            coefficient_model=self._coefficient_model,
         ) * before.value * after.value
         los, wall, _, _ = self._components(working_scene, working_tx, working_rx, {}, model)
         return coefficients, complex(los + wall)
@@ -373,7 +396,11 @@ class SimulationEngine:
             scene, tx, rx_template, active_model
         )
         ris_quadrature_specs = {
-            ris.id: _production_quadrature_spec(ris)
+            ris.id: (
+                _production_quadrature_spec(ris)
+                if self._coefficient_model is PRODUCTION_RIS_COEFFICIENT_MODEL
+                else self._coefficient_model.quadrature_spec(ris)
+            )
             for ris in quadrature_scene.ris_surfaces
             if ris.enabled and ris.id in patterns
         }
