@@ -20,6 +20,9 @@ from airmirror_future.simulation.profiles import (
 )
 
 
+_CUSTOM_QUADRATURE_MODEL_IDENTITY = "custom_quadrature_research_evaluation/1"
+
+
 def _canonical(value: object) -> object:
     if type(value) is float:
         if not math.isfinite(value):
@@ -67,22 +70,45 @@ def _quadrature_canonical_json(
     array_identity: str | None = None,
 ) -> bytes:
     """Return C's exact canonical quadrature subdocument for safe reuse."""
+    model_identity = (
+        _CUSTOM_QUADRATURE_MODEL_IDENTITY if array_identity is None else None
+    )
     return _canonical_json_bytes(
-        {
-            "policy_id": policy_id,
-            "policy_version": policy_version,
-            "rule": spec.rule,
-            "order_x": spec.order_x,
-            "order_y": spec.order_y,
-            "flatten_order": "ris_cell_centers_meshgrid_xy_c_v1",
-            "parent_control_index": spec.parent_control_index.tolist(),
-            "array_identity": (
+        _quadrature_payload(
+            spec,
+            policy_id,
+            policy_version,
+            array_identity=(
                 _quadrature_array_identity(spec)
                 if array_identity is None
                 else array_identity
             ),
-        }
+            model_identity=model_identity,
+        )
     )
+
+
+def _quadrature_payload(
+    spec: QuadratureSpec,
+    policy_id: str,
+    policy_version: str,
+    *,
+    array_identity: str | None,
+    model_identity: str | None,
+) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "policy_id": policy_id,
+        "policy_version": policy_version,
+        "rule": spec.rule,
+        "order_x": spec.order_x,
+        "order_y": spec.order_y,
+        "flatten_order": "ris_cell_centers_meshgrid_xy_c_v1",
+        "parent_control_index": spec.parent_control_index.tolist(),
+        "array_identity": array_identity,
+    }
+    if model_identity is not None:
+        payload["coefficient_model_identity"] = model_identity
+    return payload
 
 
 def controller_ris_coefficient_identity(
@@ -136,7 +162,7 @@ def controller_ris_coefficient_identity(
             raise ValueError("custom quadrature identity requires a non-empty policy version")
         policy_id = quadrature_policy_id
         policy_version = quadrature_policy_version
-        model_identity = "custom_quadrature_research_evaluation/1"
+        model_identity = _CUSTOM_QUADRATURE_MODEL_IDENTITY
         array_identity = (
             None if _quadrature_json is not None else _quadrature_array_identity(spec)
         )
@@ -179,18 +205,13 @@ def controller_ris_coefficient_identity(
         if not isinstance(engine.profile, IndoorDeterministicProfile):
             row.extend([wall.reflection_magnitude, wall.reflection_phase_rad])
         wall_rows.append(row)
-    quadrature_payload = {
-        "policy_id": policy_id,
-        "policy_version": policy_version,
-        "rule": spec.rule,
-        "order_x": spec.order_x,
-        "order_y": spec.order_y,
-        "flatten_order": "ris_cell_centers_meshgrid_xy_c_v1",
-        "parent_control_index": spec.parent_control_index.tolist(),
-        "array_identity": array_identity,
-    }
-    if model_identity is not None:
-        quadrature_payload["coefficient_model_identity"] = model_identity
+    quadrature_payload = _quadrature_payload(
+        spec,
+        policy_id,
+        policy_version,
+        array_identity=array_identity,
+        model_identity=model_identity,
+    )
     payload = {
         "schema": "airmirror_controller_ris_coefficient/1",
         "frequency_model": "narrowband_center_frequency_flat_v1",
