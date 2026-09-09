@@ -90,6 +90,10 @@ from airmirror_future.scenarios.xr_editor import (
 )
 
 
+XR_FUTURE_FAST_M1 = "preview_m1"
+XR_FUTURE_EXACT_M8 = "production_m8"
+
+
 class MainWindow(QMainWindow):
     """AirMirror Future v0.1 Smart Space desktop application."""
 
@@ -336,7 +340,7 @@ class MainWindow(QMainWindow):
         run_buttons.addWidget(self.xr_cancel_button)
         editor_layout.addLayout(run_buttons)
         self.xr_future_field_button = QPushButton(
-            "Build selected point · Future M8 48×36"
+            "Build selected point · exact M8 8×6"
         )
         self.xr_future_field_button.setToolTip(
             "Build one fixed-grid coefficient matrix, then evaluate Static and "
@@ -347,6 +351,38 @@ class MainWindow(QMainWindow):
         )
         self.xr_future_field_button.setEnabled(False)
         editor_layout.addWidget(self.xr_future_field_button)
+        future_options = QFormLayout()
+        self.xr_future_accuracy_combo = QComboBox()
+        self.xr_future_accuracy_combo.addItem(
+            "高速 1×1 · preview（等待 D 接口）",
+            XR_FUTURE_FAST_M1,
+        )
+        self.xr_future_accuracy_combo.addItem(
+            "精确 M8 · production",
+            XR_FUTURE_EXACT_M8,
+        )
+        self.xr_future_accuracy_combo.setCurrentIndex(
+            self.xr_future_accuracy_combo.findData(XR_FUTURE_EXACT_M8)
+        )
+        self.xr_future_grid_combo = QComboBox()
+        self.xr_future_grid_combo.addItem("8×6 · quick Windows gate", (8, 6))
+        self.xr_future_grid_combo.addItem("16×12", (16, 12))
+        self.xr_future_grid_combo.addItem("48×36 · full fixed field", (48, 36))
+        self.xr_future_accuracy_combo.currentIndexChanged.connect(
+            self._xr_future_options_changed
+        )
+        self.xr_future_grid_combo.currentIndexChanged.connect(
+            self._xr_future_options_changed
+        )
+        future_options.addRow("Model accuracy", self.xr_future_accuracy_combo)
+        future_options.addRow("Map grid", self.xr_future_grid_combo)
+        editor_layout.addLayout(future_options)
+        self.xr_future_accuracy_status = QLabel(
+            "Production M8 selected · real prepared field · 64×48 controls unchanged"
+        )
+        self.xr_future_accuracy_status.setWordWrap(True)
+        self.xr_future_accuracy_status.setStyleSheet("color:#475569")
+        editor_layout.addWidget(self.xr_future_accuracy_status)
         self.xr_command_status = QLabel("Command: pending")
         self.xr_command_status.setWordWrap(True)
         self.xr_command_status.setStyleSheet("color:#64748b")
@@ -695,6 +731,7 @@ class MainWindow(QMainWindow):
                 backend_ready
                 and self._xr_trajectory is not None
                 and self._xr_is_full_future_scene()
+                and self._xr_future_backend_ready()
                 and not self._xr_demo_start_pending
                 and self._xr_active_worker is None
             )
@@ -750,6 +787,67 @@ class MainWindow(QMainWindow):
             return False
         enabled = [ris for ris in self._xr_editor_scene.ris_surfaces if ris.enabled]
         return len(enabled) == 1 and enabled[0].generation == "Future"
+
+    def _xr_future_backend_ready(self) -> bool:
+        """Expose M1 explicitly without pretending D's pending API exists."""
+        return self.xr_future_accuracy_combo.currentData() == XR_FUTURE_EXACT_M8
+
+    def _xr_future_grid(self) -> tuple[int, int]:
+        grid = self.xr_future_grid_combo.currentData()
+        if not isinstance(grid, (tuple, list)) or len(grid) != 2:
+            raise RuntimeError("XR Future map grid selection is invalid")
+        return int(grid[0]), int(grid[1])
+
+    def _xr_future_options_changed(self, *_args: object) -> None:
+        """Invalidate fields when model accuracy or map-grid identity changes."""
+        if not hasattr(self, "xr_future_field_button"):
+            return
+        width, height = self._xr_future_grid()
+        exact = self._xr_future_backend_ready()
+        self.xr_future_field_button.setText(
+            f"Build selected point · {'exact M8' if exact else 'fast 1×1'} "
+            f"{width}×{height}"
+        )
+        if exact:
+            self.xr_future_accuracy_status.setText(
+                "Production M8 selected · real prepared field · "
+                "Future 3×2 m / 64×48 controls unchanged"
+            )
+            self.xr_future_accuracy_status.setStyleSheet("color:#475569")
+        else:
+            self.xr_future_accuracy_status.setText(
+                "Fast 1×1 selected · backend unavailable: waiting for D's public "
+                "snapshot-safe interface; no M8 result will be relabelled"
+            )
+            self.xr_future_accuracy_status.setStyleSheet(
+                "color:#b45309;font-weight:600"
+            )
+        if not self._xr_editor_active:
+            return
+        self._xr_playback_timer.stop()
+        self._xr_playback_waiting_for_field = False
+        self._xr_future_elapsed_timer.stop()
+        self._xr_future_started_at = None
+        self._xr_field_debounce.stop()
+        self._version += 1
+        self._xr_demo_start_pending = False
+        self._xr_pending_run_request = None
+        self._xr_pending_field_request = None
+        self._cancel_active()
+        self._xr_static_field = None
+        self._xr_no_ris_field = None
+        self._xr_field_scales = {}
+        self._xr_field_runtime_summary = ""
+        self._xr_field_cache = {}
+        self._xr_static_field_key = None
+        self._xr_field_inflight_key = None
+        self.scene_view.clear_field_overlays()
+        self.xr_field_status.setText(
+            "Field map invalidated · model accuracy or map grid changed"
+            if exact
+            else "Fast 1×1 field pending D interface · no stale field displayed"
+        )
+        self._set_xr_controls_ready(self._xr_result is not None)
 
     def _render_xr_editor_inputs(self) -> None:
         if (
@@ -1026,7 +1124,9 @@ class MainWindow(QMainWindow):
         self._set_xr_controls_ready(False)
         self.xr_run_button.setEnabled(route_valid)
         self.xr_future_field_button.setEnabled(
-            route_valid and self._xr_is_full_future_scene()
+            route_valid
+            and self._xr_is_full_future_scene()
+            and self._xr_future_backend_ready()
         )
         if render:
             self._render_xr_editor_inputs()
@@ -1161,6 +1261,11 @@ class MainWindow(QMainWindow):
                 raise ValueError(
                     "Select the full Future Smart Space template before building"
                 )
+            if not self._xr_future_backend_ready():
+                raise ValueError(
+                    "Fast 1×1 is waiting for D's public snapshot-safe prepared "
+                    "interface; select exact M8 to run now"
+                )
             first = self._xr_trajectory.points[0]
             selected = self._xr_trajectory.points[
                 self._xr_selected_waypoint_index
@@ -1207,7 +1312,8 @@ class MainWindow(QMainWindow):
             f"Commands: preparing exact M8 · selected {selected.id}"
         )
         self.xr_field_status.setText(
-            "Future fixed field queued · Production M8 · Fixed grid 48×36 · "
+            "Future fixed field queued · Production M8 · "
+            f"Fixed grid {self._xr_future_grid()[0]}×{self._xr_future_grid()[1]} · "
             "no stale field displayed"
         )
         self.xr_sample_label.setText(
@@ -1526,9 +1632,10 @@ class MainWindow(QMainWindow):
             self._xr_future_elapsed_timer.stop()
             return
         elapsed = time.perf_counter() - self._xr_future_started_at
+        width, height = worker.config.grid_width, worker.config.grid_height
         self.xr_field_status.setText(
             "Cold M8 matrix build running… · "
-            f"elapsed {elapsed:.1f} s · Fixed grid 48×36 · no stale field"
+            f"elapsed {elapsed:.1f} s · Fixed grid {width}×{height} · no stale field"
         )
 
     def _xr_future_field_progress(
@@ -1673,7 +1780,9 @@ class MainWindow(QMainWindow):
         self.progress.setRange(0, 100)
         self.progress.setValue(100)
         self.xr_field_status.setText(
-            "Future fixed field ready · Production M8 · Fixed grid 48×36 · "
+            "Future fixed field ready · Production M8 · "
+            f"Fixed grid {result.static_key.grid_width}×"
+            f"{result.static_key.grid_height} · "
             f"{self._xr_field_runtime_summary}"
         )
         self.xr_route_status.setText(
@@ -1746,9 +1855,9 @@ class MainWindow(QMainWindow):
         fast = field_quality_preset("fast")
         return SimulationConfig(fast.grid_width, fast.grid_height, "power")
 
-    @staticmethod
-    def _xr_future_config() -> SimulationConfig:
-        return SimulationConfig(48, 36, "power", batch_size=8)
+    def _xr_future_config(self) -> SimulationConfig:
+        width, height = self._xr_future_grid()
+        return SimulationConfig(width, height, "power", batch_size=8)
 
     def _xr_field_precision_label(self) -> str:
         """Keep physics precision distinct from the display-grid preset."""
@@ -1758,7 +1867,7 @@ class MainWindow(QMainWindow):
         else:
             fast = field_quality_preset("fast")
             width, height = fast.grid_width, fast.grid_height
-        grid_kind = "Fixed grid" if (width, height) == (48, 36) else "Fast grid"
+        grid_kind = "Full fixed grid" if (width, height) == (48, 36) else "Small fixed grid"
         return (
             f"Production M{PRODUCTION_QUADRATURE_ORDER} · "
             f"{grid_kind} {width}×{height}"

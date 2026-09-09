@@ -20,8 +20,17 @@ reviewed or mergeable-to-main by this document.
 ## GUI slice
 
 The route editor exposes one explicit `Future Smart Space` template with the
-unchanged full 64×48-control Future RIS and a `48×36` fixed-field action. The
-action is bound to the selected route point:
+unchanged 3×2 m, 64×48-control Future RIS. Model accuracy and map-grid resolution
+are separate controls:
+
+- `高速 1×1 · preview` is visible but disabled until D supplies a public,
+  snapshot-safe interface. The GUI does not call a private quadrature helper or
+  relabel an M8 result as 1×1.
+- `精确 M8 · production` uses D's existing prepared interface and supports bounded
+  `8×6`, `16×12`, and `48×36` fixed grids. `8×6` is the default quick native gate;
+  it changes only receiver-map resolution, never RIS aperture or control count.
+
+The exact action is bound to the selected route point:
 
 - Static uses the existing Focus path at route point 1.
 - Adaptive uses the same existing Focus path at the selected point.
@@ -61,5 +70,22 @@ model, cache, or identity contract. Until that exists, the GUI shows truthful
 elapsed time and an indeterminate cold-build state; cancellation isolates the
 result immediately but the worker cannot return until D's in-flight build does.
 
-No second long build should be started on this environment until D confirms the
-runtime difference or supplies that bounded progress/cancellation seam.
+No second long `48×36` build should be started on this environment until D confirms
+the runtime difference or supplies that bounded progress/cancellation seam.
+
+## Small-grid native Windows gate
+
+One fresh, visible `QApplication` run on Windows/Python 3.14.3 exercised the real
+Future worker and Production M8 calculation at `8×6`; it was not a mock and did
+not run the benchmark harness. The complete GUI loop finished in 20.1462 s:
+
+- cold matrix build: 18.16 s;
+- Static hot evaluation: 0.58 ms;
+- selected-point Adaptive hot evaluation: 0.20 ms;
+- coefficient storage: 2.2 MiB;
+- Static and Adaptive command hashes differed;
+- No RIS display was exactly the same prepared solve's baseline array;
+- all three GUI modes were selected after completion without further field physics.
+
+This closes only the small-grid exact-M8 native slice. Fast 1×1, full-route prepared
+fields, and the pending D progress/cancellation interface remain open.

@@ -525,7 +525,7 @@ class XRDynamicRoomWorker(_XRPhysicsWorker):
 
 
 class XRFuturePreparedFieldWorker(_XRPhysicsWorker):
-    """Build one exact Future M8 fixed grid and evaluate two real commands."""
+    """Build one bounded exact-Future M8 grid and evaluate two real commands."""
 
     def __init__(
         self,
@@ -565,8 +565,12 @@ class XRFuturePreparedFieldWorker(_XRPhysicsWorker):
                 raise ValueError(
                     "XR Future fixed field requires exactly one enabled full Future RIS"
                 )
-            if (self.config.grid_width, self.config.grid_height) != (48, 36):
-                raise ValueError("XR Future fixed field is bounded to 48x36")
+            supported_grids = {(8, 6), (16, 12), (48, 36)}
+            grid = (self.config.grid_width, self.config.grid_height)
+            if grid not in supported_grids:
+                raise ValueError(
+                    "XR Future exact field grid must be 8x6, 16x12, or 48x36"
+                )
             if PRODUCTION_QUADRATURE_ORDER != 8:
                 raise ValueError("XR Future fixed field requires Production M8")
 
