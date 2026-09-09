@@ -6,7 +6,7 @@ from collections.abc import Callable, Sequence
 import math
 
 import numpy as np
-from PySide6.QtCore import QPointF, Qt
+from PySide6.QtCore import QPointF, QTimer, Qt
 from PySide6.QtGui import QBrush, QColor, QImage, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (
     QGraphicsEllipseItem,
@@ -24,6 +24,8 @@ from airmirror_future.core.types import FieldMapResult, Scene, Vec3
 
 
 EntityMoved = Callable[[str, Vec3], None]
+RoutePointMoved = Callable[[int, Vec3], None]
+RoutePointSelected = Callable[[int], None]
 
 
 class _DraggableItem(QGraphicsEllipseItem):
@@ -77,6 +79,44 @@ class _DraggableRIS(QGraphicsRectItem):
         return super().itemChange(change, value)
 
 
+class _RoutePointItem(QGraphicsEllipseItem):
+    """Selectable route control point with a model-coordinate drag callback."""
+
+    def __init__(
+        self,
+        route_index: int,
+        moved_callback: Callable[[int, QPointF], None],
+        selected_callback: RoutePointSelected,
+    ) -> None:
+        super().__init__(-6.0, -6.0, 12.0, 12.0)
+        self.route_index = route_index
+        self.moved_callback = moved_callback
+        self.selected_callback = selected_callback
+        self.setBrush(QColor("#0ea5e9"))
+        self.setPen(QPen(QColor("#e0f2fe"), 1.5))
+        self.setFlags(
+            QGraphicsItem.GraphicsItemFlag.ItemIsMovable
+            | QGraphicsItem.GraphicsItemFlag.ItemIsSelectable
+            | QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges
+        )
+        self.setZValue(13)
+        self.setToolTip(f"Route point {route_index + 1} · drag or use the form")
+
+    def itemChange(
+        self,
+        change: QGraphicsItem.GraphicsItemChange,
+        value: object,
+    ) -> object:
+        if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
+            self.moved_callback(self.route_index, self.pos())
+        elif (
+            change == QGraphicsItem.GraphicsItemChange.ItemSelectedHasChanged
+            and bool(value)
+        ):
+            self.selected_callback(self.route_index)
+        return super().itemChange(change, value)
+
+
 class SceneView(QGraphicsView):
     """Top-down room view with draggable devices and field overlay."""
 
@@ -90,7 +130,10 @@ class SceneView(QGraphicsView):
         self.scale_px_m = 70.0
         self.model_scene: Scene | None = None
         self.on_entity_moved: EntityMoved | None = None
+        self.on_route_point_moved: RoutePointMoved | None = None
+        self.on_route_point_selected: RoutePointSelected | None = None
         self._suppress_moves = False
+        self._suppress_route_events = False
         self._heatmap_item: QGraphicsPixmapItem | None = None
         self._coverage_item: QGraphicsPixmapItem | None = None
         self._field_legend_item: QGraphicsPixmapItem | None = None
@@ -105,6 +148,13 @@ class SceneView(QGraphicsView):
         self._entity_labels: dict[str, QGraphicsSimpleTextItem] = {}
         self._trajectory_path: QGraphicsPathItem | None = None
         self._trajectory_markers: list[QGraphicsEllipseItem] = []
+        self._route_positions: list[Vec3] = []
+        self._route_point_items: list[_RoutePointItem] = []
+        self._route_event_generation = 0
+        self._pending_route_moves: dict[int, Vec3] = {}
+        self._route_move_delivery_scheduled = False
+        self._editable_route_valid = True
+        self._editable_route_error: str | None = None
 
     def _point(self, position: Vec3) -> QPointF:
         assert self.model_scene is not None
@@ -145,6 +195,53 @@ class SceneView(QGraphicsView):
                     label.setPos(item.pos() + offset)
                 return
 
+    def _route_point_moved(self, index: int, point: QPointF) -> None:
+        if (
+            self._suppress_route_events
+            or self.model_scene is None
+            or self.on_route_point_moved is None
+            or not 0 <= index < len(self._route_positions)
+        ):
+            return
+        position = self._model_position(point, self._route_positions[index].z)
+        self._route_positions[index] = position
+        clamped_point = self._point(position)
+        if self._route_point_items[index].pos() != clamped_point:
+            self._suppress_route_events = True
+            try:
+                self._route_point_items[index].setPos(clamped_point)
+            finally:
+                self._suppress_route_events = False
+        if self._trajectory_path is not None:
+            points = [self._point(route_position) for route_position in self._route_positions]
+            path = QPainterPath(points[0])
+            for route_point in points[1:]:
+                path.lineTo(route_point)
+            self._trajectory_path.setPath(path)
+        self._pending_route_moves[index] = position
+        if not self._route_move_delivery_scheduled:
+            self._route_move_delivery_scheduled = True
+            generation = self._route_event_generation
+            QTimer.singleShot(0, lambda: self._deliver_route_moves(generation))
+
+    def _deliver_route_moves(self, generation: int) -> None:
+        """Notify the model only after the active QGraphicsItem callback returns."""
+        if generation != self._route_event_generation:
+            return
+        self._route_move_delivery_scheduled = False
+        pending = self._pending_route_moves
+        self._pending_route_moves = {}
+        callback = self.on_route_point_moved
+        if callback is None:
+            return
+        for index, position in pending.items():
+            callback(index, position)
+
+    def _route_point_selected(self, index: int) -> None:
+        if self._suppress_route_events or self.on_route_point_selected is None:
+            return
+        self.on_route_point_selected(index)
+
     def set_options(self, *, show_labels: bool, show_rays: bool) -> None:
         self._show_labels = show_labels
         self._show_rays = show_rays
@@ -175,6 +272,8 @@ class SceneView(QGraphicsView):
         self._entity_labels = {}
         self._trajectory_path = None
         self._trajectory_markers = []
+        self._route_positions = []
+        self._route_point_items = []
         room_width = scene.room_size.x * self.scale_px_m
         room_height = scene.room_size.y * self.scale_px_m
         self.graphics_scene.setSceneRect(0, 0, room_width, room_height)
@@ -282,12 +381,19 @@ class SceneView(QGraphicsView):
 
     def clear_trajectory(self) -> None:
         """Remove the prototype trajectory overlay, if present."""
+        self._route_event_generation += 1
+        self._pending_route_moves = {}
+        self._route_move_delivery_scheduled = False
         if self._trajectory_path is not None:
             self.graphics_scene.removeItem(self._trajectory_path)
         for marker in self._trajectory_markers:
             self.graphics_scene.removeItem(marker)
         self._trajectory_path = None
         self._trajectory_markers = []
+        self._route_positions = []
+        self._route_point_items = []
+        self._editable_route_valid = True
+        self._editable_route_error = None
 
     def show_trajectory(self, positions: Sequence[Vec3]) -> None:
         """Draw one fixed top-down trajectory and all of its sample positions."""
@@ -329,6 +435,89 @@ class SceneView(QGraphicsView):
             else:
                 marker.setRect(-3.0, -3.0, 6.0, 6.0)
             marker.setZValue(12 if active else 11)
+
+    def show_editable_route(
+        self,
+        positions: Sequence[Vec3],
+        *,
+        selected_index: int = 0,
+    ) -> None:
+        """Render selectable, draggable route control points and their polyline."""
+        self.clear_trajectory()
+        if self.model_scene is None or not positions:
+            return
+        self._route_positions = list(positions)
+        points = [self._point(position) for position in positions]
+        path = QPainterPath(points[0])
+        for point in points[1:]:
+            path.lineTo(point)
+        self._trajectory_path = self.graphics_scene.addPath(
+            path,
+            QPen(QColor("#38bdf8"), 2.5, Qt.PenStyle.SolidLine),
+        )
+        self._trajectory_path.setZValue(10)
+        self._suppress_route_events = True
+        try:
+            for index, point in enumerate(points):
+                marker = _RoutePointItem(
+                    index,
+                    self._route_point_moved,
+                    self._route_point_selected,
+                )
+                marker.setPos(point)
+                self.graphics_scene.addItem(marker)
+                marker.setSelected(index == selected_index)
+                self._trajectory_markers.append(marker)
+                self._route_point_items.append(marker)
+        finally:
+            self._suppress_route_events = False
+
+    def set_editable_route_validity(
+        self,
+        valid: bool,
+        message: str | None = None,
+    ) -> None:
+        """Show validation state without rebuilding live route graphics items."""
+        self._editable_route_valid = bool(valid)
+        self._editable_route_error = message
+        if self._trajectory_path is not None and self._route_point_items:
+            color = QColor("#38bdf8" if valid else "#ef4444")
+            style = Qt.PenStyle.SolidLine if valid else Qt.PenStyle.DashLine
+            self._trajectory_path.setPen(QPen(color, 2.5, style))
+        for index, item in enumerate(self._route_point_items):
+            selected = item.isSelected()
+            if selected:
+                color = "#facc15"
+            else:
+                color = "#0ea5e9" if valid else "#ef4444"
+            item.setBrush(QBrush(QColor(color)))
+            if valid or not message:
+                item.setToolTip(f"Route point {index + 1} · drag or use the form")
+            else:
+                item.setToolTip(f"Route invalid: {message}")
+
+    def select_route_point(self, index: int) -> None:
+        """Select one route point without recreating the route."""
+        if not 0 <= index < len(self._route_point_items):
+            return
+        self._suppress_route_events = True
+        try:
+            for item_index, item in enumerate(self._route_point_items):
+                item.setSelected(item_index == index)
+                item.setBrush(
+                    QBrush(
+                        QColor(
+                            "#facc15"
+                            if item_index == index
+                            else "#0ea5e9"
+                            if self._editable_route_valid
+                            else "#ef4444"
+                        )
+                    )
+                )
+                item.setZValue(14 if item_index == index else 13)
+        finally:
+            self._suppress_route_events = False
 
     @staticmethod
     def field_value_range(*arrays: np.ndarray) -> tuple[float, float]:

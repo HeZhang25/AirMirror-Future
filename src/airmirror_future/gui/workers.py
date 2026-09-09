@@ -25,6 +25,8 @@ from airmirror_future.experiments.xr_dynamic_room_mvp import (
     _pattern_hash,
     compute_adaptive_mvp,
 )
+from airmirror_future.experiments.xr_route import XRRouteExperiment
+from airmirror_future.experiments.xr_route_headless import compute_route_experiment
 from airmirror_future.optimization.coherent_focus import generate_coherent_target_pattern
 from airmirror_future.physics.ris_scattering import PRODUCTION_QUADRATURE_ORDER
 from airmirror_future.optimization.greedy import FeedbackGreedyOptimizer
@@ -344,9 +346,14 @@ class SmartSpaceRefreshWorker(_SmartSpacePhysicsWorker):
 class XRDynamicRoomWorker(_XRPhysicsWorker):
     """Cache three-mode XR links, then one Static-RIS Fast field map."""
 
-    def __init__(self, version: int) -> None:
+    def __init__(
+        self,
+        version: int,
+        route_experiment: XRRouteExperiment | None = None,
+    ) -> None:
         super().__init__()
         self.version = version
+        self.route_experiment = route_experiment
         self.signals = WorkerSignals()
         self._cancelled = threading.Event()
 
@@ -372,12 +379,21 @@ class XRDynamicRoomWorker(_XRPhysicsWorker):
                 except RuntimeError:
                     pass
 
-            mvp = compute_adaptive_mvp(
-                engine=engine,
-                model=model,
-                cancel_check=self._cancelled.is_set,
-                progress=link_progress,
-            )
+            if self.route_experiment is None:
+                mvp = compute_adaptive_mvp(
+                    engine=engine,
+                    model=model,
+                    cancel_check=self._cancelled.is_set,
+                    progress=link_progress,
+                )
+            else:
+                mvp = compute_route_experiment(
+                    self.route_experiment,
+                    engine=engine,
+                    model=model,
+                    cancel_check=self._cancelled.is_set,
+                    progress=link_progress,
+                )
             if self._cancelled.is_set():
                 return
             try:

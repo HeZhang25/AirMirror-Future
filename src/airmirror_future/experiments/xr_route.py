@@ -862,6 +862,42 @@ def _matching_scene_path(scene: Scene, scene_path: str | Path) -> Path:
     return resolved
 
 
+def _write_or_reuse_scene_snapshot(scene: Scene, destination: Path) -> Path:
+    resolved = destination.resolve()
+    if resolved.exists():
+        return _matching_scene_path(scene, resolved)
+    resolved.parent.mkdir(parents=True, exist_ok=True)
+    with resolved.open("x", encoding="utf-8") as handle:
+        handle.write(
+            json.dumps(
+                asdict(scene),
+                allow_nan=False,
+                ensure_ascii=False,
+                indent=2,
+            )
+            + "\n"
+        )
+    return resolved
+
+
+def _portable_scene_reference(
+    scene: Scene,
+    scene_path: Path,
+    route_destination: Path,
+) -> tuple[Path, str]:
+    """Return a relative Scene reference, copying across Windows drives."""
+    try:
+        reference = os.path.relpath(scene_path, route_destination.parent)
+        return scene_path, Path(reference).as_posix()
+    except ValueError:
+        portable_path = route_destination.with_name(
+            route_destination.stem + ".scene.json"
+        )
+        persisted = _write_or_reuse_scene_snapshot(scene, portable_path)
+        reference = os.path.relpath(persisted, route_destination.parent)
+        return persisted, Path(reference).as_posix()
+
+
 def _validated_scene_copy(scene: Scene) -> Scene:
     if not isinstance(scene, Scene) or scene.schema_version != 1:
         raise ValueError("XR route v1 requires an in-memory Scene v1")
@@ -1063,21 +1099,22 @@ def save_route_experiment(
             "use save_route_experiment_bundle for an in-memory Scene"
         )
     scene_path = _matching_scene_path(experiment.scene, experiment.scene_path)
-    destination = Path(path)
+    destination = Path(path).resolve()
     if destination.exists() and not overwrite:
         raise FileExistsError(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        reference = os.path.relpath(scene_path, destination.parent)
-    except ValueError as exc:
-        raise ValueError("scene and route document must be on the same filesystem") from exc
+    _, reference = _portable_scene_reference(
+        experiment.scene,
+        scene_path,
+        destination,
+    )
     document = {
         "schema_id": XR_ROUTE_SCHEMA_ID,
         "schema_version": XR_ROUTE_SCHEMA_VERSION,
         "experiment_id": experiment.experiment_id,
         "scene": {
             "kind": "scene_v1_reference",
-            "path": Path(reference).as_posix(),
+            "path": reference,
         },
         "trajectory": _route_payload(experiment.route),
         "sampling": _sampling_payload(experiment.sampling),
@@ -1121,23 +1158,15 @@ def save_route_experiment_bundle(
         raise ValueError("route and Scene snapshot paths must differ")
     try:
         os.path.relpath(scene_destination, route_destination.parent)
-    except ValueError as exc:
-        raise ValueError("scene and route document must be on the same filesystem") from exc
+    except ValueError:
+        scene_destination = route_destination.with_name(
+            route_destination.stem + ".scene.json"
+        )
 
-    if scene_destination.exists():
-        _matching_scene_path(experiment.scene, scene_destination)
-    else:
-        scene_destination.parent.mkdir(parents=True, exist_ok=True)
-        with scene_destination.open("x", encoding="utf-8") as handle:
-            handle.write(
-                json.dumps(
-                    asdict(experiment.scene),
-                    allow_nan=False,
-                    ensure_ascii=False,
-                    indent=2,
-                )
-                + "\n"
-            )
+    scene_destination = _write_or_reuse_scene_snapshot(
+        experiment.scene,
+        scene_destination,
+    )
     bound = create_route_experiment(
         experiment.scene,
         experiment.route,
