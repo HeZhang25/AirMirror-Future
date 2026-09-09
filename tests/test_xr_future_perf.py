@@ -12,7 +12,7 @@ from airmirror_future.optimization.coherent_focus import (
     generate_scene_aware_ris_only_pattern,
 )
 from airmirror_future.scenarios.smart_space import create_smart_space_scene
-from airmirror_future.simulation.engine import SimulationEngine
+from airmirror_future.simulation.engine import SimulationCancelled, SimulationEngine
 from airmirror_future.simulation.ground_truth import GroundTruthModel
 from airmirror_future.simulation.prepared_controller import (
     prepare_controller_field,
@@ -104,6 +104,25 @@ def test_prepared_link_owns_an_immutable_physics_snapshot() -> None:
     assert prepare_controller_link(scene).coefficient_identity != prepared.coefficient_identity
 
 
+def test_prepared_link_rejects_public_snapshot_mutation_as_a_semantic_input() -> None:
+    scene = create_smart_space_scene("Current")
+    pattern = generate_coherent_target_pattern(scene)
+    prepared = prepare_controller_link(scene)
+    before = prepared.evaluate(pattern)
+
+    prepared.scene.bandwidth_hz *= 2.0
+    prepared.tx.power_w *= 3.0
+    prepared.rx.noise_figure_db += 4.0
+    prepared.ris.reflection_efficiency = 0.0
+    prepared.ris.phase_bits = 3
+    prepared.ris.position = Vec3(1.0, 1.0, 1.0)
+
+    after = prepared.evaluate(pattern)
+    assert after == before
+    with pytest.raises(ValueError):
+        prepared.coefficients.setflags(write=True)
+
+
 def test_prepared_controller_rejects_ground_truth() -> None:
     scene = create_smart_space_scene("Current")
     with pytest.raises(ValueError, match="GroundTruthModel"):
@@ -189,6 +208,113 @@ def test_prepared_field_matches_reference_for_multiple_patterns() -> None:
             atol=2e-12,
         )
         np.testing.assert_allclose(actual.snr_db, reference.snr_db, rtol=2e-13, atol=2e-12)
+
+
+def test_prepared_field_public_mutation_cannot_change_evaluation_semantics() -> None:
+    scene = create_smart_space_scene("Current")
+    config = SimulationConfig(3, 2, batch_size=2)
+    pattern = generate_coherent_target_pattern(scene)
+    prepared = prepare_controller_field(scene, config)
+    before = prepared.evaluate(pattern)
+
+    prepared.scene.bandwidth_hz *= 2.0
+    prepared.scene.coverage_threshold_db += 100.0
+    prepared.scene.room_size = Vec3(20.0, 20.0, 4.0)
+    prepared.config.grid_width = 99
+    prepared.config.grid_height = 88
+    prepared.config.coverage_threshold_db = -100.0
+    prepared.tx.power_w *= 5.0
+    prepared.rx_template.noise_figure_db += 20.0
+    prepared.ris.reflection_efficiency = 0.0
+    prepared.ris.phase_bits = 4
+    prepared.ris.position = Vec3(2.0, 2.0, 2.0)
+    prepared.scene.walls[0].attenuation_db += 10.0
+    prepared.scene.obstacles[0].max_corner = Vec3(9.0, 7.0, 2.0)
+
+    after = prepared.evaluate(pattern)
+    np.testing.assert_array_equal(after.received_power_dbm, before.received_power_dbm)
+    np.testing.assert_array_equal(after.snr_db, before.snr_db)
+    assert after.coverage_percent == before.coverage_percent
+    for values in (
+        prepared.coefficients,
+        prepared.baseline_channels,
+        prepared.x_m,
+        prepared.y_m,
+    ):
+        with pytest.raises(ValueError):
+            values.setflags(write=True)
+
+
+def test_prepared_field_progress_is_exact_and_monotonic() -> None:
+    scene = create_smart_space_scene("Current")
+    progress: list[tuple[int, int]] = []
+    prepared = prepare_controller_field(
+        scene,
+        SimulationConfig(3, 2, batch_size=2),
+        receiver_batch_size=2,
+        progress=lambda done, total: progress.append((done, total)),
+    )
+    assert progress == [(0, 6), (2, 6), (4, 6), (6, 6)]
+    assert prepared.receiver_batch_size == 2
+
+
+def test_prepared_field_progress_callback_alias_is_backward_compatible() -> None:
+    scene = create_smart_space_scene("Current")
+    progress: list[tuple[int, int]] = []
+    prepare_controller_field(
+        scene,
+        SimulationConfig(2, 2, batch_size=2),
+        progress_callback=lambda done, total: progress.append((done, total)),
+    )
+    assert progress == [(0, 4), (2, 4), (4, 4)]
+    with pytest.raises(ValueError, match="only one"):
+        prepare_controller_field(
+            scene,
+            SimulationConfig(2, 2),
+            progress=lambda _done, _total: None,
+            progress_callback=lambda _done, _total: None,
+        )
+
+
+def test_prepared_field_cancels_at_batch_boundary_without_returning_partial() -> None:
+    scene = create_smart_space_scene("Current")
+    progress: list[tuple[int, int]] = []
+    cancelled = False
+
+    def record(done: int, total: int) -> None:
+        nonlocal cancelled
+        progress.append((done, total))
+        if done == 2:
+            cancelled = True
+
+    with pytest.raises(SimulationCancelled, match="cancelled"):
+        prepare_controller_field(
+            scene,
+            SimulationConfig(3, 2, batch_size=2),
+            receiver_batch_size=2,
+            progress=record,
+            cancel_check=lambda: cancelled,
+        )
+    assert progress == [(0, 6), (2, 6)]
+
+
+def test_prepared_field_progress_exception_aborts_remaining_batches() -> None:
+    scene = create_smart_space_scene("Current")
+    progress: list[tuple[int, int]] = []
+
+    def fail(done: int, total: int) -> None:
+        progress.append((done, total))
+        if done == 2:
+            raise RuntimeError("GUI progress receiver failed")
+
+    with pytest.raises(RuntimeError, match="GUI progress receiver failed"):
+        prepare_controller_field(
+            scene,
+            SimulationConfig(3, 2, batch_size=2),
+            receiver_batch_size=2,
+            progress=fail,
+        )
+    assert progress == [(0, 6), (2, 6)]
 
 
 def test_prepared_field_applies_scene_profile_modifiers() -> None:

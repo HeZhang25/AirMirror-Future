@@ -1,0 +1,61 @@
+{
+  "schema_id": "airmirror_xr_future_perf_01_p0_bounded_diagnostic",
+  "schema_version": 1,
+  "task": "XR-FUTURE-PERF-01",
+  "status": "review-candidate bounded diagnostic",
+  "date": "2026-09-09",
+  "starting_d_sha": "e30139c0e570c8afa98655980e7b0b36caa5e043",
+  "c_dependency_sha": "53ca7a984e477974364d5a5f7861e80a3a8b0d3a",
+  "main_observed_sha": "4d7bfc66f7d05af731d884dd01a7bb619bdcb112",
+  "environment": {
+    "platform": "Windows x86_64",
+    "python": "3.11.4",
+    "numpy": "2.4.6",
+    "blas": "scipy-openblas 0.3.31.188.0 USE64BITINT",
+    "thread_environment": {
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1"
+    }
+  },
+  "pre_fix_diagnostic": {
+    "grid_8x6_runtime_s": 20.0446,
+    "grid_16x12_runtime_s": 76.7411,
+    "cause": "C final identity canonicalized and serialized the exact production quadrature parent array once per receiver point",
+    "staged_matrix_eight_receivers_s": 0.1830,
+    "staged_no_ris_baseline_one_receiver_s": 0.000494,
+    "staged_quadrature_canonical_json_once_s": 1.0122
+  },
+  "measurements": [
+    {
+      "grid": [8, 6],
+      "runtime_s": 2.2229,
+      "completed_receiver_points": 48,
+      "total_receiver_points": 48,
+      "coefficient_bytes": 2359296
+    },
+    {
+      "grid": [16, 12],
+      "runtime_s": 4.9226,
+      "completed_receiver_points": 192,
+      "total_receiver_points": 192,
+      "coefficient_bytes": 9437184
+    },
+    {
+      "grid": [48, 36],
+      "runtime_s": 37.0313,
+      "progress_completion_s": 37.0176,
+      "completed_receiver_points": 1728,
+      "total_receiver_points": 1728,
+      "coefficient_bytes": 84934656,
+      "stop_condition_s": 90.0,
+      "stop_condition_triggered": false
+    }
+  ],
+  "limitations": [
+    "This evidence does not overwrite or replace the original 27c1f8a benchmark evidence.",
+    "This host is not A's Python 3.14.3 / NumPy 2.4.4 integration host.",
+    "No conclusion is drawn about A's approximately 150-second incomplete build until A reruns this candidate."
+  ]
+}

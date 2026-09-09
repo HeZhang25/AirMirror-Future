@@ -22,6 +22,7 @@ from airmirror_future.ris.phase import (
 )
 from airmirror_future.scenarios.smart_space import create_smart_space_scene
 from airmirror_future.simulation.coefficient_identity import (
+    _quadrature_canonical_json,
     controller_ris_coefficient_identity,
 )
 from airmirror_future.simulation.engine import SimulationEngine
@@ -182,6 +183,53 @@ def test_custom_quadrature_array_mutation_invalidates_identity() -> None:
     ) != controller_ris_coefficient_identity(
         scene, engine, tx, rx, ris, quadrature_spec=changed, **kwargs
     )
+
+
+def test_cached_quadrature_serialization_preserves_exact_identity() -> None:
+    scene = create_smart_space_scene("Future")
+    engine = SimulationEngine()
+    tx, rx, ris = scene.transmitter(), scene.receiver(), scene.ris_surfaces[0]
+    spec = midpoint_quadrature(ris, 8, 8)
+    kwargs = {
+        "quadrature_spec": spec,
+        "quadrature_policy_id": "midpoint_8x8_per_control_patch",
+        "quadrature_policy_version": "1",
+    }
+    direct = controller_ris_coefficient_identity(
+        scene, engine, tx, rx, ris, **kwargs
+    )
+    cached = controller_ris_coefficient_identity(
+        scene,
+        engine,
+        tx,
+        rx,
+        ris,
+        _quadrature_json=_quadrature_canonical_json(
+            spec,
+            kwargs["quadrature_policy_id"],
+            kwargs["quadrature_policy_version"],
+        ),
+        **kwargs,
+    )
+    assert cached == direct
+
+    direct_production = controller_ris_coefficient_identity(
+        scene, engine, tx, rx, ris
+    )
+    cached_production = controller_ris_coefficient_identity(
+        scene,
+        engine,
+        tx,
+        rx,
+        ris,
+        _quadrature_json=_quadrature_canonical_json(
+            spec,
+            "midpoint_8x8_per_control_patch",
+            "1",
+            array_identity="derived_by_signed_production_policy",
+        ),
+    )
+    assert cached_production == direct_production
 
 
 def test_fnd_t21_matrix_covers_three_generations_and_four_geometries() -> None:
