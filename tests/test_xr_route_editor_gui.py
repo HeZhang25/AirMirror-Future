@@ -282,6 +282,71 @@ def test_route_point_mouse_drag_previews_then_commits_once(windows, qapp) -> Non
     assert window._xr_selected_waypoint_index == index
 
 
+def test_ris_drag_and_route_selection_are_visually_exclusive(windows, qapp) -> None:
+    window = windows()
+    window.show()
+    qapp.processEvents()
+    route_index = 1
+    window.scene_view.select_route_point(route_index)
+    route_item = window.scene_view._route_point_items[route_index]
+    route_positions = tuple(item.pos() for item in window.scene_view._route_point_items)
+    ris = window._xr_editor_scene.ris_surfaces[0]
+    ris_item = window.scene_view._entity_items[ris.id]
+
+    assert route_item.isSelected()
+    assert route_item.brush().color().name() == "#facc15"
+
+    start = window.scene_view.mapFromScene(ris_item.scenePos())
+    target = window.scene_view.mapFromScene(ris_item.scenePos() + QPointF(20.0, 0.0))
+    QTest.mousePress(
+        window.scene_view.viewport(),
+        Qt.MouseButton.LeftButton,
+        pos=start,
+    )
+    QTest.mouseMove(window.scene_view.viewport(), target, delay=1)
+    QTest.mouseRelease(
+        window.scene_view.viewport(),
+        Qt.MouseButton.LeftButton,
+        pos=target,
+    )
+    qapp.processEvents()
+
+    assert ris_item.isSelected()
+    assert ris_item.pen().color().name() == "#facc15"
+    assert not route_item.isSelected()
+    assert route_item.brush().color().name() == "#0ea5e9"
+    assert (
+        tuple(item.pos() for item in window.scene_view._route_point_items)
+        == route_positions
+    )
+    assert len(window.scene_view.graphics_scene.selectedItems()) == 1
+
+    window._xr_route_point_selected(route_index)
+
+    assert route_item.isSelected()
+    assert route_item.brush().color().name() == "#facc15"
+    assert not ris_item.isSelected()
+    assert ris_item.pen().color().name() == "#ffffff"
+    assert len(window.scene_view.graphics_scene.selectedItems()) == 1
+
+
+def test_valid_current_dual_ris_route_stays_blue_when_run_is_blocked(windows) -> None:
+    window = windows()
+
+    window._xr_add_ris()
+
+    assert len(window._xr_editor_scene.ris_surfaces) == 2
+    assert all(ris.generation == "Current" for ris in window._xr_editor_scene.ris_surfaces)
+    assert window._xr_route_valid
+    assert "Route valid" in window.xr_route_status.text()
+    assert "Run 3 Modes unavailable" in window.xr_route_status.text()
+    assert "joint dual-RIS backend pending C/D" in window.xr_route_status.text()
+    assert window.scene_view._trajectory_path.pen().color().name() == "#38bdf8"
+    assert window.scene_view._trajectory_path.pen().style() == Qt.PenStyle.SolidLine
+    assert not window.xr_run_button.isEnabled()
+    assert not window.xr_future_field_button.isEnabled()
+
+
 def test_dual_ris_editor_has_independent_ids_state_and_movement(windows) -> None:
     window = windows()
     window.xr_template_combo.setCurrentIndex(

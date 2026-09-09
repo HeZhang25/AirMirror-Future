@@ -762,10 +762,9 @@ class MainWindow(QMainWindow):
         self.xr_timeline.setEnabled(ready)
         if self._xr_editor_active:
             backend_ready = self.trajectory_backend is not None
-            dual_future = (
+            legacy_run_ready = (
                 self._xr_editor_scene is not None
-                and self._xr_is_full_future_scene()
-                and sum(ris.enabled for ris in self._xr_editor_scene.ris_surfaces) == 2
+                and self._xr_legacy_run_block_reason(self._xr_editor_scene) is None
             )
             idle = not self._xr_demo_start_pending and self._xr_active_worker is None
             self.xr_run_button.setEnabled(
@@ -773,7 +772,7 @@ class MainWindow(QMainWindow):
                 and self._xr_trajectory is not None
                 and self._xr_route_valid
                 and idle
-                and not dual_future
+                and legacy_run_ready
             )
             self.xr_cancel_button.setEnabled(
                 (self._xr_demo_start_pending or self._xr_active_worker is not None)
@@ -881,6 +880,21 @@ class MainWindow(QMainWindow):
     def _xr_joint_ris_backend_pending(scene: Scene) -> bool:
         enabled = [ris for ris in scene.ris_surfaces if ris.enabled]
         return len(scene.ris_surfaces) == 2 or len(enabled) != 1
+
+    @classmethod
+    def _xr_legacy_run_block_reason(cls, scene: Scene) -> str | None:
+        """Report simulation availability independently of route validity."""
+        if not cls._xr_joint_ris_backend_pending(scene):
+            return None
+        enabled = [ris for ris in scene.ris_surfaces if ris.enabled]
+        full_future = 1 <= len(enabled) <= 2 and all(
+            ris.generation == "Future" for ris in enabled
+        )
+        if len(scene.ris_surfaces) == 2:
+            if full_future:
+                return "Run 3 Modes unavailable; use Build route fields for dual Future"
+            return "Run 3 Modes unavailable; joint dual-RIS backend pending C/D"
+        return "Run 3 Modes unavailable; exactly one RIS must be enabled"
 
     def _xr_is_full_future_scene(self) -> bool:
         if self._xr_editor_scene is None:
@@ -1048,6 +1062,7 @@ class MainWindow(QMainWindow):
         identifier = self.xr_ris_combo.currentData()
         if isinstance(identifier, str) and identifier:
             self._xr_selected_ris_id = identifier
+            self.scene_view.select_entity(identifier)
             self._sync_xr_ris_controls()
             if self._xr_result is not None:
                 self._set_xr_sample(
@@ -1120,7 +1135,7 @@ class MainWindow(QMainWindow):
         scene.ris_surfaces = updated
         self._xr_editor_inputs_changed("selected RIS changed")
 
-    def _sync_xr_point_form(self) -> None:
+    def _sync_xr_point_form(self, *, select_canvas: bool = True) -> None:
         if self._xr_trajectory is None or self._xr_editor_scene is None:
             return
         index = max(
@@ -1162,7 +1177,8 @@ class MainWindow(QMainWindow):
         self.xr_point_label.setText(
             f"Point {index + 1}/{len(self._xr_trajectory.points)} · {waypoint.id}"
         )
-        self.scene_view.select_route_point(index)
+        if select_canvas:
+            self.scene_view.select_route_point(index)
         self._xr_update_timing_controls()
 
     def _xr_update_timing_controls(self, *_args: object) -> None:
@@ -1367,44 +1383,24 @@ class MainWindow(QMainWindow):
         self.xr_field_status.setText("Field map: pending · no stale field displayed")
         route_valid = False
         route_error: str | None = None
+        route_summary = ""
         try:
             if self._xr_editor_scene is None or self._xr_trajectory is None:
                 raise ValueError("XR editor inputs are unavailable")
-            if self._xr_joint_ris_backend_pending(
-                self._xr_editor_scene
-            ) and not self._xr_is_full_future_scene():
-                enabled_count = sum(
-                    ris.enabled for ris in self._xr_editor_scene.ris_surfaces
-                )
-                route_error = (
-                    "joint dual-RIS complex-channel backend pending C/D"
-                    if len(self._xr_editor_scene.ris_surfaces) == 2
-                    else "exactly one RIS must be enabled for the current backend"
-                )
-                self.xr_route_status.setText(
-                    "RIS editing ready · run blocked · "
-                    f"{len(self._xr_editor_scene.ris_surfaces)} instances / "
-                    f"{enabled_count} enabled · {route_error}"
-                )
-                self.xr_route_status.setStyleSheet(
-                    "color:#b45309;font-weight:600"
-                )
-            elif self.trajectory_backend is None:
+            if self.trajectory_backend is None:
                 raise TrajectoryBackendUnavailable(
                     f"{EXPECTED_TRAJECTORY_INTERFACE_VERSION} adapter is not connected"
                 )
-            else:
-                snapshot = self.trajectory_backend.validate(
-                    self._xr_editor_scene,
-                    self._xr_trajectory,
-                )
-                samples = self.trajectory_backend.sample(snapshot)
-                self.xr_route_status.setText(
-                    f"Route valid · {self.trajectory_backend.interface_version} · "
-                    f"{len(self._xr_trajectory.points)} points · {len(samples)} samples"
-                )
-                self.xr_route_status.setStyleSheet("color:#15803d")
-                route_valid = True
+            snapshot = self.trajectory_backend.validate(
+                self._xr_editor_scene,
+                self._xr_trajectory,
+            )
+            samples = self.trajectory_backend.sample(snapshot)
+            route_summary = (
+                f"Route valid · {self.trajectory_backend.interface_version} · "
+                f"{len(self._xr_trajectory.points)} points · {len(samples)} samples"
+            )
+            route_valid = True
         except TrajectoryBackendUnavailable as exc:
             self.xr_route_status.setText(
                 f"Route draft editable · pending B interface: {exc}"
@@ -1415,18 +1411,30 @@ class MainWindow(QMainWindow):
             self.xr_route_status.setText(f"Route invalid: {exc}")
             self.xr_route_status.setStyleSheet("color:#b91c1c;font-weight:600")
             route_error = str(exc)
+        if route_valid and self._xr_editor_scene is not None:
+            run_block_reason = self._xr_legacy_run_block_reason(
+                self._xr_editor_scene
+            )
+            if run_block_reason is None:
+                self.xr_route_status.setText(route_summary)
+                self.xr_route_status.setStyleSheet("color:#15803d")
+            else:
+                self.xr_route_status.setText(
+                    f"{route_summary} · {run_block_reason}"
+                )
+                self.xr_route_status.setStyleSheet(
+                    "color:#b45309;font-weight:600"
+                )
         self._xr_route_valid = route_valid
         self.xr_sample_label.setText(f"Pending run · {reason}")
         self._set_xr_controls_ready(False)
-        dual_future = (
-            route_valid
-            and self._xr_editor_scene is not None
-            and sum(ris.enabled for ris in self._xr_editor_scene.ris_surfaces) == 2
-            and self._xr_is_full_future_scene()
+        legacy_run_ready = (
+            self._xr_editor_scene is not None
+            and self._xr_legacy_run_block_reason(self._xr_editor_scene) is None
         )
         # The legacy three-mode worker remains single-RIS; dual Future uses
         # the prepared fixed-field worker below.
-        self.xr_run_button.setEnabled(route_valid and not dual_future)
+        self.xr_run_button.setEnabled(route_valid and legacy_run_ready)
         self.xr_future_field_button.setEnabled(
             route_valid
             and self._xr_is_full_future_scene()
@@ -1437,7 +1445,9 @@ class MainWindow(QMainWindow):
         else:
             if self._xr_editor_scene is not None:
                 self.scene_view.model_scene = self._xr_editor_scene
-            self._sync_xr_point_form()
+            # The active graphics item already owns the selection during a
+            # release-time commit. Updating form values must not steal it.
+            self._sync_xr_point_form(select_canvas=False)
             self._sync_xr_ris_controls()
         self.scene_view.set_editable_route_validity(route_valid, route_error)
         self.statusBar().showMessage(
@@ -1657,6 +1667,11 @@ class MainWindow(QMainWindow):
                 raise TrajectoryBackendUnavailable(
                     "three-mode run waits for the external B trajectory backend"
                 )
+            run_block_reason = self._xr_legacy_run_block_reason(
+                self._xr_editor_scene
+            )
+            if run_block_reason is not None:
+                raise ValueError(run_block_reason)
             snapshot = self.trajectory_backend.validate(
                 self._xr_editor_scene,
                 self._xr_trajectory,
