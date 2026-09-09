@@ -274,6 +274,8 @@ def test_runner_smoke_writes_partial_c2_artifacts_and_refuses_overwrite(tmp_path
     assert {row["pattern_seed"] for row in rows} == {""}
     assert len({row["series_identity"] for row in rows}) == 2
     assert len({row["pattern_hash"] for row in rows}) == 2
+    assert all(row["coefficient_model_identity"].startswith("sha256:") for row in rows)
+    assert len({row["coefficient_model_identity"] for row in rows}) >= 6
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
     assert summary["provenance_status"] == "partial"
     assert summary["blockage_mode"] == "uniform_scalar_or_none"

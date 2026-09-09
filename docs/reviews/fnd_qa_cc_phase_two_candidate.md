@@ -52,3 +52,18 @@ output directory and record the new coefficient identity and implementation SHA.
 
 本文件不自行宣布 FND-QA-CC/Foundation Verified。仍需非作者 D 对精确候选 SHA、T21/T22 oracle、
 identity mutation/no-leak、三代结果和完整回归做独立复核；维护者决定 PR merge 与正式 closure。
+
+## 独立复核差异修正（candidate follow-up）
+
+- custom `PropagationProfile` 的 identity 现在保留实际两段 modifier，并纳入完整 canonical
+  environment collection（包括 room bounds、evaluation height、Scene schema 与实体几何），因此
+  未声明 dependency projection 的 Profile 不会因场景 mutation 发生 identity collision。
+- XR Dynamic/Route 的 run-level provenance 不再把 initial receiver 的单一 transfer identity
+  冒充整条 trajectory；No-RIS 行为空值，含 RIS 行按该行实际 receiver position 重新计算
+  `controller_ris_coefficient_identity`。command hash 仍独立记录 `Gamma_cmd`。
+- QA-AP raw rows 记录每个 generation/geometry/evaluation receiver 的 canonical coefficient identity；
+  run-level provenance 保持 partial/pending，不再写固定 candidate 字符串。
+- T21/T22 focused matrix 覆盖 Current/Advanced/Future × default/near-field/oblique/off-focus，
+  并保留 zero/nonfinite、candidate ordering/strict-better/first-wins、legacy API 与 custom-profile
+  mutation tests。测试证据仅表示已执行的 focused checks；正式 closure 仍需 D 核对原始输出与
+  operation-count-aware oracle。
