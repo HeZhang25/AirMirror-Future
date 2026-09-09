@@ -37,8 +37,8 @@ python -m airmirror_future
 1. 在 `Scenario` 选择 `XR Scene & Route Editor · Prototype`。
 2. 点击 `Load Scene`，打开 `scenes/future_dual_ris_demo.json`。
 3. 在画布中直接拖动 TX、RX、两块 RIS 或蓝色路线控制点；释放鼠标后坐标提交到模型并使旧场图失效。也可在左侧选择 `ris-north` / `ris-east` 后精确输入坐标并点击 `Apply selected RIS`。
-4. 保持 `高速 1×1 · prepared` 和 `8×6 · quick Windows gate`，点击 `Build field · fast 1×1 · 8×6`。
-5. 完成后切换 `No RIS`、`Static RIS`、`Adaptive RIS`。右侧 pattern 面板显示下拉框当前所选 RIS 的独立命令；单击画布中的 RIS 也会同步选择。
+4. 保持 `高速 1×1 · prepared` 和 `8×6 · quick Windows gate`，点击 `Build route fields · fast 1×1 · 8×6`。程序只准备一次空间系数矩阵，然后对路线每个采样时刻的唯一 Adaptive 命令求值；进度条也包含这些逐时刻求值。
+5. 完成后默认进入 `Adaptive RIS`，拖动时间轴即可查看每个采样时刻对应的已缓存场图。`No RIS` 和 `Static RIS` 是固定全房间场图，不会随时间轴改变。右侧 pattern 面板显示下拉框当前所选 RIS 的独立命令；单击画布中的 RIS 也会同步选择，但不会移动 RX。
 6. 要检查单 RIS 退化，在下拉框选择一块 RIS、取消 `Enabled` 并应用；重新计算前旧结果会被明确清除。双 RIS Future 使用 prepared 场图入口，旧的 `Run 3 Modes` 入口会保持禁用。
 
 界面仍标记为 non-release XR Editor Prototype；8×6 是快速 Windows 验收网格，不代表完整

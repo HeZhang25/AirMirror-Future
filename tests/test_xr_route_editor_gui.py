@@ -407,16 +407,30 @@ def test_dual_static_pattern_view_uses_selected_ris_complete_command(
             (np.array(commanded, copy=True), kwargs["pattern_source"])
         ),
     )
+    window.scene_view.load_scene(scene)
+    window._sync_xr_ris_controls()
+    displaced_rx = replace(scene.receiver().position, x=6.25, y=4.75)
+    window.scene_view.set_entity_visual_position(scene.receiver().id, displaced_rx)
+    rx_position_before_ris_selection = window.scene_view._entity_items[
+        scene.receiver().id
+    ].pos()
 
     window._xr_selected_ris_id = "ris-east"
-    window._set_xr_sample(0)
+    window._set_xr_sample(0, update_receiver_position=False)
     assert np.array_equal(observed[-1][0], second_pattern)
     assert "ris-east" in observed[-1][1]
+    assert (
+        window.scene_view._entity_items[scene.receiver().id].pos()
+        == rx_position_before_ris_selection
+    )
 
-    window._xr_selected_ris_id = "ris-north"
-    window._set_xr_sample(0)
+    window._entity_selected("ris-north")
     assert np.array_equal(observed[-1][0], first_pattern)
     assert "ris-north" in observed[-1][1]
+    assert (
+        window.scene_view._entity_items[scene.receiver().id].pos()
+        == rx_position_before_ris_selection
+    )
 
 
 def test_editor_loads_an_external_scene_v1(
