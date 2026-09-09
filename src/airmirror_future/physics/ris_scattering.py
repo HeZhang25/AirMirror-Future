@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -16,7 +17,71 @@ from airmirror_future.ris.quadrature import QuadratureSpec, midpoint_quadrature
 PRODUCTION_QUADRATURE_POLICY_ID = "midpoint_8x8_per_control_patch"
 PRODUCTION_QUADRATURE_POLICY_VERSION = "1"
 PRODUCTION_QUADRATURE_ORDER = 8
+FAST_QUADRATURE_POLICY_ID = "midpoint_1x1_per_control_patch"
+FAST_QUADRATURE_POLICY_VERSION = "1"
 _MAX_POINT_SAMPLE_PAIRS = 262_144
+
+
+@dataclass(frozen=True, slots=True)
+class RISCoefficientModel:
+    """Named aperture-reduction model used consistently by Focus and Engine."""
+
+    model_id: str
+    model_version: str
+    quadrature_policy_id: str
+    quadrature_policy_version: str
+    quadrature_order_x: int
+    quadrature_order_y: int
+
+    def __post_init__(self) -> None:
+        for name in (
+            "model_id",
+            "model_version",
+            "quadrature_policy_id",
+            "quadrature_policy_version",
+        ):
+            if not isinstance(getattr(self, name), str) or not getattr(self, name):
+                raise ValueError(f"{name} must be a non-empty string")
+        for name in ("quadrature_order_x", "quadrature_order_y"):
+            value = getattr(self, name)
+            if isinstance(value, (bool, np.bool_)) or not isinstance(
+                value, (int, np.integer)
+            ) or value <= 0:
+                raise ValueError(f"{name} must be a positive integer")
+
+    @property
+    def identity(self) -> str:
+        return f"{self.model_id}/{self.model_version}"
+
+    @property
+    def quadrature_identity(self) -> str:
+        return f"{self.quadrature_policy_id}/{self.quadrature_policy_version}"
+
+    def quadrature_spec(self, ris: RISSurface) -> QuadratureSpec:
+        return midpoint_quadrature(
+            ris,
+            order_x=self.quadrature_order_x,
+            order_y=self.quadrature_order_y,
+        )
+
+
+PRODUCTION_RIS_COEFFICIENT_MODEL = RISCoefficientModel(
+    model_id="finite_aperture_bistatic_control_coefficients_m8",
+    model_version="1",
+    quadrature_policy_id=PRODUCTION_QUADRATURE_POLICY_ID,
+    quadrature_policy_version=PRODUCTION_QUADRATURE_POLICY_VERSION,
+    quadrature_order_x=PRODUCTION_QUADRATURE_ORDER,
+    quadrature_order_y=PRODUCTION_QUADRATURE_ORDER,
+)
+
+FAST_1X1_RIS_COEFFICIENT_MODEL = RISCoefficientModel(
+    model_id="control_patch_center_bistatic_coefficients",
+    model_version="1",
+    quadrature_policy_id=FAST_QUADRATURE_POLICY_ID,
+    quadrature_policy_version=FAST_QUADRATURE_POLICY_VERSION,
+    quadrature_order_x=1,
+    quadrature_order_y=1,
+)
 
 
 def _production_quadrature_spec(ris: RISSurface) -> QuadratureSpec:
@@ -26,6 +91,15 @@ def _production_quadrature_spec(ris: RISSurface) -> QuadratureSpec:
         order_x=PRODUCTION_QUADRATURE_ORDER,
         order_y=PRODUCTION_QUADRATURE_ORDER,
     )
+
+
+def _quadrature_spec_for_model(
+    ris: RISSurface,
+    coefficient_model: RISCoefficientModel,
+) -> QuadratureSpec:
+    if not isinstance(coefficient_model, RISCoefficientModel):
+        raise ValueError("coefficient_model must be a RISCoefficientModel")
+    return coefficient_model.quadrature_spec(ris)
 
 
 def _require_production_quadrature(
@@ -228,22 +302,42 @@ def ris_control_coefficients(
     ris: RISSurface,
     frequency_hz: float,
     *,
+    coefficient_model: RISCoefficientModel | None = None,
     quadrature_spec: QuadratureSpec | None = None,
 ) -> np.ndarray:
-    """Return the pure M8 geometry/propagation coefficient per control patch.
+    """Return the pure geometry/propagation coefficient per control patch.
 
     Reflection efficiency and commanded/actual phase belong to ``Gamma`` and
-    are intentionally excluded.  The reduction uses the same signed midpoint
-    8x8 aperture integration and parent-major ordering as production scattering.
+    are intentionally excluded.  The default remains signed production M8.
+    Callers may explicitly select the named 1x1 model, which samples each
+    control-patch centre and applies the complete patch area exactly once.
     """
     if ris.active:
         raise NotImplementedError("active RIS requires an explicit power and noise model")
     if not ris.enabled:
         return np.zeros(ris.cell_count, dtype=complex)
-    spec = _require_production_quadrature(
-        ris,
-        _production_quadrature_spec(ris) if quadrature_spec is None else quadrature_spec,
+    active_model = (
+        PRODUCTION_RIS_COEFFICIENT_MODEL
+        if coefficient_model is None
+        else coefficient_model
     )
+    if not isinstance(active_model, RISCoefficientModel):
+        raise ValueError("coefficient_model must be a RISCoefficientModel")
+    spec = (
+        _quadrature_spec_for_model(ris, active_model)
+        if quadrature_spec is None
+        else quadrature_spec
+    )
+    if spec.control_count != ris.cell_count:
+        raise ValueError("quadrature must have one parent group per control patch")
+    if (
+        spec.rule != "midpoint"
+        or spec.order_x != active_model.quadrature_order_x
+        or spec.order_y != active_model.quadrature_order_y
+    ):
+        raise ValueError(
+            "RIS coefficient quadrature does not match the selected coefficient model"
+        )
     return _ris_control_coefficients_for_quadrature(
         tx, receiver_position, receiver_gain_linear, ris, frequency_hz, spec
     )
