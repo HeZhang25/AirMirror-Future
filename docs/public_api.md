@@ -90,6 +90,30 @@ patterns 在像素循环前只验证一次。
 
 ## 3. RIS API
 
+双 RIS 协调使用独立的 Controller-only helper：
+
+```python
+generate_dual_ris_coordinated_patterns(
+    scene: Scene,
+    *,
+    engine: SimulationEngine | None = None,
+    ris_ids: tuple[str, ...] | list[str] | None = None,
+    max_rounds: int = 4,
+) -> DualRISFocusResult
+
+evaluate_dual_ris_command(
+    scene: Scene,
+    patterns: Mapping[str, np.ndarray],
+    *,
+    engine: SimulationEngine | None = None,
+) -> ChannelResult
+```
+
+helper 最多处理两个独立 RIS；未指定 `ris_ids` 时取前两个 enabled RIS，显式传入 disabled RIS 会安全
+忽略它。结果仍由现有 Engine 计算 `baseline + h1 + h2`，功率取总复数信道模平方；不增加 RIS 间
+反射或互耦。连续模式以同一 baseline 目标相位确定性对齐每个 RIS，有限 bit 仅在现有 common-offset
+合法命令族内做有界坐标改进，达到无严格改进或 `max_rounds` 即停止。Controller/GT 隔离保持不变。
+
 ```python
 validate_commanded_pattern(
     ris: RISSurface,
