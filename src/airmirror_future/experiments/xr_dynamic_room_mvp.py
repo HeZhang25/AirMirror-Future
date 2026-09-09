@@ -32,6 +32,7 @@ from airmirror_future.physics.ris_scattering import (
 )
 from airmirror_future.scenarios.smart_space import create_smart_space_scene
 from airmirror_future.simulation.engine import SimulationCancelled, SimulationEngine
+from airmirror_future.simulation.coefficient_identity import controller_ris_coefficient_identity
 from airmirror_future.simulation.ground_truth import ControllerModel
 
 
@@ -608,6 +609,7 @@ def _adaptive_csv_row(
     provenance: dict[str, object],
     timestamp: str,
     baseline_received_power_dbm: float,
+    engine: SimulationEngine,
 ) -> dict[str, object]:
     ris = scene.ris_surfaces[0]
     point = sample.trajectory
@@ -617,6 +619,16 @@ def _adaptive_csv_row(
         ADAPTIVE_RIS_MODE: "per_sample_coherent_target_focus",
     }[sample.mode]
     row = dict(provenance)
+    if sample.mode == NO_RIS_MODE:
+        row["coefficient_model_identity"] = ""
+    else:
+        row["coefficient_model_identity"] = controller_ris_coefficient_identity(
+            scene,
+            engine,
+            scene.transmitter(),
+            replace(scene.receiver(), position=point.position),
+            ris,
+        )
     row.update(
         {
             "timestamp": timestamp,
@@ -691,6 +703,7 @@ def _write_adaptive_csv(
     *,
     provenance: dict[str, object],
     timestamp: str,
+    engine: SimulationEngine,
 ) -> None:
     baseline = {
         sample.trajectory.sample_index: sample.received_power_dbm
@@ -707,6 +720,7 @@ def _write_adaptive_csv(
                 provenance=provenance,
                 timestamp=timestamp,
                 baseline_received_power_dbm=baseline[sample.trajectory.sample_index],
+                engine=engine,
             )
             for sample in computation.samples
         )
@@ -861,6 +875,7 @@ def run_adaptive(output: Path | None = None) -> AdaptiveMVPArtifacts:
         quadrature_policy_id=PRODUCTION_QUADRATURE_POLICY_ID,
         quadrature_policy_version=PRODUCTION_QUADRATURE_POLICY_VERSION,
     )
+    provenance["coefficient_model_identity"] = ""
     timestamp = datetime.now(timezone.utc).isoformat()
     csv_path = output_directory / "xr_dynamic_room_adaptive.csv"
     png_path = output_directory / "xr_dynamic_room_adaptive.png"
@@ -869,6 +884,7 @@ def run_adaptive(output: Path | None = None) -> AdaptiveMVPArtifacts:
         computation,
         provenance=provenance,
         timestamp=timestamp,
+        engine=engine,
     )
     _write_adaptive_plot(png_path, computation.samples)
     adaptive_hashes = tuple(

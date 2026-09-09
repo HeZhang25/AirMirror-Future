@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -16,7 +17,71 @@ from airmirror_future.ris.quadrature import QuadratureSpec, midpoint_quadrature
 PRODUCTION_QUADRATURE_POLICY_ID = "midpoint_8x8_per_control_patch"
 PRODUCTION_QUADRATURE_POLICY_VERSION = "1"
 PRODUCTION_QUADRATURE_ORDER = 8
+FAST_QUADRATURE_POLICY_ID = "midpoint_1x1_per_control_patch"
+FAST_QUADRATURE_POLICY_VERSION = "1"
 _MAX_POINT_SAMPLE_PAIRS = 262_144
+
+
+@dataclass(frozen=True, slots=True)
+class RISCoefficientModel:
+    """Named aperture-reduction model used consistently by Focus and Engine."""
+
+    model_id: str
+    model_version: str
+    quadrature_policy_id: str
+    quadrature_policy_version: str
+    quadrature_order_x: int
+    quadrature_order_y: int
+
+    def __post_init__(self) -> None:
+        for name in (
+            "model_id",
+            "model_version",
+            "quadrature_policy_id",
+            "quadrature_policy_version",
+        ):
+            if not isinstance(getattr(self, name), str) or not getattr(self, name):
+                raise ValueError(f"{name} must be a non-empty string")
+        for name in ("quadrature_order_x", "quadrature_order_y"):
+            value = getattr(self, name)
+            if isinstance(value, (bool, np.bool_)) or not isinstance(
+                value, (int, np.integer)
+            ) or value <= 0:
+                raise ValueError(f"{name} must be a positive integer")
+
+    @property
+    def identity(self) -> str:
+        return f"{self.model_id}/{self.model_version}"
+
+    @property
+    def quadrature_identity(self) -> str:
+        return f"{self.quadrature_policy_id}/{self.quadrature_policy_version}"
+
+    def quadrature_spec(self, ris: RISSurface) -> QuadratureSpec:
+        return midpoint_quadrature(
+            ris,
+            order_x=self.quadrature_order_x,
+            order_y=self.quadrature_order_y,
+        )
+
+
+PRODUCTION_RIS_COEFFICIENT_MODEL = RISCoefficientModel(
+    model_id="finite_aperture_bistatic_control_coefficients_m8",
+    model_version="1",
+    quadrature_policy_id=PRODUCTION_QUADRATURE_POLICY_ID,
+    quadrature_policy_version=PRODUCTION_QUADRATURE_POLICY_VERSION,
+    quadrature_order_x=PRODUCTION_QUADRATURE_ORDER,
+    quadrature_order_y=PRODUCTION_QUADRATURE_ORDER,
+)
+
+FAST_1X1_RIS_COEFFICIENT_MODEL = RISCoefficientModel(
+    model_id="control_patch_center_bistatic_coefficients",
+    model_version="1",
+    quadrature_policy_id=FAST_QUADRATURE_POLICY_ID,
+    quadrature_policy_version=FAST_QUADRATURE_POLICY_VERSION,
+    quadrature_order_x=1,
+    quadrature_order_y=1,
+)
 
 
 def _production_quadrature_spec(ris: RISSurface) -> QuadratureSpec:
@@ -26,6 +91,15 @@ def _production_quadrature_spec(ris: RISSurface) -> QuadratureSpec:
         order_x=PRODUCTION_QUADRATURE_ORDER,
         order_y=PRODUCTION_QUADRATURE_ORDER,
     )
+
+
+def _quadrature_spec_for_model(
+    ris: RISSurface,
+    coefficient_model: RISCoefficientModel,
+) -> QuadratureSpec:
+    if not isinstance(coefficient_model, RISCoefficientModel):
+        raise ValueError("coefficient_model must be a RISCoefficientModel")
+    return coefficient_model.quadrature_spec(ris)
 
 
 def _require_production_quadrature(
@@ -112,6 +186,7 @@ def _ris_aperture_point_contributions(
     *,
     cell_phase_error_rad: np.ndarray | None = None,
     efficiency_scale: np.ndarray | float = 1.0,
+    include_efficiency: bool = True,
 ) -> np.ndarray:
     """Return one contribution per receiver and aperture sample."""
     samples = np.asarray(aperture_points, dtype=float)
@@ -157,7 +232,7 @@ def _ris_aperture_point_contributions(
         eta_sample = np.sqrt(eta_values[parents])
     amplitude = (
         math.sqrt(tx.gain_linear * receiver_gain_linear)
-        * eta_sample[None, :] * weights[None, :]
+        * (eta_sample[None, :] if include_efficiency else 1.0) * weights[None, :]
         / (4.0 * math.pi * d1[None, :] * d2) * direction_amplitude
     )
     propagation_phase = -wave_number_rad_m(frequency_hz) * (d1[None, :] + d2)
@@ -218,6 +293,179 @@ def ris_channel(
             tx, points, receiver_gain_linear, ris, phase, frequency_hz, **kwargs
         )[0]
     )
+
+
+def ris_control_coefficients(
+    tx: Transmitter,
+    receiver_position: Vec3,
+    receiver_gain_linear: float,
+    ris: RISSurface,
+    frequency_hz: float,
+    *,
+    coefficient_model: RISCoefficientModel | None = None,
+    quadrature_spec: QuadratureSpec | None = None,
+) -> np.ndarray:
+    """Return the pure geometry/propagation coefficient per control patch.
+
+    Reflection efficiency and commanded/actual phase belong to ``Gamma`` and
+    are intentionally excluded.  The default remains signed production M8.
+    Callers may explicitly select the named 1x1 model, which samples each
+    control-patch centre and applies the complete patch area exactly once.
+    """
+    if ris.active:
+        raise NotImplementedError("active RIS requires an explicit power and noise model")
+    if not ris.enabled:
+        return np.zeros(ris.cell_count, dtype=complex)
+    active_model = (
+        PRODUCTION_RIS_COEFFICIENT_MODEL
+        if coefficient_model is None
+        else coefficient_model
+    )
+    if not isinstance(active_model, RISCoefficientModel):
+        raise ValueError("coefficient_model must be a RISCoefficientModel")
+    spec = (
+        _quadrature_spec_for_model(ris, active_model)
+        if quadrature_spec is None
+        else quadrature_spec
+    )
+    if spec.control_count != ris.cell_count:
+        raise ValueError("quadrature must have one parent group per control patch")
+    if (
+        spec.rule != "midpoint"
+        or spec.order_x != active_model.quadrature_order_x
+        or spec.order_y != active_model.quadrature_order_y
+    ):
+        raise ValueError(
+            "RIS coefficient quadrature does not match the selected coefficient model"
+        )
+    return _ris_control_coefficients_for_quadrature(
+        tx, receiver_position, receiver_gain_linear, ris, frequency_hz, spec
+    )
+
+
+def ris_control_coefficient_matrix(
+    tx: Transmitter,
+    receiver_points: np.ndarray,
+    receiver_gain_linear: float,
+    ris: RISSurface,
+    frequency_hz: float,
+    *,
+    quadrature_spec: QuadratureSpec | None = None,
+    max_point_sample_pairs: int = _MAX_POINT_SAMPLE_PAIRS,
+    receiver_batch_size: int = 16,
+) -> np.ndarray:
+    """Return the production M8 coefficient matrix ``[receiver, control]``.
+
+    The output is the multi-receiver form of :func:`ris_control_coefficients`.
+    Receiver and aperture-sample axes are both blocked, so no
+    ``receiver_count * production_sample_count`` array is materialized.  The
+    returned control matrix intentionally excludes reflection efficiency and
+    commanded/actual phase; those remain owned by ``Gamma``.
+    """
+    if ris.active:
+        raise NotImplementedError("active RIS requires an explicit power and noise model")
+    points = np.asarray(receiver_points, dtype=float)
+    if points.ndim != 2 or points.shape[1] != 3:
+        raise ValueError("receiver_points must have shape [N, 3]")
+    if not np.all(np.isfinite(points)):
+        raise ValueError("receiver_points must contain only finite values")
+    if max_point_sample_pairs <= 0:
+        raise ValueError("max_point_sample_pairs must be positive")
+    if receiver_batch_size <= 0:
+        raise ValueError("receiver_batch_size must be positive")
+    if not ris.enabled:
+        return np.zeros((len(points), ris.cell_count), dtype=complex)
+    if len(points) == 0:
+        return np.zeros((0, ris.cell_count), dtype=complex)
+    spec = (
+        _production_quadrature_spec(ris)
+        if quadrature_spec is None
+        else quadrature_spec
+    )
+    if (
+        spec.rule != "midpoint"
+        or spec.control_count != ris.cell_count
+        or spec.order_x <= 0
+        or spec.order_y <= 0
+    ):
+        raise ValueError(
+            "RIS coefficient quadrature must be midpoint with one parent group "
+            "per control patch"
+        )
+    samples_per_control = spec.order_x * spec.order_y
+    expected_parents = np.repeat(np.arange(ris.cell_count), samples_per_control)
+    if not np.array_equal(spec.parent_control_index, expected_parents):
+        raise ValueError("production quadrature parent ordering must be control-major")
+
+    result = np.empty((len(points), ris.cell_count), dtype=complex)
+    zero_phase = np.zeros(ris.cell_count, dtype=float)
+    weights_m2 = spec.weights * ris.cell_area_m2
+    point_step = min(
+        len(points),
+        receiver_batch_size,
+        max(1, max_point_sample_pairs // samples_per_control),
+    )
+    for point_start in range(0, len(points), point_step):
+        point_stop = min(point_start + point_step, len(points))
+        point_batch = points[point_start:point_stop]
+        controls_per_batch = max(
+            1,
+            max_point_sample_pairs // (len(point_batch) * samples_per_control),
+        )
+        for control_start in range(0, ris.cell_count, controls_per_batch):
+            control_stop = min(control_start + controls_per_batch, ris.cell_count)
+            sample_start = control_start * samples_per_control
+            sample_stop = control_stop * samples_per_control
+            terms = _ris_aperture_point_contributions(
+                tx,
+                point_batch,
+                receiver_gain_linear,
+                ris,
+                spec.sample_coordinates[sample_start:sample_stop],
+                spec.parent_control_index[sample_start:sample_stop],
+                weights_m2[sample_start:sample_stop],
+                zero_phase,
+                frequency_hz,
+                include_efficiency=False,
+            )
+            result[
+                point_start:point_stop, control_start:control_stop
+            ] = terms.reshape(
+                len(point_batch), control_stop - control_start, samples_per_control
+            ).sum(axis=2)
+    return result
+
+
+def _ris_control_coefficients_for_quadrature(
+    tx: Transmitter,
+    receiver_position: Vec3,
+    receiver_gain_linear: float,
+    ris: RISSurface,
+    frequency_hz: float,
+    spec: QuadratureSpec,
+) -> np.ndarray:
+    """Shared pure reduction for a validated research or production rule."""
+    if spec.control_count != ris.cell_count:
+        raise ValueError("quadrature must have one parent group per control patch")
+    points = receiver_position.as_array()[None, :]
+    result = np.zeros(ris.cell_count, dtype=complex)
+    zero_phase = np.zeros(ris.cell_count, dtype=float)
+    for sample_start in range(0, spec.sample_count, _MAX_POINT_SAMPLE_PAIRS):
+        sample_stop = min(sample_start + _MAX_POINT_SAMPLE_PAIRS, spec.sample_count)
+        terms = _ris_aperture_point_contributions(
+            tx,
+            points,
+            receiver_gain_linear,
+            ris,
+            spec.sample_coordinates[sample_start:sample_stop],
+            spec.parent_control_index[sample_start:sample_stop],
+            (spec.weights[sample_start:sample_stop] * ris.cell_area_m2),
+            zero_phase,
+            frequency_hz,
+            include_efficiency=False,
+        )[0]
+        np.add.at(result, spec.parent_control_index[sample_start:sample_stop], terms)
+    return result
 
 
 def _ris_channel_from_validated_pattern(

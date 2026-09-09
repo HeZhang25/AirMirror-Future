@@ -26,8 +26,10 @@ from airmirror_future.physics.free_space import complex_free_space_channel
 from airmirror_future.physics.noise import noise_power_dbm, shannon_capacity_bps
 from airmirror_future.physics.reflections import single_wall_reflection_path
 from airmirror_future.physics.ris_scattering import (
+    PRODUCTION_RIS_COEFFICIENT_MODEL,
+    RISCoefficientModel,
     _production_quadrature_spec,
-    _ris_channel_from_validated_pattern,
+    ris_control_coefficients,
 )
 from airmirror_future.ris.quadrature import QuadratureSpec
 from airmirror_future.simulation.ground_truth import ControllerModel, GroundTruthModel
@@ -50,9 +52,21 @@ class SimulationCancelled(RuntimeError):
 class SimulationEngine:
     """CPU system-level complex-field propagation engine."""
 
-    def __init__(self, profile: PropagationProfile | None = None) -> None:
+    def __init__(
+        self,
+        profile: PropagationProfile | None = None,
+        *,
+        coefficient_model: RISCoefficientModel | None = None,
+    ) -> None:
         self._profile = IndoorDeterministicProfile() if profile is None else profile
         self._profile_identity = profile_identity(self._profile)
+        self._coefficient_model = (
+            PRODUCTION_RIS_COEFFICIENT_MODEL
+            if coefficient_model is None
+            else coefficient_model
+        )
+        if not isinstance(self._coefficient_model, RISCoefficientModel):
+            raise ValueError("coefficient_model must be a RISCoefficientModel")
         if not callable(getattr(self._profile, "environment_modifier", None)):
             raise ValueError("Profile must implement environment_modifier for all five path roles")
         self._cell_cache: dict[tuple[object, ...], np.ndarray] = {}
@@ -64,6 +78,11 @@ class SimulationEngine:
     @property
     def profile_identity(self) -> str:
         return self._profile_identity
+
+    @property
+    def coefficient_model(self) -> RISCoefficientModel:
+        """Named coefficient model shared by Focus and all Engine evaluations."""
+        return self._coefficient_model
 
     def _environment_modifier(
         self, scene: Scene, context: PropagationPathContext
@@ -227,31 +246,94 @@ class SimulationEngine:
             after = self._environment_modifier(
                 scene, PropagationPathContext("ris_scattered", ris.position, rx.position, ris_id=ris.id)
             )
-            contribution = _ris_channel_from_validated_pattern(
+            coefficients = ris_control_coefficients(
                 tx,
                 rx.position,
                 rx.gain_linear,
                 ris,
-                pattern,
                 scene.frequency_hz,
-                cell_phase_error_rad=model.ris_phase_offsets(ris),
-                efficiency_scale=model.ris_efficiency_scale(ris),
+                coefficient_model=self._coefficient_model,
                 quadrature_spec=(
                     None
                     if ris_quadrature_specs is None
                     else ris_quadrature_specs.get(ris.id)
                 ),
             ) * before.value * after.value
-            ris_total += contribution
-            details.append(
-                {
-                    "kind": "RIS",
-                    "ris_id": ris.id,
-                    "blockers": list(before.blocker_ids + after.blocker_ids),
-                    "channel": contribution,
-                }
+            efficiency = np.clip(
+                ris.reflection_efficiency * model.ris_efficiency_scale(ris),
+                0.0,
+                1.0,
             )
+            gamma = np.sqrt(efficiency) * np.exp(
+                1j * (pattern + model.ris_phase_offsets(ris))
+            )
+            contribution = complex(np.dot(coefficients, gamma))
+            ris_total += contribution
+            detail = {
+                "kind": "RIS",
+                "ris_id": ris.id,
+                "blockers": list(before.blocker_ids + after.blocker_ids),
+                "channel": contribution,
+            }
+            if self._coefficient_model is not PRODUCTION_RIS_COEFFICIENT_MODEL:
+                detail.update(
+                    {
+                        "coefficient_model_id": self._coefficient_model.identity,
+                        "quadrature_policy_id": self._coefficient_model.quadrature_identity,
+                    }
+                )
+            details.append(detail)
         return complex(los), complex(wall_total), complex(ris_total), details
+
+    def controller_focus_terms(
+        self,
+        scene: Scene,
+        tx: Transmitter | str | None = None,
+        rx: Receiver | str | None = None,
+        ris: RISSurface | str | None = None,
+        controller_model: ControllerModel | None = None,
+    ) -> tuple[np.ndarray, complex]:
+        """Return nominal ``a^C`` and non-RIS baseline for scene-aware Focus."""
+        model = controller_model or ControllerModel()
+        if not isinstance(model, ControllerModel) or isinstance(model, GroundTruthModel):
+            raise ValueError("controller_model must be a ControllerModel, not GroundTruthModel")
+        scene._validate_environment_ids()
+        target_tx = self._resolve_tx(scene, tx)
+        target_rx = self._resolve_rx(scene, rx)
+        if isinstance(ris, RISSurface):
+            target_ris = ris
+        elif ris is None:
+            enabled = [surface for surface in scene.ris_surfaces if surface.enabled]
+            if len(enabled) != 1:
+                raise ValueError("scene-aware Focus requires exactly one enabled RIS")
+            target_ris = enabled[0]
+        else:
+            matches = [surface for surface in scene.ris_surfaces if surface.id == ris]
+            if len(matches) != 1 or not matches[0].enabled:
+                raise ValueError(f"enabled RIS id not found or not unique: {ris}")
+            target_ris = matches[0]
+        working_scene, working_tx, working_rx = self._working_scene(
+            scene, target_tx, target_rx, model
+        )
+        working_ris = next(surface for surface in working_scene.ris_surfaces if surface.id == target_ris.id)
+        before = self._environment_modifier(
+            working_scene,
+            PropagationPathContext("ris_incident", working_tx.position, working_ris.position, ris_id=working_ris.id),
+        )
+        after = self._environment_modifier(
+            working_scene,
+            PropagationPathContext("ris_scattered", working_ris.position, working_rx.position, ris_id=working_ris.id),
+        )
+        coefficients = ris_control_coefficients(
+            working_tx,
+            working_rx.position,
+            working_rx.gain_linear,
+            working_ris,
+            working_scene.frequency_hz,
+            coefficient_model=self._coefficient_model,
+        ) * before.value * after.value
+        los, wall, _, _ = self._components(working_scene, working_tx, working_rx, {}, model)
+        return coefficients, complex(los + wall)
 
     def compute_channel(
         self,
@@ -318,7 +400,11 @@ class SimulationEngine:
             scene, tx, rx_template, active_model
         )
         ris_quadrature_specs = {
-            ris.id: _production_quadrature_spec(ris)
+            ris.id: (
+                _production_quadrature_spec(ris)
+                if self._coefficient_model is PRODUCTION_RIS_COEFFICIENT_MODEL
+                else self._coefficient_model.quadrature_spec(ris)
+            )
             for ris in quadrature_scene.ris_surfaces
             if ris.enabled and ris.id in patterns
         }

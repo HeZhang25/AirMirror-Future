@@ -1,0 +1,151 @@
+{
+  "config_kind": "fnd_qa_cc_ready_contract_candidate",
+  "config_version": "1",
+  "status": "ready_pass_phase_two_authorized",
+  "base_sha": "87d2dea8c3ca40774f754271d7b21743cefcc133",
+  "origin_main_sha": "a7271648d3d6d98d6af953eadcc4784b7776222f",
+  "production_modified": false,
+  "p1a_authorized": false,
+  "external_owner_inputs": {
+    "canonical_production_quadrature_policy_id_version": {
+      "status": "signed_on_origin_main",
+      "quadrature_policy_id": "midpoint_8x8_per_control_patch",
+      "quadrature_policy_version": "1",
+      "forbidden_substitute": "fnd_qa_ap_candidate/1"
+    },
+    "phy_nb_formal_closure": "verified_on_origin_main"
+  },
+  "independent_d_review": {
+    "verified_person_or_environment": true,
+    "result": "READY PASS",
+    "blocking_findings": 0,
+    "reviewed_commit": "86fb9ceaad07a03a653b2b8016f8af75b35805f7",
+    "evidence_commit": "73fc59fa37ccc0668d3da9db2c46bae482b41d92",
+    "branch": "task/fnd-qa-cc-ready-review-d-final"
+  },
+  "coefficient_source": {
+    "layer": "physics.ris_scattering",
+    "visibility": "internal",
+    "output": "complex128[N_control] excluding RIS efficiency and phase",
+    "control_flatten_order": "ris_cell_centers_meshgrid_xy_c_v1",
+    "subpoint_order": "parent-major, local-y, local-x",
+    "production_quadrature": {
+      "rule": "midpoint",
+      "order_x": 8,
+      "order_y": 8,
+      "changes_control_count": false
+    },
+    "forbidden_imports": [
+      "airmirror_future.simulation",
+      "airmirror_future.optimization",
+      "airmirror_future.experiments",
+      "airmirror_future.gui"
+    ]
+  },
+  "focus_contract": {
+    "legacy_public_ris_only_unchanged": true,
+    "scene_aware_ris_only": {
+      "continuous_base_phase": "wrap(-arg(a_controller))",
+      "analytic_objective": "Pt*abs(sum(a_controller*Gamma_cmd))**2 with phase-independent magnitude",
+      "finite_candidate_offsets": "ADR-0006 common-offset candidate generator; delta=0 first",
+      "finite_optimality_claim": "optimal only within the ADR-0006 common-offset reachable candidate family",
+      "common_offset_search": true,
+      "strict_better_and_first_wins_unchanged": true,
+      "objective_excludes_baseline": true,
+      "element_zero_policy": "base_phase=0.0 before the existing quantizer; no new tolerance",
+      "aggregate_degenerate_policy": "ADR-0006 exact 0.0 fallback",
+      "nonfinite_policy": "raise ValueError using existing validation",
+      "legacy_api_common_offset_guarantee": false
+    },
+    "coherent": {
+      "continuous_phase": "wrap(arg(h_baseline_controller)-arg(a_controller))",
+      "finite_base_phase": "wrap(-arg(a_controller))",
+      "objective": "controller total received power",
+      "delta_zero_first": true,
+      "candidate_order_unchanged": true,
+      "strictly_better_unchanged": true,
+      "first_wins_ties": true,
+      "degenerate_semantics_unchanged": true
+    }
+  },
+  "identity_layers": [
+    "ris_transfer_coefficient_identity",
+    "baseline_transfer_identity",
+    "commanded_gamma_identity",
+    "ground_truth_physical_realization_identity",
+    "measurement_oracle_identity",
+    "received_power_objective_identity",
+    "link_metric_identity",
+    "coverage_result_identity"
+  ],
+  "identity_canonicalization": {
+    "encoding": "UTF-8",
+    "object_keys": "lexicographic",
+    "arrays": "preserve declared order",
+    "floats": "tagged binary64 float.hex",
+    "hash": "SHA-256 with domain separation",
+    "forbidden": ["object address", "repr", "Python hash"]
+  },
+  "test_matrix": {
+    "generations": [
+      {"name": "Current", "nx": 8, "ny": 8, "phase_bits": 1},
+      {"name": "Advanced", "nx": 24, "ny": 24, "phase_bits": 3},
+      {"name": "Future", "nx": 64, "ny": 48, "phase_bits": null}
+    ],
+    "geometry_cases": [
+      "default_target",
+      "near_field",
+      "oblique_incidence",
+      "off_focus_receiver"
+    ],
+    "required": [
+      "FND-T21",
+      "FND-T22",
+      "independent_formula_oracle",
+      "identity_mutation",
+      "ground_truth_no_leak",
+      "public_api_compatibility",
+      "full_pytest",
+      "three_generation_fast_headless",
+      "provenance",
+      "documentation"
+    ]
+  },
+  "numeric_equivalence": {
+    "qa_ap_adequacy_tolerance_reused": false,
+    "shared_source_consumer_rule": "exact equality where the same returned arrays/composer are reused; no duplicate formula",
+    "unit_roundoff": "np.finfo(float).eps/2",
+    "dot_bound": "gamma(2*N+8)*sum(abs(a*Gamma))+tiny",
+    "m8_parent_bound": "gamma(8*8*16+32)*sum(abs(term_q))+tiny",
+    "bound_limitations": "operation budgets must be reviewed against actual BLAS/pairwise/FMA behavior; gamma(k) does not cover cross-library elementary-function differences",
+    "oracle_elementary_kernel_rule": "use the same binary64 elementary kernels while independently expanding formula and loops, otherwise preregister a reviewed ULP/platform bound before results",
+    "exact_checks": [
+      "command arrays",
+      "candidate order",
+      "delta=0 first",
+      "first-wins",
+      "public API compatibility"
+    ]
+  },
+  "actual_stage_one_test": {
+    "command": ".venv\\Scripts\\python.exe -m pytest -q tests/test_coherent_focus.py tests/test_production_quadrature.py tests/test_narrowband_frequency.py tests/test_experiment_provenance.py tests/test_pattern_contract.py",
+    "passed": 83,
+    "failed": 0,
+    "is_fnd_t21_t22": false,
+    "is_full_regression": false
+  },
+    "implementation_requires": [
+        "real independent D Ready PASS on the reviewed commit",
+        "maintainer preauthorization remains limited to the approved QA-CC phase-two scope"
+    ],
+  "forbidden_scope": [
+    "P1A cache",
+    "matrix storage",
+    "chunking",
+    "incremental Greedy",
+    "signed M8 policy changes",
+    "GroundTruth-aware Focus",
+    "historical result overwrite",
+    "status promotion by C"
+  ]
+}

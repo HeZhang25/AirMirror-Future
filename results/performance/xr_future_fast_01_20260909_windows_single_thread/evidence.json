@@ -1,0 +1,58 @@
+{
+  "schema_id": "airmirror_xr_future_fast_01",
+  "schema_version": 1,
+  "status": "non-release performance candidate",
+  "starting_p0_sha": "2bf42ed2b2b36174f9e8c274da963b6c734201c0",
+  "c_fast_model_sha": "2f96f7fb1178fdb26a7f1630a9c147ddf7c163fa",
+  "implementation_sha": "3f2a1937c364862d36915c4df159c3124a743360",
+  "environment": {
+    "platform": "Windows x86_64",
+    "python": "3.11.4",
+    "numpy": "2.4.6",
+    "thread_environment": {
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1"
+    }
+  },
+  "model": {
+    "coefficient_model_identity": "control_patch_center_bistatic_coefficients/1",
+    "quadrature_identity": "midpoint_1x1_per_control_patch/1",
+    "ris_aperture_m": [3.0, 2.0],
+    "ris_controls": [64, 48],
+    "coefficient_bytes_48x36": 84934656
+  },
+  "measurements": [
+    {
+      "grid": [4, 3],
+      "build_runtime_s": 0.1754,
+      "completed_receiver_points": 12,
+      "total_receiver_points": 12,
+      "hot_pattern_medians_s": {
+        "zero": 0.0000914,
+        "ris_only": 0.0001100,
+        "coherent": 0.0000965,
+        "random": 0.0000969
+      }
+    },
+    {
+      "grid": [48, 36],
+      "build_runtime_s": 21.2084,
+      "progress_completion_s": 21.1536,
+      "completed_receiver_points": 1728,
+      "total_receiver_points": 1728,
+      "hot_pattern_medians_s": {
+        "zero": 0.0121049,
+        "ris_only": 0.0113418,
+        "coherent": 0.0108203,
+        "random": 0.0123331
+      }
+    }
+  ],
+  "notes": [
+    "This is a single-RIS fast prepared path; it does not claim Production M8 equivalence.",
+    "The 48x36 matrix retains the complete 64x48 control grid and 81 MiB coefficient storage.",
+    "No historical P0 evidence was overwritten or rerun."
+  ]
+}

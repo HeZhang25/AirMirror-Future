@@ -31,6 +31,26 @@ SimulationEngine.compute_channel(
 ) -> ChannelResult
 ```
 
+构造器可显式选择 RIS coefficient 模型：
+
+```python
+SimulationEngine(
+    profile: PropagationProfile | None = None,
+    *,
+    coefficient_model: RISCoefficientModel | None = None,
+)
+```
+
+默认 `None` 仍严格等价 `PRODUCTION_RIS_COEFFICIENT_MODEL`，即已签署的
+`midpoint_8x8_per_control_patch/1`，production M8 数值和默认行为不变。Future 高速调用者可显式传入
+`FAST_1X1_RIS_COEFFICIENT_MODEL`；它在每个既有 control patch 的中心取一个样本，归一权重为 1，
+共享 coefficient reduction 再恰好乘一次完整 patch 面积。两种模型均保持 RIS 实体尺寸、`nx*ny`
+命令数量、距离/传播相位、方向因子、Profile modifier 和 Gamma 所有权。
+
+模型具有独立的 `identity` 与 `quadrature_identity`。同一 Engine 实例的
+`controller_focus_terms`、Coherent Focus、单点 channel 和 field map 必须消费同一模型；调用者不得
+用一个 Engine 生成 1x1 Focus、再用另一个默认 M8 Engine 评价并声称目标一致。
+
 契约：
 
 - `tx/rx=None` 使用 Scene 首个实体；str 按 id 查找；
@@ -69,6 +89,30 @@ SimulationEngine.compute_field_map(
 patterns 在像素循环前只验证一次。
 
 ## 3. RIS API
+
+双 RIS 协调使用独立的 Controller-only helper：
+
+```python
+generate_dual_ris_coordinated_patterns(
+    scene: Scene,
+    *,
+    engine: SimulationEngine | None = None,
+    ris_ids: tuple[str, ...] | list[str] | None = None,
+    max_rounds: int = 4,
+) -> DualRISFocusResult
+
+evaluate_dual_ris_command(
+    scene: Scene,
+    patterns: Mapping[str, np.ndarray],
+    *,
+    engine: SimulationEngine | None = None,
+) -> ChannelResult
+```
+
+helper 最多处理两个独立 RIS；未指定 `ris_ids` 时取前两个 enabled RIS，显式传入 disabled RIS 会安全
+忽略它。结果仍由现有 Engine 计算 `baseline + h1 + h2`，功率取总复数信道模平方；不增加 RIS 间
+反射或互耦。连续模式以同一 baseline 目标相位确定性对齐每个 RIS，有限 bit 仅在现有 common-offset
+合法命令族内做有界坐标改进，达到无严格改进或 `max_rounds` 即停止。Controller/GT 隔离保持不变。
 
 ```python
 validate_commanded_pattern(
@@ -256,10 +300,10 @@ GroundTruthModel；它不读取 MeasurementOracle。unknown/disabled/ambiguous R
 `delta=0` 退化规则，并拒绝非有限复分量。完整 objective 与退化规则见
 [ADR-0006](adr/0006-coherent-target-focus-objective.md)。
 
-FND-QA-CC 将在最终 production quadrature policy 下证明该策略与 Controller simulator 使用同一
-control-level coefficient。production scattering 已迁移到 signed midpoint `8×8`，但 public
-phase-array API、pattern shape 和现有 Focus 路径未改变。FND-QA-CC 尚未实现；不得因 migration
-推断 M8/complex Profile 下的 Focus/coefficient 已自动一致。完整边界见
+FND-QA-CC 阶段二 production candidate 已让该策略与 Controller simulator 使用同一 M8
+control-level coefficient。新增 scene-aware RIS-only callable 保持内部可见，不属于本页公共 API；
+legacy phase-array API、pattern shape 与 center-path 行为未改变。正式 closure 仍需独立代码复核
+与维护者签署。完整边界见
 [ADR-0011](adr/0011-controller-coefficient-focus-consistency.md)。
 
 ```python

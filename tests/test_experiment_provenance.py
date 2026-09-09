@@ -89,8 +89,9 @@ def test_builds_default_partial_provenance_from_actual_inputs() -> None:
         "channel_frequency_model_id": CHANNEL_FREQUENCY_MODEL_ID,
         "quadrature_policy_id": PRODUCTION_QUADRATURE_POLICY_ID,
         "quadrature_policy_version": PRODUCTION_QUADRATURE_POLICY_VERSION,
-        "coefficient_model_identity": "",
+        "coefficient_model_identity": fields["coefficient_model_identity"],
     }
+    assert str(fields["coefficient_model_identity"]).startswith("sha256:")
 
 
 @pytest.mark.parametrize(
