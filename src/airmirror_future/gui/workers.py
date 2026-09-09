@@ -36,7 +36,12 @@ from airmirror_future.experiments.xr_dynamic_room_mvp import (
 from airmirror_future.experiments.xr_route import XRRouteExperiment
 from airmirror_future.experiments.xr_route_headless import compute_route_experiment
 from airmirror_future.optimization.coherent_focus import generate_coherent_target_pattern
-from airmirror_future.physics.ris_scattering import PRODUCTION_QUADRATURE_ORDER
+from airmirror_future.physics.ris_scattering import (
+    FAST_1X1_RIS_COEFFICIENT_MODEL,
+    PRODUCTION_QUADRATURE_ORDER,
+    PRODUCTION_RIS_COEFFICIENT_MODEL,
+    RISCoefficientModel,
+)
 from airmirror_future.optimization.greedy import FeedbackGreedyOptimizer
 from airmirror_future.optimization.measurement import MeasurementOracle
 from airmirror_future.optimization.physics_guided import PhysicsGuidedFeedbackOptimizer
@@ -121,6 +126,10 @@ class XRFieldCacheKey:
     batch_size: int
     production_quadrature_order: int
     coefficient_identity: str = ""
+    coefficient_model_identity: str = ""
+    quadrature_identity: str = ""
+    quadrature_order_x: int = PRODUCTION_QUADRATURE_ORDER
+    quadrature_order_y: int = PRODUCTION_QUADRATURE_ORDER
 
 
 @dataclass(frozen=True, slots=True)
@@ -144,11 +153,13 @@ class XRFutureFixedFieldRequest:
     experiment_identity: str
     scene_identity: str
     trajectory_identity: str
+    coefficient_model_identity: str = PRODUCTION_RIS_COEFFICIENT_MODEL.identity
+    trajectory: tuple[TrajectorySample, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
 class XRFuturePreparedFieldResult:
-    """Exact M8 fixed-grid fields produced from one prepared coefficient matrix."""
+    """Fixed-grid fields produced from one explicitly selected prepared model."""
 
     request: XRFutureFixedFieldRequest
     mvp: MVPComputation
@@ -156,7 +167,11 @@ class XRFuturePreparedFieldResult:
     static_field: FieldMapResult
     adaptive_key: XRFieldCacheKey
     adaptive_field: FieldMapResult
+    adaptive_fields: tuple[tuple[XRFieldCacheKey, FieldMapResult], ...]
+    adaptive_batch_runtime_s: float
     coefficient_identity: str
+    coefficient_model_identity: str
+    quadrature_identity: str
     build_runtime_s: float
     coefficient_bytes: int
 
@@ -223,6 +238,10 @@ def build_xr_field_cache_key(
         batch_size=config.batch_size,
         production_quadrature_order=PRODUCTION_QUADRATURE_ORDER,
         coefficient_identity=coefficient_identity,
+        coefficient_model_identity=engine.coefficient_model.identity,
+        quadrature_identity=engine.coefficient_model.quadrature_identity,
+        quadrature_order_x=engine.coefficient_model.quadrature_order_x,
+        quadrature_order_y=engine.coefficient_model.quadrature_order_y,
     )
 
 
@@ -234,6 +253,17 @@ def _prepared_identity_digest(identities: tuple[str, ...]) -> str:
         digest.update(identity.encode("utf-8"))
         digest.update(b"\0")
     return "sha256:" + digest.hexdigest()
+
+
+def _future_coefficient_model(identity: str) -> RISCoefficientModel:
+    """Resolve only the two explicit Future GUI coefficient-model choices."""
+    for model in (
+        FAST_1X1_RIS_COEFFICIENT_MODEL,
+        PRODUCTION_RIS_COEFFICIENT_MODEL,
+    ):
+        if identity == model.identity:
+            return model
+    raise ValueError(f"unsupported XR Future coefficient model: {identity}")
 
 
 def _dynamic_sample(
@@ -525,7 +555,7 @@ class XRDynamicRoomWorker(_XRPhysicsWorker):
 
 
 class XRFuturePreparedFieldWorker(_XRPhysicsWorker):
-    """Build one bounded exact-Future M8 grid and evaluate two real commands."""
+    """Build one bounded Future grid and evaluate two real commands."""
 
     def __init__(
         self,
@@ -569,17 +599,23 @@ class XRFuturePreparedFieldWorker(_XRPhysicsWorker):
             grid = (self.config.grid_width, self.config.grid_height)
             if grid not in supported_grids:
                 raise ValueError(
-                    "XR Future exact field grid must be 8x6, 16x12, or 48x36"
+                    "XR Future field grid must be 8x6, 16x12, or 48x36"
                 )
-            if PRODUCTION_QUADRATURE_ORDER != 8:
-                raise ValueError("XR Future fixed field requires Production M8")
+            coefficient_model = _future_coefficient_model(
+                self.request.coefficient_model_identity
+            )
+            if (
+                coefficient_model is PRODUCTION_RIS_COEFFICIENT_MODEL
+                and PRODUCTION_QUADRATURE_ORDER != 8
+            ):
+                raise ValueError("XR Future exact field requires Production M8")
 
             selected_receiver = replace(
                 scene.receiver(),
                 position=self.request.selected_position,
             )
             scene.receivers = [selected_receiver]
-            engine = SimulationEngine()
+            engine = SimulationEngine(coefficient_model=coefficient_model)
             model = ControllerModel()
             static_pattern = generate_static_pattern(
                 scene,
@@ -587,68 +623,101 @@ class XRFuturePreparedFieldWorker(_XRPhysicsWorker):
                 engine=engine,
                 model=model,
             )
-            adaptive_pattern = generate_adaptive_pattern(
+            selected_adaptive_pattern = generate_adaptive_pattern(
                 scene,
                 self.request.selected_position,
                 engine=engine,
                 model=model,
             )
-            trajectory = TrajectorySample(
-                0,
-                0.0,
-                self.request.selected_position,
-            )
-            prepared_link = prepare_controller_link(
-                scene,
-                engine=engine,
-                rx=selected_receiver,
-                controller_model=model,
-            )
-            baseline = engine.compute_channel(
-                scene,
-                tx=scene.transmitter(),
-                rx=selected_receiver,
-                ris_patterns={},
-                model=model,
-            )
-            static_channel = prepared_link.evaluate(static_pattern)
-            adaptive_channel = prepared_link.evaluate(adaptive_pattern)
-            static_hash = _pattern_hash(static_pattern)
-            mvp = MVPComputation(
-                scene,
-                (trajectory,),
-                static_pattern,
-                (
-                    _dynamic_sample(
-                        trajectory,
-                        NO_RIS_MODE,
-                        baseline,
-                        static_hash,
-                        None,
-                    ),
-                    _dynamic_sample(
-                        trajectory,
-                        STATIC_RIS_MODE,
-                        static_channel,
-                        static_hash,
-                        static_pattern,
-                    ),
-                    _dynamic_sample(
-                        trajectory,
-                        ADAPTIVE_RIS_MODE,
-                        adaptive_channel,
-                        static_hash,
-                        adaptive_pattern,
-                    ),
+            trajectory = self.request.trajectory or (
+                TrajectorySample(
+                    0,
+                    0.0,
+                    self.request.selected_position,
                 ),
             )
-            if self._cancelled.is_set():
-                return
-            try:
-                self.signals.partial.emit(self.version, mvp)
-            except RuntimeError:
-                return
-
+            if len(trajectory) > 512:
+                raise ValueError(
+                    "XR Future prepared route playback is bounded to 512 samples"
+                )
+            static_hash = _pattern_hash(static_pattern)
+            dynamic_samples: list[DynamicLinkSample] = []
+            adaptive_patterns: dict[str, np.ndarray] = {}
+            for trajectory_sample in trajectory:
+                if self._cancelled.is_set():
+                    return
+                route_scene = copy.deepcopy(scene)
+                route_receiver = replace(
+                    route_scene.receiver(),
+                    position=trajectory_sample.position,
+                )
+                route_scene.receivers = [route_receiver]
+                adaptive_pattern = generate_adaptive_pattern(
+                    route_scene,
+                    trajectory_sample.position,
+                    engine=engine,
+                    model=model,
+                )
+                prepared_link = prepare_controller_link(
+                    route_scene,
+                    engine=engine,
+                    rx=route_receiver,
+                    controller_model=model,
+                )
+                if (
+                    prepared_link.coefficient_model_identity
+                    != coefficient_model.identity
+                ):
+                    raise RuntimeError(
+                        "prepared link coefficient-model identity does not match request"
+                    )
+                baseline = engine.compute_channel(
+                    route_scene,
+                    tx=route_scene.transmitter(),
+                    rx=route_receiver,
+                    ris_patterns={},
+                    model=model,
+                )
+                static_channel = prepared_link.evaluate(static_pattern)
+                adaptive_channel = prepared_link.evaluate(adaptive_pattern)
+                adaptive_hash = _pattern_hash(adaptive_pattern)
+                adaptive_patterns.setdefault(adaptive_hash, adaptive_pattern)
+                dynamic_samples.extend(
+                    (
+                        _dynamic_sample(
+                            trajectory_sample,
+                            NO_RIS_MODE,
+                            baseline,
+                            static_hash,
+                            None,
+                        ),
+                        _dynamic_sample(
+                            trajectory_sample,
+                            STATIC_RIS_MODE,
+                            static_channel,
+                            static_hash,
+                            static_pattern,
+                        ),
+                        _dynamic_sample(
+                            trajectory_sample,
+                            ADAPTIVE_RIS_MODE,
+                            adaptive_channel,
+                            static_hash,
+                            adaptive_pattern,
+                        ),
+                    )
+                )
+            selected_adaptive_hash = _pattern_hash(selected_adaptive_pattern)
+            adaptive_patterns.setdefault(
+                selected_adaptive_hash,
+                selected_adaptive_pattern,
+            )
+            mvp = MVPComputation(
+                scene,
+                tuple(trajectory),
+                static_pattern,
+                tuple(dynamic_samples),
+            )
             receiver_total = self.config.grid_width * self.config.grid_height
             total = receiver_total + 2
             self._emit_progress(0, total)
@@ -674,13 +743,17 @@ class XRFuturePreparedFieldWorker(_XRPhysicsWorker):
             )
             if self._cancelled.is_set():
                 return
+            if prepared.coefficient_model_identity != coefficient_model.identity:
+                raise RuntimeError(
+                    "prepared field coefficient-model identity does not match request"
+                )
             coefficient_identity = _prepared_identity_digest(
                 prepared.coefficient_identities
             )
             static_field = prepared.evaluate(static_pattern)
+            if self._cancelled.is_set():
+                return
             self._emit_progress(receiver_total + 1, total)
-            adaptive_field = prepared.evaluate(adaptive_pattern)
-            self._emit_progress(receiver_total + 2, total)
             static_key = build_xr_field_cache_key(
                 scene,
                 engine,
@@ -689,17 +762,39 @@ class XRFuturePreparedFieldWorker(_XRPhysicsWorker):
                 static_hash,
                 coefficient_identity=coefficient_identity,
             )
+            adaptive_fields: list[tuple[XRFieldCacheKey, FieldMapResult]] = []
+            for command_hash, pattern in adaptive_patterns.items():
+                adaptive_field = prepared.evaluate(pattern)
+                if self._cancelled.is_set():
+                    return
+                adaptive_fields.append(
+                    (
+                        replace(static_key, command_hash=command_hash),
+                        adaptive_field,
+                    )
+                )
+            adaptive_field_lookup = {
+                key.command_hash: field for key, field in adaptive_fields
+            }
             adaptive_key = replace(
                 static_key,
-                command_hash=_pattern_hash(adaptive_pattern),
+                command_hash=selected_adaptive_hash,
             )
+            adaptive_field = adaptive_field_lookup[selected_adaptive_hash]
+            self._emit_progress(receiver_total + 2, total)
             result = XRFuturePreparedFieldResult(
                 mvp=mvp,
                 static_key=static_key,
                 static_field=static_field,
                 adaptive_key=adaptive_key,
                 adaptive_field=adaptive_field,
+                adaptive_fields=tuple(adaptive_fields),
+                adaptive_batch_runtime_s=sum(
+                    field.runtime_s for _key, field in adaptive_fields
+                ),
                 coefficient_identity=coefficient_identity,
+                coefficient_model_identity=prepared.coefficient_model_identity,
+                quadrature_identity=coefficient_model.quadrature_identity,
                 build_runtime_s=prepared.build_runtime_s,
                 coefficient_bytes=prepared.coefficient_bytes,
                 request=self.request,

@@ -7,10 +7,14 @@ candidate.
 ## Exact dependency set
 
 - GUI candidate: `eb130ddba939f1996030d1dea62f7d0fafa56c74`.
-- Current main: `4d7bfc66f7d05af731d884dd01a7bb619bdcb112` (already contained by the GUI candidate).
+- Current main: `8dd6f2ef0f14934977dfba06613d9e2155006b7f`.
 - C phase-two candidate: `53ca7a984e477974364d5a5f7861e80a3a8b0d3a`.
 - D performance candidate: `e30139c0e570c8afa98655980e7b0b36caa5e043`.
 - D measured implementation: `27c1f8a8fb5e21daf95f4c75b99f824c8991a2d3`.
+- D P0 prepared baseline: `2bf42ed2b2b36174f9e8c274da963b6c734201c0`.
+- C explicit Fast 1×1 source: `2f96f7fb1178fdb26a7f1630a9c147ddf7c163fa`;
+  D's P0-compatible transplant is `36740372960b015ddaecfcf3884cd0aa64cdec42`.
+- D Fast prepared candidate: `8609f2259017ab59aef67324c4ffa6fa98c74b64`.
 
 C `53ca7a9` contains D's older C dependency `08c2d28`; D `e30139c`
 contains both `08c2d28` and `27c1f8a`. The isolated integration merged C latest
@@ -23,27 +27,32 @@ The route editor exposes one explicit `Future Smart Space` template with the
 unchanged 3×2 m, 64×48-control Future RIS. Model accuracy and map-grid resolution
 are separate controls:
 
-- `高速 1×1 · preview` is visible but disabled until D supplies a public,
-  snapshot-safe interface. The GUI does not call a private quadrature helper or
-  relabel an M8 result as 1×1.
+- `高速 1×1 · prepared` is the default and uses D's public snapshot-safe
+  interface. The worker explicitly constructs
+  `SimulationEngine(coefficient_model=FAST_1X1_RIS_COEFFICIENT_MODEL)` and passes
+  that same engine to Focus, prepared link, and `prepare_controller_field()`.
 - `精确 M8 · production` uses D's existing prepared interface and supports bounded
   `8×6`, `16×12`, and `48×36` fixed grids. `8×6` is the default quick native gate;
   it changes only receiver-map resolution, never RIS aperture or control count.
 
-The exact action is bound to the selected route point:
+The prepared action builds one fixed receiver grid and a bounded route-command batch:
 
 - Static uses the existing Focus path at route point 1.
-- Adaptive uses the same existing Focus path at the selected point.
-- No RIS uses the real Controller baseline at that same selected point.
-- D's `prepare_controller_field()` builds one Production-M8 matrix and its
-  `evaluate(pattern)` method evaluates Static and Adaptive consecutively.
+- Adaptive uses the same existing Focus path at every sampled route point; the
+  selected point remains the initial field/status anchor.
+- No RIS uses the real Controller baseline at each route sample.
+- D's `prepare_controller_field()` builds one matrix for the selected model and
+  its `evaluate(pattern)` method hot-evaluates Static and the distinct Adaptive
+  route commands.
 
 The resulting field maps are cached only for those exact commands. The GUI
-labels the result as a selected-point fixed field and explicitly says it is not
-a whole-route coefficient matrix. It does not retain a general prepared cache.
+labels the result as one fixed grid plus a route-command batch and explicitly
+says it is not a whole-route coefficient matrix. It does not retain a general
+prepared cache.
 
-The field key covers the full Scene snapshot, Profile identity, grid, M8 policy,
-command hash, and a digest of D's per-grid coefficient identities. The result
+The field key covers the full Scene snapshot, Profile identity, grid, selected
+coefficient-model/quadrature identity, command hash, and a digest of D's per-grid
+coefficient identities. The result
 also carries the route experiment, Scene, and trajectory identities; all three
 are checked again before a field can replace the display. Route edits, receiver
 changes, reruns, cancellation, and scenario switches invalidate the result and
@@ -93,8 +102,34 @@ A second real `16×12` build was cancelled after progress reached `16/192`.
 Cancellation terminated at the next batch boundary, retained the already-published
 three link rows, and did not publish or cache a partial field.
 
-This closes only the small-grid exact-M8 native slice. Fast 1×1, full-route prepared
-fields, and real dual-RIS physics remain open.
+This closes only the small-grid exact-M8 native slice. Per-route-point coefficient
+matrices and real dual-RIS physics remain open.
+
+## Fast 1×1 prepared integration gate
+
+D Fast candidate `8609f225` was merged without conflict. Its exact original
+commits and trees were preserved; `3674037` is the candidate's P0-compatible
+transplant of C `2f96f7f`, followed by implementation `3f2a193` and evidence
+`8609f225`. Production M8 remains an explicit optional selection.
+
+Visible Windows/Python 3.14.3 `QApplication` runs exercised the real GUI worker,
+not a mock or benchmark harness:
+
+- `8×6`: 0.60 s cold, 0.30 ms Static hot, 0.25 ms Adaptive hot, 2.2 MiB;
+- `48×36`: 21.02 s cold, 2.18 ms Static hot, 1.48 ms Adaptive hot, 81.0 MiB;
+- both runs retained the 3×2 m aperture and 64×48 control grid;
+- both reported model `control_patch_center_bistatic_coefficients/1` and
+  quadrature `midpoint_1x1_per_control_patch/1`;
+- No RIS, Static, and selected-point Adaptive each displayed a real field; Static
+  and Adaptive command hashes and fields differed.
+- the sampled route's Adaptive command maps were hot-evaluated from the same one
+  fixed-grid prepared matrix and cached before playback; no per-route field
+  worker or second coefficient build runs during the 2 fps playback clock.
+
+A separate real `48×36` cancellation run stopped after the first receiver batch
+at `8/1728`. It emitted no partial result, no finished result, and no failure;
+only worker termination was emitted. No partial field or prepared object entered
+the GUI cache.
 
 ## Isolated dual-RIS editor slice
 

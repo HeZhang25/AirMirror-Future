@@ -6,6 +6,10 @@ from types import SimpleNamespace
 import numpy as np
 from PySide6.QtCore import QCoreApplication, QEvent, QThreadPool
 
+from airmirror_future import (
+    FAST_1X1_RIS_COEFFICIENT_MODEL,
+    PRODUCTION_RIS_COEFFICIENT_MODEL,
+)
 from airmirror_future.core.types import FieldMapResult, SimulationConfig
 from airmirror_future.gui import main_window as gui_main
 from airmirror_future.gui.main_window import MainWindow
@@ -15,6 +19,7 @@ from airmirror_future.gui.workers import (
 )
 from airmirror_future.scenarios.smart_space import create_smart_space_scene
 from airmirror_future.scenarios.xr_editor import create_xr_editor_scene
+from airmirror_future.simulation.engine import SimulationCancelled
 
 
 class _Signal:
@@ -81,6 +86,7 @@ def _run_worker_with_fake_matrix(
     evaluated = []
 
     class _Prepared:
+        coefficient_model_identity = request.coefficient_model_identity
         coefficient_identities = tuple(
             f"sha256:grid-point-{index}"
             for index in range(config.grid_width * config.grid_height)
@@ -95,9 +101,15 @@ def _run_worker_with_fake_matrix(
 
         def evaluate(self, pattern):
             evaluated.append(np.array(pattern, copy=True))
-            return _field(config, -70.0 + len(evaluated), 0.004 + len(evaluated) / 1000)
+            return _field(
+                config,
+                -69.0 if len(evaluated) == 1 else -68.0,
+                0.005 if len(evaluated) == 1 else 0.006,
+            )
 
     def _prepare(*args, **kwargs):
+        engine = kwargs.get("engine")
+        assert engine.coefficient_model.identity == request.coefficient_model_identity
         progress = kwargs.get("progress")
         cancel_check = kwargs.get("cancel_check")
         assert callable(cancel_check)
@@ -125,7 +137,8 @@ def _run_worker_with_fake_matrix(
     )
     worker.run()
     assert not failed, failed[0] if failed else ""
-    assert len(partial) == len(finished) == 1
+    assert not partial
+    assert len(finished) == 1
     receiver_total = config.grid_width * config.grid_height
     assert progress == [
         (0, receiver_total + 2),
@@ -145,7 +158,7 @@ def test_future_template_is_full_future_ris() -> None:
     assert (ris.nx, ris.ny, ris.cell_count) == (64, 48, 3072)
 
 
-def test_future_worker_reuses_one_exact_matrix_for_two_commands(monkeypatch) -> None:
+def test_future_worker_reuses_one_explicit_fast_matrix_for_two_commands(monkeypatch) -> None:
     scene = create_xr_editor_scene("future_smart_space")
     request = XRFutureFixedFieldRequest(
         scene=scene,
@@ -155,6 +168,7 @@ def test_future_worker_reuses_one_exact_matrix_for_two_commands(monkeypatch) -> 
         experiment_identity="sha256:experiment",
         scene_identity="sha256:scene",
         trajectory_identity="sha256:trajectory",
+        coefficient_model_identity=FAST_1X1_RIS_COEFFICIENT_MODEL.identity,
     )
 
     result, evaluated = _run_worker_with_fake_matrix(monkeypatch, request)
@@ -171,8 +185,100 @@ def test_future_worker_reuses_one_exact_matrix_for_two_commands(monkeypatch) -> 
     assert result.adaptive_field.received_power_dbm.shape == (36, 48)
     assert result.static_key.coefficient_identity == result.coefficient_identity
     assert result.adaptive_key.coefficient_identity == result.coefficient_identity
+    assert (
+        result.coefficient_model_identity
+        == FAST_1X1_RIS_COEFFICIENT_MODEL.identity
+    )
+    assert (
+        result.static_key.coefficient_model_identity
+        == FAST_1X1_RIS_COEFFICIENT_MODEL.identity
+    )
+    assert result.static_key.production_quadrature_order == 8
+    assert result.static_key.quadrature_order_x == 1
+    assert result.static_key.quadrature_order_y == 1
     assert result.static_key.command_hash != result.adaptive_key.command_hash
     assert result.coefficient_bytes == 81 * 1024 * 1024
+
+
+def test_future_worker_keeps_explicit_production_m8_option(monkeypatch) -> None:
+    scene = create_xr_editor_scene("future_smart_space")
+    request = XRFutureFixedFieldRequest(
+        scene=scene,
+        static_position=scene.receiver().position,
+        selected_position=replace(scene.receiver().position, x=7.0, y=5.0),
+        selected_point_id="point-4",
+        experiment_identity="sha256:experiment",
+        scene_identity="sha256:scene",
+        trajectory_identity="sha256:trajectory",
+        coefficient_model_identity=PRODUCTION_RIS_COEFFICIENT_MODEL.identity,
+    )
+
+    result, _evaluated = _run_worker_with_fake_matrix(
+        monkeypatch,
+        request,
+        SimulationConfig(8, 6, batch_size=8),
+    )
+
+    assert result.coefficient_model_identity == PRODUCTION_RIS_COEFFICIENT_MODEL.identity
+    assert result.static_key.coefficient_model_identity == result.coefficient_model_identity
+    assert result.static_key.production_quadrature_order == 8
+    assert result.static_key.quadrature_order_x == 8
+    assert result.static_key.quadrature_order_y == 8
+    assert result.quadrature_identity == "midpoint_8x8_per_control_patch/1"
+
+
+def test_future_worker_cancel_emits_no_partial_or_finished(monkeypatch) -> None:
+    scene = create_xr_editor_scene("future_smart_space")
+    request = XRFutureFixedFieldRequest(
+        scene=scene,
+        static_position=scene.receiver().position,
+        selected_position=replace(scene.receiver().position, x=7.0, y=5.0),
+        selected_point_id="point-4",
+        experiment_identity="sha256:experiment",
+        scene_identity="sha256:scene",
+        trajectory_identity="sha256:trajectory",
+        coefficient_model_identity=FAST_1X1_RIS_COEFFICIENT_MODEL.identity,
+    )
+    config = SimulationConfig(8, 6, batch_size=8)
+
+    def _cancelled_prepare(*_args, **kwargs):
+        progress = kwargs["progress"]
+        cancel_check = kwargs["cancel_check"]
+        progress(0, 48)
+        progress(8, 48)
+        assert cancel_check()
+        raise SimulationCancelled("cancelled by focused GUI regression")
+
+    monkeypatch.setattr(
+        "airmirror_future.gui.workers.prepare_controller_field",
+        _cancelled_prepare,
+    )
+    worker = XRFuturePreparedFieldWorker(21, request, config)
+    partial = []
+    finished = []
+    failed = []
+    terminated = []
+    worker.signals.partial.connect(lambda *_args: partial.append(True))
+    worker.signals.finished.connect(lambda *_args: finished.append(True))
+    worker.signals.failed.connect(lambda *_args: failed.append(True))
+    worker.signals.terminated.connect(lambda *_args: terminated.append(True))
+
+    def _cancel_after_first_batch(
+        _version: int,
+        done: int,
+        _total: int,
+        _fraction: float,
+    ) -> None:
+        if done == 8:
+            worker.cancel()
+
+    worker.signals.progress.connect(_cancel_after_first_batch)
+    worker.run()
+
+    assert not partial
+    assert not finished
+    assert not failed
+    assert terminated == [True]
 
 
 def test_gui_fixed_field_identity_timing_hot_modes_and_cancel(
@@ -190,17 +296,18 @@ def test_gui_fixed_field_identity_timing_hot_modes_and_cancel(
     window._xr_load_template()
     window._xr_select_relative_point(-1)
     assert window.xr_future_field_button.isEnabled()
-    assert window.xr_future_accuracy_combo.currentData() == "production_m8"
+    assert window.xr_future_accuracy_combo.currentData() == "preview_m1"
     assert window.xr_future_grid_combo.currentData() == (8, 6)
+    assert "real prepared field" in window.xr_future_accuracy_status.text()
 
     window.xr_future_accuracy_combo.setCurrentIndex(
-        window.xr_future_accuracy_combo.findData("preview_m1")
+        window.xr_future_accuracy_combo.findData("production_m8")
     )
-    assert not window.xr_future_field_button.isEnabled()
-    assert "backend unavailable" in window.xr_future_accuracy_status.text()
+    assert window.xr_future_field_button.isEnabled()
+    assert "Production M8" in window.xr_future_accuracy_status.text()
     assert window.scene_view._heatmap_item is None
     window.xr_future_accuracy_combo.setCurrentIndex(
-        window.xr_future_accuracy_combo.findData("production_m8")
+        window.xr_future_accuracy_combo.findData("preview_m1")
     )
     assert window.xr_future_field_button.isEnabled()
 
@@ -211,6 +318,11 @@ def test_gui_fixed_field_identity_timing_hot_modes_and_cancel(
     manual = _ManualFutureWorker.started[-1]
     assert (manual.config.grid_width, manual.config.grid_height) == (8, 6)
     assert manual.request.selected_point_id == "point-4"
+    assert (
+        manual.request.coefficient_model_identity
+        == FAST_1X1_RIS_COEFFICIENT_MODEL.identity
+    )
+    assert len(manual.request.trajectory) > 1
     assert window.scene_view._heatmap_item is None
     assert "not a whole-route" in window.xr_sample_label.text()
 
@@ -219,7 +331,6 @@ def test_gui_fixed_field_identity_timing_hot_modes_and_cancel(
         manual.request,
         manual.config,
     )
-    manual.signals.partial.emit(manual.version, result.mvp)
     manual.signals.finished.emit(manual.version, result)
     manual.signals.terminated.emit(manual.version, manual)
 
@@ -228,8 +339,9 @@ def test_gui_fixed_field_identity_timing_hot_modes_and_cancel(
     assert "hot Adaptive 6.00 ms" in window.xr_field_status.text()
     assert "playback 2.0 fps" in window.xr_field_status.text()
     assert "coefficients 2.2 MiB" in window.xr_field_status.text()
-    assert "not full-route A" in window.xr_route_status.text()
-    assert len(window._xr_field_cache) == 2
+    assert "Fast 1×1" in window.xr_field_status.text()
+    assert "not a full-route matrix" in window.xr_route_status.text()
+    assert len(window._xr_field_cache) == len(result.adaptive_fields)
 
     window.xr_mode_combo.setCurrentText("Adaptive RIS")
     assert window._xr_pending_field_request is None

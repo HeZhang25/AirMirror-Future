@@ -81,7 +81,11 @@ from airmirror_future.ris.aperture import equivalent_patch_diagnostics
 from airmirror_future.ris.phase import generate_focus_pattern
 from airmirror_future.optimization.coherent_focus import generate_coherent_target_pattern
 from airmirror_future.physics.noise import noise_power_dbm
-from airmirror_future.physics.ris_scattering import PRODUCTION_QUADRATURE_ORDER
+from airmirror_future.physics.ris_scattering import (
+    FAST_1X1_RIS_COEFFICIENT_MODEL,
+    PRODUCTION_QUADRATURE_ORDER,
+    PRODUCTION_RIS_COEFFICIENT_MODEL,
+)
 from airmirror_future.simulation.engine import SimulationEngine
 from airmirror_future.simulation.ground_truth import ControllerModel, GroundTruthModel
 from airmirror_future.scenarios.xr_editor import (
@@ -387,7 +391,7 @@ class MainWindow(QMainWindow):
         future_options = QFormLayout()
         self.xr_future_accuracy_combo = QComboBox()
         self.xr_future_accuracy_combo.addItem(
-            "高速 1×1 · preview（等待 D 接口）",
+            "高速 1×1 · prepared",
             XR_FUTURE_FAST_M1,
         )
         self.xr_future_accuracy_combo.addItem(
@@ -395,7 +399,7 @@ class MainWindow(QMainWindow):
             XR_FUTURE_EXACT_M8,
         )
         self.xr_future_accuracy_combo.setCurrentIndex(
-            self.xr_future_accuracy_combo.findData(XR_FUTURE_EXACT_M8)
+            self.xr_future_accuracy_combo.findData(XR_FUTURE_FAST_M1)
         )
         self.xr_future_grid_combo = QComboBox()
         self.xr_future_grid_combo.addItem("8×6 · quick Windows gate", (8, 6))
@@ -831,8 +835,27 @@ class MainWindow(QMainWindow):
         return len(enabled) == 1 and enabled[0].generation == "Future"
 
     def _xr_future_backend_ready(self) -> bool:
-        """Expose M1 explicitly without pretending D's pending API exists."""
-        return self.xr_future_accuracy_combo.currentData() == XR_FUTURE_EXACT_M8
+        """Accept only the two implemented explicit prepared model choices."""
+        return self.xr_future_accuracy_combo.currentData() in {
+            XR_FUTURE_FAST_M1,
+            XR_FUTURE_EXACT_M8,
+        }
+
+    def _xr_future_coefficient_model(self):
+        accuracy = self.xr_future_accuracy_combo.currentData()
+        if accuracy == XR_FUTURE_FAST_M1:
+            return FAST_1X1_RIS_COEFFICIENT_MODEL
+        if accuracy == XR_FUTURE_EXACT_M8:
+            return PRODUCTION_RIS_COEFFICIENT_MODEL
+        raise RuntimeError(f"unsupported XR Future accuracy selection: {accuracy}")
+
+    @staticmethod
+    def _xr_future_model_label(identity: str) -> str:
+        if identity == FAST_1X1_RIS_COEFFICIENT_MODEL.identity:
+            return "Fast 1×1"
+        if identity == PRODUCTION_RIS_COEFFICIENT_MODEL.identity:
+            return f"Production M{PRODUCTION_QUADRATURE_ORDER}"
+        return f"Unknown model {identity}"
 
     def _xr_future_grid(self) -> tuple[int, int]:
         grid = self.xr_future_grid_combo.currentData()
@@ -845,7 +868,7 @@ class MainWindow(QMainWindow):
         if not hasattr(self, "xr_future_field_button"):
             return
         width, height = self._xr_future_grid()
-        exact = self._xr_future_backend_ready()
+        exact = self.xr_future_accuracy_combo.currentData() == XR_FUTURE_EXACT_M8
         self.xr_future_field_button.setText(
             f"Build selected point · {'exact M8' if exact else 'fast 1×1'} "
             f"{width}×{height}"
@@ -858,12 +881,10 @@ class MainWindow(QMainWindow):
             self.xr_future_accuracy_status.setStyleSheet("color:#475569")
         else:
             self.xr_future_accuracy_status.setText(
-                "Fast 1×1 selected · backend unavailable: waiting for D's public "
-                "snapshot-safe interface; no M8 result will be relabelled"
+                "Fast 1×1 selected · real prepared field · "
+                "Future 3×2 m / 64×48 controls unchanged"
             )
-            self.xr_future_accuracy_status.setStyleSheet(
-                "color:#b45309;font-weight:600"
-            )
+            self.xr_future_accuracy_status.setStyleSheet("color:#475569")
         if not self._xr_editor_active:
             return
         self._xr_playback_timer.stop()
@@ -886,8 +907,6 @@ class MainWindow(QMainWindow):
         self.scene_view.clear_field_overlays()
         self.xr_field_status.setText(
             "Field map invalidated · model accuracy or map grid changed"
-            if exact
-            else "Fast 1×1 field pending D interface · no stale field displayed"
         )
         self._set_xr_controls_ready(self._xr_result is not None)
 
@@ -1470,9 +1489,12 @@ class MainWindow(QMainWindow):
                 )
             if not self._xr_future_backend_ready():
                 raise ValueError(
-                    "Fast 1×1 is waiting for D's public snapshot-safe prepared "
-                    "interface; select exact M8 to run now"
+                    "Select a supported XR Future coefficient model"
                 )
+            coefficient_model = self._xr_future_coefficient_model()
+            trajectory = self.trajectory_backend.sample(snapshot)
+            if not trajectory:
+                raise ValueError("trajectory backend returned no samples")
             first = self._xr_trajectory.points[0]
             selected = self._xr_trajectory.points[
                 self._xr_selected_waypoint_index
@@ -1485,6 +1507,8 @@ class MainWindow(QMainWindow):
                 experiment_identity=snapshot.experiment_identity,
                 scene_identity=snapshot.scene_identity,
                 trajectory_identity=snapshot.trajectory_identity,
+                coefficient_model_identity=coefficient_model.identity,
+                trajectory=tuple(trajectory),
             )
         except Exception as exc:
             QMessageBox.critical(self, "Cannot build Future fixed field", str(exc))
@@ -1848,8 +1872,11 @@ class MainWindow(QMainWindow):
             return
         elapsed = time.perf_counter() - self._xr_future_started_at
         width, height = worker.config.grid_width, worker.config.grid_height
+        model_label = self._xr_future_model_label(
+            worker.request.coefficient_model_identity
+        )
         self.xr_field_status.setText(
-            "Cold M8 matrix build running… · "
+            f"Cold {model_label} matrix build running… · "
             f"elapsed {elapsed:.1f} s · Fixed grid {width}×{height} · no stale field"
         )
 
@@ -1869,11 +1896,17 @@ class MainWindow(QMainWindow):
         self.progress.setRange(0, total)
         self.progress.setValue(done)
         receiver_total = total - 2
+        worker = self._xr_active_worker
+        model_label = (
+            self._xr_future_model_label(worker.request.coefficient_model_identity)
+            if isinstance(worker, XRFuturePreparedFieldWorker)
+            else "Future"
+        )
         if done <= receiver_total:
             label = (
-                f"Cold M8 matrix build · receivers {done}/{receiver_total}"
+                f"Cold {model_label} matrix build · receivers {done}/{receiver_total}"
                 if done < receiver_total
-                else f"Cold M8 matrix built · receivers {done}/{receiver_total}"
+                else f"Cold {model_label} matrix built · receivers {done}/{receiver_total}"
             )
         elif done == receiver_total + 1:
             label = "Static command evaluated"
@@ -1973,12 +2006,22 @@ class MainWindow(QMainWindow):
                 "Future result rejected · Scene/trajectory/experiment identity changed"
             )
             return
+        if (
+            result.coefficient_model_identity
+            != result.request.coefficient_model_identity
+        ):
+            self.scene_view.clear_field_overlays()
+            self.xr_field_status.setText(
+                "Future result rejected · coefficient-model identity mismatch"
+            )
+            return
         if self._xr_result is not result.mvp:
             self._xr_links_ready(version, result.mvp)
         self._xr_static_field = result.static_field
         self._xr_static_field_key = result.static_key
         self._xr_cache_field(result.static_key, result.static_field)
-        self._xr_cache_field(result.adaptive_key, result.adaptive_field)
+        for adaptive_key, adaptive_field in result.adaptive_fields:
+            self._xr_cache_field(adaptive_key, adaptive_field)
         self._xr_no_ris_field = self._derive_no_ris_field(
             result.static_field,
             result.mvp.scene,
@@ -1987,12 +2030,12 @@ class MainWindow(QMainWindow):
             "接收功率": self.scene_view.field_value_range(
                 self._xr_no_ris_field.received_power_dbm,
                 result.static_field.received_power_dbm,
-                result.adaptive_field.received_power_dbm,
+                *(field.received_power_dbm for _key, field in result.adaptive_fields),
             ),
             "SNR": self.scene_view.field_value_range(
                 self._xr_no_ris_field.snr_db,
                 result.static_field.snr_db,
-                result.adaptive_field.snr_db,
+                *(field.snr_db for _key, field in result.adaptive_fields),
             ),
         }
         hot_static_ms = result.static_field.runtime_s * 1000.0
@@ -2003,21 +2046,26 @@ class MainWindow(QMainWindow):
             f"cold {result.build_runtime_s:.2f} s · "
             f"hot Static {hot_static_ms:.2f} ms · "
             f"hot Adaptive {hot_adaptive_ms:.2f} ms · "
+            f"route hot {len(result.adaptive_fields)} commands "
+            f"{result.adaptive_batch_runtime_s * 1000.0:.2f} ms total · "
             f"playback {playback_fps:.1f} fps · coefficients {coefficient_mib:.1f} MiB · "
-            f"identity {result.coefficient_identity[:23]}…"
+            f"model {result.coefficient_model_identity} · "
+            f"matrix {result.coefficient_identity[:23]}…"
         )
         self._set_xr_sample(0)
         self.progress.setRange(0, 100)
         self.progress.setValue(100)
         self.xr_field_status.setText(
-            "Future fixed field ready · Production M8 · "
+            "Future fixed field ready · "
+            f"{self._xr_future_model_label(result.coefficient_model_identity)} · "
             f"Fixed grid {result.static_key.grid_width}×"
             f"{result.static_key.grid_height} · "
             f"{self._xr_field_runtime_summary}"
         )
         self.xr_route_status.setText(
-            f"Fixed field bound to {result.request.selected_point_id} only · "
-            f"experiment {result.request.experiment_identity[:23]}… · not full-route A"
+            f"Fixed grid prepared once · selected {result.request.selected_point_id} · "
+            f"{len(result.mvp.trajectory)} route commands · experiment "
+            f"{result.request.experiment_identity[:23]}… · not a full-route matrix"
         )
         self.xr_route_status.setStyleSheet("color:#15803d")
         self._set_xr_controls_ready(True)
@@ -2094,9 +2142,15 @@ class MainWindow(QMainWindow):
         if self._xr_static_field_key is not None:
             width = self._xr_static_field_key.grid_width
             height = self._xr_static_field_key.grid_height
+            model_identity = self._xr_static_field_key.coefficient_model_identity
         else:
             fast = field_quality_preset("fast")
             width, height = fast.grid_width, fast.grid_height
+            model_identity = (
+                self._xr_future_coefficient_model().identity
+                if self._xr_editor_active and self._xr_is_full_future_scene()
+                else PRODUCTION_RIS_COEFFICIENT_MODEL.identity
+            )
         if (width, height) == (48, 36):
             grid_kind = "Full fixed grid"
         elif (width, height) in {(8, 6), (16, 12)}:
@@ -2104,7 +2158,7 @@ class MainWindow(QMainWindow):
         else:
             grid_kind = "Fast grid"
         return (
-            f"Production M{PRODUCTION_QUADRATURE_ORDER} · "
+            f"{self._xr_future_model_label(model_identity)} · "
             f"{grid_kind} {width}×{height}"
         )
 
